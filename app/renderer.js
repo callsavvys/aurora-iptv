@@ -659,7 +659,16 @@ window.addEventListener("beforeunload", () => recordPosition(true));
 /* ---------- updates ---------- */
 
 function renderUpdateBanner(status) {
-  const banner = $("#update-banner"), install = $("#update-install");
+  const banner = $("#update-banner"), install = $("#update-install"), button = $("#check-updates");
+  const busy = status?.state === "checking" || status?.state === "downloading" || status?.state === "verifying";
+  if (!busy && renderUpdateBanner.hold > Date.now()) {
+    clearTimeout(renderUpdateBanner.pending);
+    renderUpdateBanner.pending = setTimeout(() => renderUpdateBanner(status), renderUpdateBanner.hold - Date.now());
+    return;
+  }
+  button.classList.toggle("busy", busy);
+  button.disabled = busy;
+  $("#update-check-label").textContent = { checking: "Checking…", downloading: "Downloading…", verifying: "Checking the download…", ready: "Restart to update" }[status?.state] || "Check for updates";
   const version = status?.version ? `Aurora ${status.version}` : "Aurora";
   const copy = {
     downloading: [`Downloading ${version}`, `${status?.percent || 0}% — you can keep watching`],
@@ -669,6 +678,7 @@ function renderUpdateBanner(status) {
     none: status?.message ? ["Aurora is up to date", `You are on ${$("#app-version").textContent}`] : null,
     skipped: status?.message ? ["Updates are off", status.message] : null,
   }[status?.state];
+  renderUpdateBanner.last = status;
   if (!copy) return banner.classList.add("hidden");
   $("#update-title").textContent = copy[0];
   $("#update-detail").textContent = copy[1];
@@ -685,7 +695,12 @@ if (window.aurora) {
   window.aurora.version().then((value) => { $("#app-version").textContent = value });
   window.aurora.updateStatus().then(renderUpdateBanner).catch(() => {});
   window.aurora.onUpdateStatus(renderUpdateBanner);
-  $("#check-updates").addEventListener("click", () => window.aurora.checkForUpdates());
+  $("#check-updates").addEventListener("click", () => {
+    if (renderUpdateBanner.last?.state === "ready") return window.aurora.installUpdate();
+    renderUpdateBanner.hold = Date.now() + 700;
+    renderUpdateBanner({ state: "checking" });
+    window.aurora.checkForUpdates();
+  });
   $("#update-install").addEventListener("click", () => window.aurora.installUpdate());
   $("#update-dismiss").addEventListener("click", () => $("#update-banner").classList.add("hidden"));
 }

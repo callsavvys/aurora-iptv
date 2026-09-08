@@ -1,12 +1,48 @@
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, Menu, shell } = require("electron");
 const path = require("node:path");
 const { createAuroraServer } = require("./server.cjs");
 const { createUpdater } = require("./updater.cjs");
 const { updates } = require("./package.json");
 
+// Electron names the app from package.json, which put "aurora-iptv-mac" in the
+// menu bar. userData is derived from that name, so pin the old path before
+// renaming or every saved source, favorite and watch position moves with it.
+if (!app.commandLine.hasSwitch("user-data-dir")) {
+  app.setPath("userData", path.join(app.getPath("appData"), "aurora-iptv-mac"));
+}
+app.setName("Aurora IPTV");
+
 let server;
 let mainWindow;
 let updater;
+
+function buildMenu(checkForUpdates) {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: app.name,
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        { label: "Check for Updates…", click: checkForUpdates },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+    {
+      role: "help",
+      submenu: [{ label: "Aurora on GitHub", click: () => shell.openExternal(`https://github.com/${updates.repository}`) }],
+    },
+  ]));
+}
 
 async function createWindow() {
   server = await createAuroraServer(path.join(__dirname, "app"));
@@ -36,6 +72,7 @@ async function createWindow() {
     if (!url.startsWith(server.origin)) event.preventDefault();
   });
   updater = updater || createUpdater(() => mainWindow, updates);
+  buildMenu(() => updater.check({ manual: true }));
   await win.loadURL(server.origin);
 }
 
