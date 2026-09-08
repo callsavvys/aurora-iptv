@@ -35,8 +35,8 @@ async function createWindow() {
   win.webContents.on("will-navigate", (event, url) => {
     if (!url.startsWith(server.origin)) event.preventDefault();
   });
-  await win.loadURL(server.origin);
   updater = updater || createUpdater(() => mainWindow, updates);
+  await win.loadURL(server.origin);
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
