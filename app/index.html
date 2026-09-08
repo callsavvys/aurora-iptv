@@ -19,11 +19,15 @@
         <button data-view="movies"><i>▰</i>Movies</button>
         <button data-view="series"><i>▦</i>Series</button>
         <button data-view="favorites"><i>♡</i>Favorites <em id="favorite-count"></em></button>
+        <button data-view="history"><i>↻</i>History</button>
       </nav>
       <div class="source-card">
         <div class="source-icon">▣</div>
         <div><strong id="source-name">No source</strong><small id="source-status">Not connected</small></div>
-        <button id="source-settings" title="Source settings">⚙</button>
+        <span class="source-actions">
+          <button id="source-refresh" title="Refresh library">↻</button>
+          <button id="source-settings" title="Source settings">⚙</button>
+        </span>
       </div>
       <div class="local-profile"><span>Z</span><div><strong>Ziad</strong><small>Local Mac profile</small></div></div>
     </aside>
@@ -63,7 +67,18 @@
     <div class="modal-card player-card">
       <button class="close player-close" data-close="player-modal">×</button>
       <div class="video-stage"><video id="video" controls autoplay playsinline></video><div class="video-message hidden" id="video-message"></div></div>
-      <div class="player-copy"><div><small>NOW PLAYING</small><h2 id="player-title"></h2></div><button id="favorite-player">♡ My list</button></div>
+      <div class="player-copy">
+        <div><small>NOW PLAYING</small><h2 id="player-title"></h2><p id="player-subtitle"></p></div>
+        <button id="favorite-player">♡ My list</button>
+      </div>
+      <div class="player-bar">
+        <button class="pbtn" id="player-prev" hidden>⏮ Previous</button>
+        <button class="pbtn" id="player-next" hidden>⏭ Next episode</button>
+        <label class="track-select" id="audio-wrap" hidden>Audio<select id="audio-track"></select></label>
+        <label class="track-select" id="subtitle-wrap" hidden>Subtitles<select id="subtitle-track"></select></label>
+        <button class="pbtn" id="player-pip">⧉ Picture in Picture</button>
+        <span class="player-hint">Space play · ←/→ 10s · ⇧←/→ 60s · F full screen · M mute · N next · Esc close</span>
+      </div>
     </div>
   </div>
 

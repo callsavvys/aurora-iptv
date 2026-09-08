@@ -102,11 +102,16 @@ function createAuroraServer(assetDir, port = 41791) {
       }
       serveAsset(res, safePath);
     });
-    server.on("error", reject);
-    server.listen(port, "127.0.0.1", () => resolve({
+    const ready = () => resolve({
       origin: `http://127.0.0.1:${server.address().port}`,
+      port: server.address().port,
       close: () => new Promise((done) => server.close(done)),
-    }));
+    });
+    server.on("error", (error) => {
+      if (error.code !== "EADDRINUSE") return reject(error);
+      server.listen(0, "127.0.0.1", ready);
+    });
+    server.listen(port, "127.0.0.1", ready);
   });
 }
 

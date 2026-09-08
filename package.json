@@ -1,18 +1,18 @@
 {
   "name": "aurora-iptv-mac",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Local-first IPTV player for macOS",
   "main": "main.cjs",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "package:mac": "electron-packager . 'Aurora IPTV' --platform=darwin --arch=arm64 --out=release --overwrite --asar --prune=true --app-bundle-id=com.aurora.iptv --app-version=0.2.1"
+    "package:mac": "electron-packager . 'Aurora IPTV' --platform=darwin --arch=arm64 --out=release --overwrite --asar --prune=true --app-bundle-id=com.aurora.iptv"
   },
   "dependencies": {
-    "electron": "^37.6.0",
     "hls.js": "^1.6.13"
   },
   "devDependencies": {
-    "@electron/packager": "^19.0.0"
+    "@electron/packager": "^19.0.0",
+    "electron": "^37.6.0"
   }
 }

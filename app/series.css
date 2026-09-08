@@ -239,3 +239,77 @@
     padding: 0 22px 24px;
   }
 }
+
+#series-detail {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #31404c transparent;
+}
+
+.credits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  padding: 20px 42px 0;
+}
+
+.credits small {
+  display: block;
+  color: #5f6d7c;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.credits p {
+  margin: 6px 0 0;
+  color: #aab5bf;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.detail-progress {
+  padding: 18px 42px 26px;
+}
+
+.detail-progress > span {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .12);
+}
+
+.detail-progress > span > i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--mint);
+}
+
+.detail-progress small {
+  display: block;
+  color: #68757f;
+  font-size: 10px;
+  margin-top: 8px;
+}
+
+.episode-bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .12);
+  margin-top: 8px;
+  max-width: 220px;
+}
+
+.episode-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--mint);
+}
+
+.episode.watched {
+  opacity: .62;
+}
