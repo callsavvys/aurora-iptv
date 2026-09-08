@@ -27,8 +27,26 @@ npm run package:mac
 ```
 
 Writes `release/Aurora IPTV-darwin-arm64/Aurora IPTV.app` and a zip beside it.
-The build is ad-hoc signed, which is enough to run locally but not enough for
-silent auto-updates — those need an Apple Developer ID.
+
+## Shipping a release
+
+```bash
+npm version minor          # or patch / major
+npm run package:mac
+gh release create "v$(node -p "require('./package.json').version")" \
+  release/Aurora-IPTV-Mac-Apple-Silicon.zip \
+  --title "Aurora $(node -p "require('./package.json').version")" --notes "..."
+```
+
+Installed copies check `updates.repository` in `package.json` against GitHub
+Releases 15 seconds after launch and every six hours, download the asset named
+in `updates.asset`, and offer **Restart to update**. Before replacing anything
+the download has to come from github.com over HTTPS, pass `codesign --verify`,
+carry the `com.aurora.iptv` bundle id and be newer than the running app. The
+swap happens after the app exits and rolls back if it fails.
+
+Builds are ad-hoc signed, so the updater can check that a signature is intact
+but not *whose* it is. An Apple Developer ID would close that gap.
 
 ## The files
 
