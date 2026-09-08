@@ -38,3 +38,19 @@
 .update-banner .primary{height:33px;padding:0 13px;font-size:11px;white-space:nowrap}
 .update-dismiss{border:0;background:transparent;color:#5b6877;font-size:20px;line-height:1;cursor:pointer}
 .update-dismiss:hover{color:#dbe3e8}
+
+/* ---------- 0.4.1: scrolling and window dragging ---------- */
+/* .scroll sat at flex:0 1 auto, so it grew to its content height inside a
+   100vh column and never became a scroll container. */
+.app{overflow:hidden}
+.workspace{min-height:0;overflow:hidden}
+.scroll{flex:1 1 auto}
+aside{min-height:0;overflow:auto;scrollbar-width:none}
+
+/* titleBarStyle hiddenInset hides the title bar, so the page has to provide
+   the drag handle itself. */
+header,.brand{-webkit-app-region:drag}
+header .search,header button,header input,.brand button{-webkit-app-region:no-drag}
+
+/* modal bodies need the same flex fix to scroll */
+.player-card{max-height:94vh;overflow:auto}
