@@ -1,6 +1,6 @@
 {
   "name": "aurora-iptv-mac",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Local-first IPTV player for macOS",
   "main": "main.cjs",
   "private": true,
@@ -14,5 +14,9 @@
   "devDependencies": {
     "@electron/packager": "^19.0.0",
     "electron": "^37.6.0"
+  },
+  "updates": {
+    "repository": "callsavvys/aurora-iptv",
+    "asset": "Aurora-IPTV-Mac-Apple-Silicon.zip"
   }
 }

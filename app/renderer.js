@@ -625,6 +625,40 @@ $("#subtitle-track").addEventListener("change", (event) => {
 });
 window.addEventListener("beforeunload", () => recordPosition(true));
 
+/* ---------- updates ---------- */
+
+function renderUpdateBanner(status) {
+  const banner = $("#update-banner"), install = $("#update-install");
+  const version = status?.version ? `Aurora ${status.version}` : "Aurora";
+  const copy = {
+    downloading: [`Downloading ${version}`, `${status?.percent || 0}% — you can keep watching`],
+    verifying: [`Checking ${version}`, "Making sure the download is intact"],
+    ready: [`${version} is ready`, "Aurora will restart to finish"],
+    error: ["Update check failed", status?.message || ""],
+    none: status?.message ? ["Aurora is up to date", `You are on ${$("#app-version").textContent}`] : null,
+    skipped: status?.message ? ["Updates are off", status.message] : null,
+  }[status?.state];
+  if (!copy) return banner.classList.add("hidden");
+  $("#update-title").textContent = copy[0];
+  $("#update-detail").textContent = copy[1];
+  install.hidden = status.state !== "ready";
+  banner.classList.remove("hidden");
+  if (status.state === "none" || status.state === "skipped") {
+    clearTimeout(renderUpdateBanner.timer);
+    renderUpdateBanner.timer = setTimeout(() => banner.classList.add("hidden"), 5000);
+  }
+}
+
+if (window.aurora) {
+  $("#check-updates").classList.remove("hidden");
+  window.aurora.version().then((value) => { $("#app-version").textContent = value });
+  window.aurora.updateStatus().then(renderUpdateBanner).catch(() => {});
+  window.aurora.onUpdateStatus(renderUpdateBanner);
+  $("#check-updates").addEventListener("click", () => window.aurora.checkForUpdates());
+  $("#update-install").addEventListener("click", () => window.aurora.installUpdate());
+  $("#update-dismiss").addEventListener("click", () => $("#update-banner").classList.add("hidden"));
+}
+
 (async function init() {
   try {
     const provider = JSON.parse(localStorage.getItem("aurora-provider") || "null");

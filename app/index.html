@@ -30,6 +30,7 @@
         </span>
       </div>
       <div class="local-profile"><span>Z</span><div><strong>Ziad</strong><small>Local Mac profile</small></div></div>
+      <button class="version-line hidden" id="check-updates" title="Check for updates">Aurora <span id="app-version"></span></button>
     </aside>
 
     <section class="workspace">
@@ -42,6 +43,11 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <div class="update-banner hidden" id="update-banner">
+    <div><strong id="update-title"></strong><small id="update-detail"></small></div>
+    <button class="primary" id="update-install" hidden>Restart to update</button>
+    <button class="update-dismiss" id="update-dismiss" title="Dismiss">×</button>
+  </div>
   <div class="loading-overlay hidden" id="loading"><div class="spinner"></div><strong id="loading-title">Connecting</strong><span id="loading-detail">Checking your account…</span></div>
 
   <div class="modal hidden" id="source-modal">

@@ -1,9 +1,12 @@
 const { app, BrowserWindow, shell } = require("electron");
 const path = require("node:path");
 const { createAuroraServer } = require("./server.cjs");
+const { createUpdater } = require("./updater.cjs");
+const { updates } = require("./package.json");
 
 let server;
 let mainWindow;
+let updater;
 
 async function createWindow() {
   server = await createAuroraServer(path.join(__dirname, "app"));
@@ -20,6 +23,7 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, "preload.cjs"),
     },
   });
   mainWindow = win;
@@ -32,6 +36,7 @@ async function createWindow() {
     if (!url.startsWith(server.origin)) event.preventDefault();
   });
   await win.loadURL(server.origin);
+  updater = updater || createUpdater(() => mainWindow, updates);
 }
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();

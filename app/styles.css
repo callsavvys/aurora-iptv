@@ -30,3 +30,11 @@
 .track-select[hidden]{display:none}
 .track-select select{border:1px solid var(--line);background:#0d151d;color:#dce4e8;border-radius:9px;height:32px;padding:0 8px;font-size:11px;text-transform:none;letter-spacing:0;max-width:190px}
 .player-hint{margin-left:auto;color:#4f5c6b;font-size:10px}
+.version-line{margin-top:12px;border:0;background:transparent;color:#4d5a69;font-size:10px;text-align:left;padding:0 10px;cursor:pointer}
+.version-line:hover{color:var(--mint)}
+.update-banner{position:fixed;right:24px;bottom:24px;z-index:70;display:flex;align-items:center;gap:14px;max-width:440px;background:#16212c;border:1px solid rgba(125,247,220,.24);border-radius:13px;padding:13px 14px 13px 17px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.update-banner strong{display:block;font-size:12px}
+.update-banner small{display:block;color:#7a8794;font-size:10px;margin-top:4px}
+.update-banner .primary{height:33px;padding:0 13px;font-size:11px;white-space:nowrap}
+.update-dismiss{border:0;background:transparent;color:#5b6877;font-size:20px;line-height:1;cursor:pointer}
+.update-dismiss:hover{color:#dbe3e8}
