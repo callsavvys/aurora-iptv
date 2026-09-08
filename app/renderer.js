@@ -185,15 +185,30 @@ function resumeCard(record) {
   return `<article class="card wide" data-resume="${escapeHtml(record.key)}"><div class="art play-resume">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${glyph(record.type === "episode" ? "series" : record.type)}</div><span class="play-bubble">▶</span><span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span></div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" • "))}</p></div><button class="forget" title="Remove from Continue watching">×</button></div></article>`;
 }
 
+function rail(scroller) {
+  return `<div class="rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>‹</button>${scroller}<button class="rail-nav next" aria-label="Scroll right" disabled>›</button></div>`;
+}
+
+function updateRails() {
+  for (const box of document.querySelectorAll(".rail")) {
+    const scroller = box.querySelector(".rail-scroller");
+    if (!scroller) continue;
+    const max = scroller.scrollWidth - scroller.clientWidth;
+    box.classList.toggle("scrollable", max > 1);
+    box.querySelector(".rail-nav.prev").disabled = scroller.scrollLeft <= 1;
+    box.querySelector(".rail-nav.next").disabled = scroller.scrollLeft >= max - 1;
+  }
+}
+
 function shelf(title, items, wide = false, subtitle = "") {
   if (!items.length) return "";
-  return `<section class="shelf"><div class="shelf-head"><div>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}<h2>${escapeHtml(title)}</h2></div></div><div class="shelf-row ${wide ? "wide" : ""}">${items.slice(0, 8).map((item) => card(item, wide)).join("")}</div></section>`;
+  return `<section class="shelf"><div class="shelf-head"><div>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}<h2>${escapeHtml(title)}</h2></div></div>${rail(`<div class="shelf-row rail-scroller ${wide ? "wide" : ""}">${items.slice(0, 20).map((item) => card(item, wide)).join("")}</div>`)}</section>`;
 }
 
 function resumeShelf() {
   const records = continueWatching();
   if (!records.length) return "";
-  return `<section class="shelf"><div class="shelf-head"><div><span>Pick up where you left off</span><h2>Continue watching</h2></div></div><div class="shelf-row wide">${records.slice(0, 8).map(resumeCard).join("")}</div></section>`;
+  return `<section class="shelf"><div class="shelf-head"><div><span>Pick up where you left off</span><h2>Continue watching</h2></div></div>${rail(`<div class="shelf-row rail-scroller wide">${records.slice(0, 20).map(resumeCard).join("")}</div>`)}</section>`;
 }
 
 function recentlyAdded(type, title) {
@@ -225,7 +240,8 @@ function renderHistory() {
 
 function renderCollection() {
   const base = itemsForView(true), categories = ["All", ...new Set(base.map((item) => item.category).filter(Boolean))], items = itemsForView();
-  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="chips">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div>${items.length ? `<div class="grid">${items.slice(0, state.limit).map((item) => card(item, item.type === "live")).join("")}</div>${items.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more • ${(items.length - state.limit).toLocaleString()} remaining</button></div>` : ""}` : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
+  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>‹</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>›</button></div>${items.length ? `<div class="grid">${items.slice(0, state.limit).map((item) => card(item, item.type === "live")).join("")}</div>${items.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more • ${(items.length - state.limit).toLocaleString()} remaining</button></div>` : ""}` : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
+  updateRails();
 }
 
 function render() {
@@ -234,6 +250,7 @@ function render() {
   else if (state.view === "home" && !state.query) renderHome();
   else renderCollection();
   document.querySelectorAll("nav button").forEach((button) => button.classList.toggle("active", button.dataset.view === state.view));
+  updateRails();
   updateSource();
 }
 
@@ -288,7 +305,7 @@ function renderSeriesDetail() {
     meta: [rating(info.rating || item.rating) ? `★ ${rating(info.rating || item.rating)}` : "", String(info.releaseDate || info.releasedate || item.year || "").slice(0, 4), info.genre || item.category, `${seasons.length} season${seasons.length === 1 ? "" : "s"}`],
     description: info.plot || item.description || "Choose a season and episode to start watching.",
     actions,
-  }) + creditsBlock(info) + `<section class="episodes-pane"><div class="episodes-head"><h3>Episodes</h3><div class="season-tabs">${seasons.map(([number]) => `<button class="season-tab ${number === state.selectedSeason ? "active" : ""}" data-season="${escapeHtml(number)}">Season ${escapeHtml(number)}</button>`).join("")}</div></div>${episodeRows ? `<div class="episode-list">${episodeRows}</div>` : '<div class="episodes-empty">No episodes were returned for this season.</div>'}</section>`;
+  }) + creditsBlock(info) + `<section class="episodes-pane"><div class="episodes-head"><h3>Episodes</h3>${rail(`<div class="season-tabs rail-scroller">${seasons.map(([number]) => `<button class="season-tab ${number === state.selectedSeason ? "active" : ""}" data-season="${escapeHtml(number)}">Season ${escapeHtml(number)}</button>`).join("")}</div>`)}</div>${episodeRows ? `<div class="episode-list">${episodeRows}</div>` : '<div class="episodes-empty">No episodes were returned for this season.</div>'}</section>`;
 }
 
 function nextUnwatchedEpisode(seasons) {
@@ -321,6 +338,7 @@ function renderMovieDetail() {
 
 function renderDetail() {
   if (state.seriesItem) renderSeriesDetail(); else if (state.detailItem) renderMovieDetail();
+  updateRails();
 }
 
 async function openSeries(item) {
@@ -543,6 +561,13 @@ document.addEventListener("click", (event) => {
   if (target.closest("#source-refresh")) return refreshLibrary();
   const nav = target.closest("nav button");
   if (nav) { state.view = nav.dataset.view; state.category = "All"; state.limit = 120; state.query = ""; $("#search").value = ""; render(); return }
+  const arrow = target.closest(".rail-nav");
+  if (arrow) {
+    const scroller = arrow.closest(".rail").querySelector(".rail-scroller");
+    const step = Math.max(240, scroller.clientWidth * 0.8);
+    scroller.scrollBy({ left: arrow.classList.contains("next") ? step : -step, behavior: "smooth" });
+    return;
+  }
   const chip = target.closest(".chip"); if (chip) { state.category = chip.dataset.category; state.limit = 120; renderCollection(); return }
   if (target.closest("#load-more")) { state.limit += 120; renderCollection(); return }
   if (target.closest("#clear-history")) { state.progress.clear(); persistProgress(); render(); return }
@@ -609,6 +634,12 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   action();
 });
+
+document.addEventListener("scroll", () => {
+  cancelAnimationFrame(updateRails.frame);
+  updateRails.frame = requestAnimationFrame(updateRails);
+}, true);
+window.addEventListener("resize", updateRails);
 
 let searchTimer;
 $("#search").addEventListener("input", (event) => {

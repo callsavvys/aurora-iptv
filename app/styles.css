@@ -54,3 +54,21 @@ header .search,header button,header input,.brand button{-webkit-app-region:no-dr
 
 /* modal bodies need the same flex fix to scroll */
 .player-card{max-height:94vh;overflow:auto}
+
+/* ---------- 0.4.2: arrows for the horizontal rows ---------- */
+.rail{position:relative}
+.rail-nav{position:absolute;top:0;bottom:0;width:46px;z-index:4;display:none;place-items:center;border:0;padding:0;cursor:pointer;color:#e9f3f1;font-size:26px;line-height:1}
+.rail.scrollable .rail-nav{display:grid}
+.rail .rail-nav[disabled]{display:none}
+.rail-nav:hover{color:var(--mint)}
+.rail-nav.prev{left:0;background:linear-gradient(90deg,rgba(8,13,20,.96),rgba(8,13,20,.6) 55%,rgba(8,13,20,0))}
+.rail-nav.next{right:0;background:linear-gradient(270deg,rgba(8,13,20,.96),rgba(8,13,20,.6) 55%,rgba(8,13,20,0))}
+.chips-rail{margin:23px 0 22px}
+.chips-rail .chips{margin:0}
+.chips-rail .rail-nav{width:38px;font-size:20px}
+.episodes-head .rail-nav{width:34px;font-size:19px;background:linear-gradient(90deg,#0f1720,rgba(15,23,32,.6) 60%,rgba(15,23,32,0))}
+.episodes-head .rail-nav.next{background:linear-gradient(270deg,#0f1720,rgba(15,23,32,.6) 60%,rgba(15,23,32,0))}
+/* cards were sized with 1fr, so a row holding one or two items stretched them
+   across the whole shelf */
+.shelf-row{grid-auto-columns:clamp(140px,13vw,186px);justify-content:start}
+.shelf-row.wide{grid-auto-columns:clamp(220px,22vw,312px)}
