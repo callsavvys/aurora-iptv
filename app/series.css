@@ -199,7 +199,7 @@
 
 .episode-copy small {
   display: block;
-  color: #6f7d8b;
+  color: #96a3b0;
   font-size: 10px;
   margin-top: 5px;
 }
@@ -218,7 +218,7 @@
 .episodes-empty {
   padding: 50px 0;
   text-align: center;
-  color: #758392;
+  color: #a7b3bf;
 }
 
 @media (max-width: 760px) {
@@ -257,7 +257,7 @@
 
 .credits small {
   display: block;
-  color: #5f6d7c;
+  color: #87939f;
   font-size: 9px;
   font-weight: 850;
   letter-spacing: .13em;
@@ -291,7 +291,7 @@
 
 .detail-progress small {
   display: block;
-  color: #68757f;
+  color: #96a3b0;
   font-size: 10px;
   margin-top: 8px;
 }
