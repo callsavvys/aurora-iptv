@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "package:mac": "electron-packager . 'Aurora IPTV' --platform=darwin --arch=arm64 --out=release --overwrite --asar --prune=true --app-bundle-id=com.aurora.iptv"
+    "package:mac": "bash scripts/build-mac.sh"
   },
   "dependencies": {
     "hls.js": "^1.6.13"
