@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell } = require("electron");
 const path = require("node:path");
 const { createAuroraServer } = require("./server.cjs");
 const { createUpdater } = require("./updater.cjs");
@@ -12,9 +12,17 @@ if (!app.commandLine.hasSwitch("user-data-dir")) {
 }
 app.setName("Aurora IPTV");
 
+const WINDOW_BG = { dark: "#080d14", light: "#eff3f3" };
+
 let server;
 let mainWindow;
 let updater;
+
+// the renderer owns the theme; the window just has to match so there is no
+// flash of the wrong ground behind it
+ipcMain.on("app:theme", (_event, theme) => {
+  mainWindow?.setBackgroundColor(WINDOW_BG[theme] || WINDOW_BG.dark);
+});
 
 function buildMenu(checkForUpdates) {
   Menu.setApplicationMenu(Menu.buildFromTemplate([
@@ -52,7 +60,7 @@ async function createWindow() {
     minWidth: 980,
     minHeight: 640,
     title: "Aurora IPTV",
-    backgroundColor: "#080d14",
+    backgroundColor: nativeTheme.shouldUseDarkColors ? WINDOW_BG.dark : WINDOW_BG.light,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 18, y: 18 },
     webPreferences: {

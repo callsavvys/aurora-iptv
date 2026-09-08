@@ -1,0 +1,14 @@
+The bundled typefaces are used under the SIL Open Font License, Version 1.1.
+
+  Bricolage Grotesque  — Copyright (c) 2022 The Bricolage Project Authors
+                         https://github.com/ateliertriay/bricolage
+  Newsreader           — Copyright (c) 2019 The Newsreader Project Authors
+                         https://github.com/productiontype/Newsreader
+  JetBrains Mono       — Copyright (c) 2020 The JetBrains Mono Project Authors
+                         https://github.com/JetBrains/JetBrainsMono
+
+Full licence text: https://openfontlicense.org
+
+This licence permits the fonts to be bundled and redistributed with software,
+including this application, provided they are not sold on their own and this
+notice is retained.

@@ -1,5 +1,23 @@
 /* global Hls */
 const $ = (selector) => document.querySelector(selector);
+
+/* ---------- appearance ---------- */
+
+const THEMES = ["system", "light", "dark"];
+const themeChoice = () => { const stored = localStorage.getItem("aurora-theme"); return THEMES.includes(stored) ? stored : "system" };
+const resolvedTheme = () => { const choice = themeChoice(); return choice === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : choice };
+
+function applyTheme(choice) {
+  const value = THEMES.includes(choice) ? choice : "system";
+  localStorage.setItem("aurora-theme", value);
+  if (value === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", value);
+  document.querySelectorAll(".theme-switch button").forEach((button) => button.classList.toggle("active", button.dataset.themeChoice === value));
+  window.aurora?.setTheme(resolvedTheme());
+}
+
+applyTheme(themeChoice());
+matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (themeChoice() === "system") applyTheme("system") });
 const LIBRARY_SCHEMA = 2;
 const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
@@ -153,7 +171,7 @@ async function refreshLibrary(quiet = false) {
 
 function updateSource() {
   $("#source-name").textContent = state.provider?.name || "No source";
-  $("#source-status").textContent = state.provider ? `${state.items.length.toLocaleString()} items • Local` : "Not connected";
+  $("#source-status").textContent = state.provider ? `${state.items.length.toLocaleString()} items` : "Not connected";
   const count = state.favorites.size, badge = $("#favorite-count");
   badge.textContent = count; badge.style.display = count ? "grid" : "none";
 }
@@ -561,6 +579,8 @@ document.addEventListener("click", (event) => {
   if (target.closest("#source-refresh")) return refreshLibrary();
   const nav = target.closest("nav button");
   if (nav) { state.view = nav.dataset.view; state.category = "All"; state.limit = 120; state.query = ""; $("#search").value = ""; render(); return }
+  const themeButton = target.closest(".theme-switch button");
+  if (themeButton) return applyTheme(themeButton.dataset.themeChoice);
   const arrow = target.closest(".rail-nav");
   if (arrow) {
     const scroller = arrow.closest(".rail").querySelector(".rail-scroller");
@@ -704,6 +724,8 @@ if (window.aurora) {
   $("#update-install").addEventListener("click", () => window.aurora.installUpdate());
   $("#update-dismiss").addEventListener("click", () => $("#update-banner").classList.add("hidden"));
 }
+
+document.querySelectorAll(".theme-switch button").forEach((button) => button.classList.toggle("active", button.dataset.themeChoice === themeChoice()));
 
 (async function init() {
   try {

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' http: https: data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http: https: data:; media-src 'self' http: https: blob:; connect-src 'self' http: https:;" />
   <title>Aurora IPTV</title>
+  <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="series.css" />
 </head>
@@ -30,6 +31,11 @@
         </span>
       </div>
       <div class="local-profile"><span>Z</span><div><strong>Ziad</strong><small>Local Mac profile</small></div></div>
+      <div class="theme-switch" role="group" aria-label="Appearance">
+        <button data-theme-choice="system" title="Follow the system setting">Auto</button>
+        <button data-theme-choice="light" title="Always light">Light</button>
+        <button data-theme-choice="dark" title="Always dark">Dark</button>
+      </div>
       <button class="update-check hidden" id="check-updates" title="Check for updates">
         <i id="update-check-icon">↻</i>
         <span><strong id="update-check-label">Check for updates</strong><small id="app-version"></small></span>

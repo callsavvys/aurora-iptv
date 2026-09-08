@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld("aurora", {
   checkForUpdates: () => ipcRenderer.invoke("updater:check"),
   installUpdate: () => ipcRenderer.invoke("updater:install"),
   onUpdateStatus: (callback) => ipcRenderer.on("updater:status", (_event, status) => callback(status)),
+  setTheme: (theme) => ipcRenderer.send("app:theme", theme),
 });
