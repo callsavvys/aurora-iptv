@@ -189,22 +189,30 @@ function itemsForView(ignoreCategory = false) {
 
 /* ---------- cards and shelves ---------- */
 
-const glyph = (type) => (type === "live" ? "◉" : type === "movie" ? "▰" : "▦");
+const icon = (name, extra = "") => `<svg class="icon ${extra}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+
+// artwork is missing for a lot of provider items; initials read as a deliberate
+// placeholder where a repeated glyph reads as a broken image
+const initials = (name) => {
+  const words = String(name || "").replace(/[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  return (words.length === 1 ? words[0].slice(0, 2) : words[0][0] + words[1][0]).toUpperCase();
+};
 
 function card(item, wide = false) {
   const art = item.logo || item.backdrop;
   const bar = item.type === "movie" ? percent(progressOf(item.id)) : 0;
   const opens = item.type === "live" ? "play-item" : "open-detail";
-  return `<article class="card ${wide ? "wide" : ""}" data-id="${escapeHtml(item.id)}"><div class="art ${opens}">${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${glyph(item.type)}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${item.rating ? `<span class="score">★ ${escapeHtml(item.rating)}</span>` : ""}<span class="play-bubble">▶</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}">${state.favorites.has(item.id) ? "♥" : "♡"}</button></div></article>`;
+  return `<article class="card ${wide ? "wide" : ""}" data-id="${escapeHtml(item.id)}"><div class="art ${opens}">${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${item.rating ? `<span class="score">${icon("star")}${escapeHtml(item.rating)}</span>` : ""}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
 function resumeCard(record) {
   const bar = percent(record), left = record.duration > record.position ? `${clock(record.duration - record.position)} left` : "Ready";
-  return `<article class="card wide" data-resume="${escapeHtml(record.key)}"><div class="art play-resume">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${glyph(record.type === "episode" ? "series" : record.type)}</div><span class="play-bubble">▶</span><span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span></div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" • "))}</p></div><button class="forget" title="Remove from Continue watching">×</button></div></article>`;
+  return `<article class="card wide" data-resume="${escapeHtml(record.key)}"><div class="art play-resume">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div><span class="play-bubble">${icon("play")}</span><span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span></div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" • "))}</p></div><button class="forget" title="Remove from Continue watching">${icon("close")}</button></div></article>`;
 }
 
 function rail(scroller) {
-  return `<div class="rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>‹</button>${scroller}<button class="rail-nav next" aria-label="Scroll right" disabled>›</button></div>`;
+  return `<div class="rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button>${scroller}<button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>`;
 }
 
 function updateRails() {
@@ -238,11 +246,11 @@ function renderHome() {
   const featured = state.items.find((item) => item.type === "movie") || state.items.find((item) => item.type === "series") || state.items[0];
   if (!featured) return renderWelcome();
   const image = featured.backdrop || featured.logo;
-  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">Featured from your library</span><h1>${escapeHtml(featured.name)}</h1><div class="meta"><span>${escapeHtml(featured.rating ? `★ ${featured.rating}` : featured.category)}</span>${featured.year ? `<span>${escapeHtml(featured.year)}</span>` : ""}${featured.duration ? `<span>${escapeHtml(featured.duration)}</span>` : ""}</div><p>${escapeHtml(featured.description || "Ready to watch from your connected IPTV source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : "▶ Play"}</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? "♥ Saved" : "♡ My list"}</button></div></div></section>${resumeShelf()}${shelf("Live now", state.items.filter((x) => x.type === "live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Movies", state.items.filter((x) => x.type === "movie"))}${shelf("Series", state.items.filter((x) => x.type === "series"))}`;
+  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">Featured from your library</span><h1>${escapeHtml(featured.name)}</h1><div class="meta"><span>${featured.rating ? `${icon("star")}${escapeHtml(featured.rating)}` : escapeHtml(featured.category)}</span>${featured.year ? `<span>${escapeHtml(featured.year)}</span>` : ""}${featured.duration ? `<span>${escapeHtml(featured.duration)}</span>` : ""}</div><p>${escapeHtml(featured.description || "Ready to watch from your connected IPTV source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${resumeShelf()}${shelf("Live now", state.items.filter((x) => x.type === "live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Movies", state.items.filter((x) => x.type === "movie"))}${shelf("Series", state.items.filter((x) => x.type === "series"))}`;
 }
 
 function renderWelcome() {
-  $("#content").innerHTML = `<section class="welcome"><div class="welcome-card"><div class="welcome-mark">▶</div><h1>Your TV. Your Mac.</h1><p>Connect your Xtream account to browse live channels, movies and series directly through your own internet connection.</p><button class="primary open-source">＋ Connect source</button></div></section>`;
+  $("#content").innerHTML = `<section class="welcome"><div class="welcome-card"><div class="welcome-mark">${icon("play")}</div><h1>Your TV. Your Mac.</h1><p>Connect your Xtream account to browse live channels, movies and series directly through your own internet connection.</p><button class="primary open-source">＋ Connect source</button></div></section>`;
 }
 
 function renderHistory() {
@@ -251,14 +259,14 @@ function renderHistory() {
     const bar = percent(record);
     const when = new Date(record.updatedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
     const status = record.type === "live" ? "Live channel" : finished(record) ? "Finished" : `${clock(record.position)} watched`;
-    return `<article class="history-row" data-resume="${escapeHtml(record.key)}"><div class="history-art">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${glyph(record.type === "episode" ? "series" : record.type)}</div></div><div class="history-copy"><strong>${escapeHtml(record.title)}</strong><small>${escapeHtml([record.subtitle, status, when].filter(Boolean).join(" • "))}</small>${bar > 1 ? `<span class="history-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><button class="forget" title="Remove from history">×</button></article>`;
+    return `<article class="history-row" data-resume="${escapeHtml(record.key)}"><div class="history-art">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div></div><div class="history-copy"><strong>${escapeHtml(record.title)}</strong><small>${escapeHtml([record.subtitle, status, when].filter(Boolean).join(" • "))}</small>${bar > 1 ? `<span class="history-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><button class="forget" title="Remove from history">${icon("close")}</button></article>`;
   }).join("");
   $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>History</h1></div><span>${records.length.toLocaleString()} entries</span></div>${records.length ? `<div class="history-list">${rows}</div><div class="load-more"><button class="secondary" id="clear-history">Clear watch history</button></div>` : '<div class="empty"><div><h2>Nothing watched yet</h2><p>Everything you play shows up here.</p></div></div>'}</section>`;
 }
 
 function renderCollection() {
   const base = itemsForView(true), categories = ["All", ...new Set(base.map((item) => item.category).filter(Boolean))], items = itemsForView();
-  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>‹</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>›</button></div>${items.length ? `<div class="grid">${items.slice(0, state.limit).map((item) => card(item, item.type === "live")).join("")}</div>${items.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more • ${(items.length - state.limit).toLocaleString()} remaining</button></div>` : ""}` : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
+  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${items.length ? `<div class="grid">${items.slice(0, state.limit).map((item) => card(item, item.type === "live")).join("")}</div>${items.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more • ${(items.length - state.limit).toLocaleString()} remaining</button></div>` : ""}` : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
   updateRails();
 }
 
@@ -293,7 +301,7 @@ const episodeTitle = (episode, index) => episode.title || episode.info?.name || 
 const episodeNumber = (episode, index) => episode.episode_num || episode.info?.episode_num || index + 1;
 
 function detailHero({ backdrop, poster, eyebrow, name, meta, description, actions }) {
-  return `<section class="series-hero">${backdrop ? `<img class="series-backdrop" src="${escapeHtml(backdrop)}" onerror="this.style.display='none'">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span><h2>${escapeHtml(name)}</h2><div class="series-meta">${meta.filter(Boolean).map((entry) => `<span>${escapeHtml(entry)}</span>`).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
+  return `<section class="series-hero">${backdrop ? `<img class="series-backdrop" src="${escapeHtml(backdrop)}" onerror="this.style.display='none'">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span><h2>${escapeHtml(name)}</h2><div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
 }
 
 function creditsBlock(info) {
@@ -313,14 +321,14 @@ function renderSeriesDetail() {
   const episodeRows = episodes.map((episode, index) => {
     const record = progressOf(`episode-${episode.id}`), bar = percent(record);
     const duration = episode.info?.duration || episode.duration || "Ready to play";
-    return `<button class="episode ${finished(record) ? "watched" : ""}" data-episode-index="${index}"><span class="episode-number">E${escapeHtml(episodeNumber(episode, index))}</span><span class="episode-copy"><strong>${escapeHtml(episodeTitle(episode, index))}</strong><small>Season ${escapeHtml(state.selectedSeason)} • ${escapeHtml(duration)}${finished(record) ? " • Watched" : record ? ` • ${clock(record.position)} in` : ""}</small>${bar > 1 && !finished(record) ? `<span class="episode-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="episode-play">▶</span></button>`;
+    return `<button class="episode ${finished(record) ? "watched" : ""}" data-episode-index="${index}"><span class="episode-number">E${escapeHtml(episodeNumber(episode, index))}</span><span class="episode-copy"><strong>${escapeHtml(episodeTitle(episode, index))}</strong><small>Season ${escapeHtml(state.selectedSeason)} • ${escapeHtml(duration)}${finished(record) ? " • Watched" : record ? ` • ${clock(record.position)} in` : ""}</small>${bar > 1 && !finished(record) ? `<span class="episode-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="episode-play">${icon("play")}</span></button>`;
   }).join("");
-  const actions = `${next ? `<button class="primary detail-play-next">▶ ${escapeHtml(next.label)}</button>` : ""}<button class="secondary series-favorite">${state.favorites.has(item.id) ? "♥ Saved" : "♡ My list"}</button>`;
+  const actions = `${next ? `<button class="primary detail-play-next">${icon("play")}${escapeHtml(next.label)}</button>` : ""}<button class="secondary series-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
   $("#series-detail").innerHTML = detailHero({
     backdrop: backdropValue || item.backdrop || item.logo,
     poster: info.cover || info.movie_image || item.logo,
     eyebrow: "Series", name: item.name,
-    meta: [rating(info.rating || item.rating) ? `★ ${rating(info.rating || item.rating)}` : "", String(info.releaseDate || info.releasedate || item.year || "").slice(0, 4), info.genre || item.category, `${seasons.length} season${seasons.length === 1 ? "" : "s"}`],
+    meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releaseDate || info.releasedate || item.year || "").slice(0, 4), info.genre || item.category, `${seasons.length} season${seasons.length === 1 ? "" : "s"}`],
     description: info.plot || item.description || "Choose a season and episode to start watching.",
     actions,
   }) + creditsBlock(info) + `<section class="episodes-pane"><div class="episodes-head"><h3>Episodes</h3>${rail(`<div class="season-tabs rail-scroller">${seasons.map(([number]) => `<button class="season-tab ${number === state.selectedSeason ? "active" : ""}" data-season="${escapeHtml(number)}">Season ${escapeHtml(number)}</button>`).join("")}</div>`)}</div>${episodeRows ? `<div class="episode-list">${episodeRows}</div>` : '<div class="episodes-empty">No episodes were returned for this season.</div>'}</section>`;
@@ -343,12 +351,12 @@ function renderMovieDetail() {
   if (!item) return;
   const record = progressOf(item.id), bar = percent(record);
   const backdropValue = Array.isArray(info.backdrop_path) ? info.backdrop_path[0] : info.backdrop_path;
-  const actions = `<button class="primary detail-play">${record && !finished(record) ? `▶ Resume • ${clock(record.duration - record.position)} left` : "▶ Play"}</button>${record ? '<button class="secondary detail-restart">Start over</button>' : ""}<button class="secondary detail-favorite">${state.favorites.has(item.id) ? "♥ Saved" : "♡ My list"}</button>`;
+  const actions = `<button class="primary detail-play">${record && !finished(record) ? `${icon("play")}Resume • ${clock(record.duration - record.position)} left` : `${icon("play")}Play`}</button>${record ? '<button class="secondary detail-restart">Start over</button>' : ""}<button class="secondary detail-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
   $("#series-detail").innerHTML = detailHero({
     backdrop: backdropValue || item.backdrop || item.logo,
     poster: info.movie_image || info.cover_big || item.logo,
     eyebrow: "Movie", name: item.name,
-    meta: [rating(info.rating || item.rating) ? `★ ${rating(info.rating || item.rating)}` : "", String(info.releasedate || info.releaseDate || item.year || "").slice(0, 4), info.duration || item.duration, item.category],
+    meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releasedate || info.releaseDate || item.year || "").slice(0, 4), info.duration || item.duration, item.category],
     description: info.plot || info.description || "Ready to watch from your connected IPTV source.",
     actions,
   }) + creditsBlock(info) + (bar > 1 ? `<section class="detail-progress"><span><i style="width:${bar.toFixed(1)}%"></i></span><small>${escapeHtml(`${clock(record.position)} of ${clock(record.duration)} watched`)}</small></section>` : "");
@@ -427,7 +435,7 @@ function startPlayback({ url, title, subtitle = "", isLive = false, resumeAt = 0
 function updatePlayerFavorite() {
   const button = $("#favorite-player"), item = state.playerItem;
   button.classList.toggle("hidden", !item);
-  button.textContent = item && state.favorites.has(item.id) ? "♥ Saved" : "♡ My list";
+  button.innerHTML = item && state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`;
 }
 
 function play(item, { startOver = false } = {}) {

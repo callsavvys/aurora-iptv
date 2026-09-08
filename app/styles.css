@@ -930,3 +930,57 @@ header .search, header button, header input { -webkit-app-region: no-drag; }
 @media (max-width: 1150px) { .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (max-width: 980px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } .hero-copy { width: 67%; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* ---------- icons ---------- */
+
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+.icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+  display: inline-block;
+  vertical-align: -.14em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* buttons that pair an icon with a word */
+.primary, .secondary, .pbtn, .heart, .forget, .close, .update-dismiss,
+.player-copy button, .series-actions button, .actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+nav i { display: grid; place-items: center; font-size: 19px; }
+.brand > span .icon { width: 12px; height: 12px; }
+.source-icon .icon, .search span .icon { width: 17px; height: 17px; }
+.search span { display: grid; place-items: center; font-size: 0; transform: none; }
+.source-actions button { display: grid; place-items: center; font-size: 15px; }
+.update-check i { display: grid; place-items: center; font-size: 15px; }
+.close .icon, .update-dismiss .icon { width: 18px; height: 18px; }
+.heart .icon { width: 17px; height: 17px; }
+.forget .icon { width: 15px; height: 15px; }
+.play-bubble .icon { width: 15px; height: 15px; margin-left: 2px; }
+.episode-play .icon { width: 12px; height: 12px; margin-left: 1px; }
+.rail-nav .icon { width: 22px; height: 22px; stroke-width: 2; }
+.score .icon, .meta .icon, .series-meta .icon { width: 11px; height: 11px; }
+.score, .meta > span, .series-meta > span { display: inline-flex; align-items: center; gap: 4px; }
+.welcome-mark .icon { width: 25px; height: 25px; margin-left: 3px; }
+
+/* artwork placeholder: initials rather than a repeated symbol */
+.fallback {
+  font-family: var(--display);
+  font-size: clamp(26px, 3.4vw, 46px);
+  font-weight: 800;
+  letter-spacing: -.045em;
+  color: var(--text);
+  opacity: .17;
+}
+
+.history-art .fallback { font-size: 15px; }

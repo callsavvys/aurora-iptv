@@ -10,24 +10,48 @@
   <link rel="stylesheet" href="series.css" />
 </head>
 <body>
+  <svg class="sprite" aria-hidden="true" focusable="false"><defs>
+    <g id="s" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></g>
+  </defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.6 10.4 12 3.8l8.4 6.6V19a1.2 1.2 0 0 1-1.2 1.2h-4.6v-5.8H9.4v5.8H4.8A1.2 1.2 0 0 1 3.6 19Z"/></symbol>
+    <symbol id="i-live" viewBox="0 0 24 24"><rect x="3" y="7.4" width="18" height="12.8" rx="2.4"/><path d="m8 3.2 4 4 4-4"/></symbol>
+    <symbol id="i-movies" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="15.2" rx="2.2"/><path d="M8.2 4.4v15.2M15.8 4.4v15.2M3 12h18M3 8.2h5.2M3 15.8h5.2M15.8 8.2H21M15.8 15.8H21"/></symbol>
+    <symbol id="i-series" viewBox="0 0 24 24"><rect x="3" y="7.6" width="18" height="12.6" rx="2.2"/><path d="M6.2 4.8h11.6M8.4 2.2h7.2"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.2s-7.5-4.5-7.5-9.5a4.25 4.25 0 0 1 7.5-2.7 4.25 4.25 0 0 1 7.5 2.7c0 5-7.5 9.5-7.5 9.5Z"/></symbol>
+    <symbol id="i-heart-fill" viewBox="0 0 24 24"><path d="M12 20.2s-7.5-4.5-7.5-9.5a4.25 4.25 0 0 1 7.5-2.7 4.25 4.25 0 0 1 7.5 2.7c0 5-7.5 9.5-7.5 9.5Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M3.6 4v4.4H8"/><path d="M12 7.8V12l3 1.8"/></symbol>
+    <symbol id="i-source" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.2"/><path d="M7.8 7.8a5.9 5.9 0 0 0 0 8.4M16.2 16.2a5.9 5.9 0 0 0 0-8.4M5 5a9.9 9.9 0 0 0 0 14M19 19a9.9 9.9 0 0 0 0-14"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="M3.6 7.6h8.2M17.4 7.6h3M3.6 16.4h3.2M12.4 16.4h8"/><circle cx="14.4" cy="7.6" r="2.4"/><circle cx="9.6" cy="16.4" r="2.4"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20.4 4v4.4H16"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8.6 5.4v13.2L19 12Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M18.6 5.6v12.8L9.2 12Z" fill="currentColor" stroke="none"/><path d="M6 5.6v12.8"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M5.4 5.6v12.8L14.8 12Z" fill="currentColor" stroke="none"/><path d="M18 5.6v12.8"/></symbol>
+    <symbol id="i-chev-left" viewBox="0 0 24 24"><path d="m14.6 5.4-6.6 6.6 6.6 6.6"/></symbol>
+    <symbol id="i-chev-right" viewBox="0 0 24 24"><path d="m9.4 5.4 6.6 6.6-6.6 6.6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.6 6.6 10.8 10.8M17.4 6.6 6.6 17.4"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3.4 2.65 5.7 6.15.8-4.5 4.25 1.15 6.05L12 17.3l-5.45 2.9 1.15-6.05-4.5-4.25 6.15-.8Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="6.4"/><path d="m15.4 15.4 4.6 4.6"/></symbol>
+    <symbol id="i-pip" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.2"/><rect x="11.4" y="10.8" width="8.2" height="6.4" rx="1.4" fill="currentColor" stroke="none"/></symbol>
+  </svg>
+
   <div class="app">
     <aside>
-      <div class="brand"><span>▶</span><b>Aurora</b></div>
+      <div class="brand"><span><svg class="icon"><use href="#i-play"/></svg></span><b>Aurora</b></div>
       <p class="nav-label">Browse</p>
       <nav>
-        <button class="active" data-view="home"><i>⌂</i>Home</button>
-        <button data-view="live"><i>◉</i>Live TV</button>
-        <button data-view="movies"><i>▰</i>Movies</button>
-        <button data-view="series"><i>▦</i>Series</button>
-        <button data-view="favorites"><i>♡</i>Favorites <em id="favorite-count"></em></button>
-        <button data-view="history"><i>↻</i>History</button>
+        <button class="active" data-view="home"><i><svg class="icon"><use href="#i-home"/></svg></i>Home</button>
+        <button data-view="live"><i><svg class="icon"><use href="#i-live"/></svg></i>Live TV</button>
+        <button data-view="movies"><i><svg class="icon"><use href="#i-movies"/></svg></i>Movies</button>
+        <button data-view="series"><i><svg class="icon"><use href="#i-series"/></svg></i>Series</button>
+        <button data-view="favorites"><i><svg class="icon"><use href="#i-heart"/></svg></i>Favorites <em id="favorite-count"></em></button>
+        <button data-view="history"><i><svg class="icon"><use href="#i-history"/></svg></i>History</button>
       </nav>
       <div class="source-card">
-        <div class="source-icon">▣</div>
+        <div class="source-icon"><svg class="icon"><use href="#i-source"/></svg></div>
         <div><strong id="source-name">No source</strong><small id="source-status">Not connected</small></div>
         <span class="source-actions">
-          <button id="source-refresh" title="Refresh library">↻</button>
-          <button id="source-settings" title="Source settings">⚙</button>
+          <button id="source-refresh" title="Refresh library"><svg class="icon"><use href="#i-refresh"/></svg></button>
+          <button id="source-settings" title="Source settings"><svg class="icon"><use href="#i-gear"/></svg></button>
         </span>
       </div>
       <div class="local-profile"><span>Z</span><div><strong>Ziad</strong><small>Local Mac profile</small></div></div>
@@ -37,14 +61,14 @@
         <button data-theme-choice="dark" title="Always dark">Dark</button>
       </div>
       <button class="update-check hidden" id="check-updates" title="Check for updates">
-        <i id="update-check-icon">↻</i>
+        <i id="update-check-icon"><svg class="icon"><use href="#i-refresh"/></svg></i>
         <span><strong id="update-check-label">Check for updates</strong><small id="app-version"></small></span>
       </button>
     </aside>
 
     <section class="workspace">
       <header>
-        <label class="search"><span>⌕</span><input id="search" placeholder="Search channels, movies and series" /></label>
+        <label class="search"><span><svg class="icon"><use href="#i-search"/></svg></span><input id="search" placeholder="Search channels, movies and series" /></label>
         <button class="primary compact" id="add-source">＋ Add source</button>
       </header>
       <div class="scroll" id="content"></div>
@@ -55,13 +79,13 @@
   <div class="update-banner hidden" id="update-banner">
     <div><strong id="update-title"></strong><small id="update-detail"></small></div>
     <button class="primary" id="update-install" hidden>Restart to update</button>
-    <button class="update-dismiss" id="update-dismiss" title="Dismiss">×</button>
+    <button class="update-dismiss" id="update-dismiss" title="Dismiss"><svg class="icon"><use href="#i-close"/></svg></button>
   </div>
   <div class="loading-overlay hidden" id="loading"><div class="spinner"></div><strong id="loading-title">Connecting</strong><span id="loading-detail">Checking your account…</span></div>
 
   <div class="modal hidden" id="source-modal">
     <div class="modal-card source-modal-card">
-      <button class="close" data-close="source-modal">×</button>
+      <button class="close" data-close="source-modal"><svg class="icon"><use href="#i-close"/></svg></button>
       <h2>Connect a source</h2>
       <p>Aurora is a player only. Add an Xtream account you’re authorized to use.</p>
       <form id="source-form">
@@ -80,18 +104,18 @@
 
   <div class="modal hidden" id="player-modal">
     <div class="modal-card player-card">
-      <button class="close player-close" data-close="player-modal">×</button>
+      <button class="close player-close" data-close="player-modal"><svg class="icon"><use href="#i-close"/></svg></button>
       <div class="video-stage"><video id="video" controls autoplay playsinline></video><div class="video-message hidden" id="video-message"></div></div>
       <div class="player-copy">
         <div><small>NOW PLAYING</small><h2 id="player-title"></h2><p id="player-subtitle"></p></div>
-        <button id="favorite-player">♡ My list</button>
+        <button id="favorite-player"></button>
       </div>
       <div class="player-bar">
-        <button class="pbtn" id="player-prev" hidden>⏮ Previous</button>
-        <button class="pbtn" id="player-next" hidden>⏭ Next episode</button>
+        <button class="pbtn" id="player-prev" hidden><svg class="icon"><use href="#i-prev"/></svg>Previous</button>
+        <button class="pbtn" id="player-next" hidden><svg class="icon"><use href="#i-next"/></svg>Next episode</button>
         <label class="track-select" id="audio-wrap" hidden>Audio<select id="audio-track"></select></label>
         <label class="track-select" id="subtitle-wrap" hidden>Subtitles<select id="subtitle-track"></select></label>
-        <button class="pbtn" id="player-pip">⧉ Picture in Picture</button>
+        <button class="pbtn" id="player-pip"><svg class="icon"><use href="#i-pip"/></svg>Picture in Picture</button>
         <span class="player-hint">Space play · ←/→ 10s · ⇧←/→ 60s · F full screen · M mute · N next · Esc close</span>
       </div>
     </div>
@@ -99,7 +123,7 @@
 
   <div class="modal hidden" id="series-modal">
     <div class="modal-card series-card">
-      <button class="close series-close" data-close="series-modal">×</button>
+      <button class="close series-close" data-close="series-modal"><svg class="icon"><use href="#i-close"/></svg></button>
       <div id="series-detail"></div>
     </div>
   </div>
