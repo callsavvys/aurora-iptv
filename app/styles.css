@@ -984,3 +984,17 @@ nav i { display: grid; place-items: center; font-size: 19px; }
 }
 
 .history-art .fallback { font-size: 15px; }
+
+/* ---------- ratings and fetched artwork ---------- */
+.art.has-art .fallback { display: none; }
+.ratings { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px 42px 0; }
+.ratings > div {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 13px;
+  background: var(--fill-1);
+  min-width: 92px;
+}
+.ratings small { display: block; color: var(--text-4); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.ratings strong { display: block; font-family: var(--mono); font-size: 16px; font-weight: 700; margin-top: 5px; color: var(--text); }
+.trailer { height: 37px; padding: 0 15px; border-radius: 10px; font-size: 12px; text-decoration: none; }

@@ -24,7 +24,7 @@ const state = {
   favorites: new Set(JSON.parse(localStorage.getItem("aurora-favorites") || "[]")),
   progress: new Map(Object.entries(JSON.parse(localStorage.getItem("aurora-progress") || "{}"))),
   playerItem: null, playing: null, hls: null, queue: null,
-  seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null,
+  seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
 const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History" };
 
@@ -40,37 +40,47 @@ const clock = (value) => {
 const credentials = () => ({ server: state.provider.server, user: encodeURIComponent(state.provider.username), pass: encodeURIComponent(state.provider.password) });
 const apiUrl = (action = "", extra = "") => { const { server, user, pass } = credentials(); return `${server}/player_api.php?username=${user}&password=${pass}${action ? `&action=${action}` : ""}${extra}` };
 
+let connection;
+
 function openDb() {
+  connection = connection || new Promise((resolve, reject) => {
+    const request = indexedDB.open("aurora-mac", 2);
+    request.onupgradeneeded = () => {
+      const database = request.result;
+      if (!database.objectStoreNames.contains("library")) database.createObjectStore("library");
+      if (!database.objectStoreNames.contains("meta")) database.createObjectStore("meta");
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  return connection;
+}
+
+async function idbGet(store, key) {
+  const database = await openDb();
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("aurora-mac", 1);
-    request.onupgradeneeded = () => request.result.createObjectStore("library");
+    const request = database.transaction(store, "readonly").objectStore(store).get(key);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
 }
 
-async function saveLibrary(items) {
-  const db = await openDb();
-  await new Promise((resolve, reject) => {
-    const transaction = db.transaction("library", "readwrite");
-    transaction.objectStore("library").put(items, "items");
+async function idbPut(store, key, value) {
+  const database = await openDb();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(store, "readwrite");
+    transaction.objectStore(store).put(value, key);
     transaction.oncomplete = resolve;
     transaction.onerror = () => reject(transaction.error);
   });
-  db.close();
+}
+
+async function saveLibrary(items) {
+  await idbPut("library", "items", items);
   localStorage.setItem("aurora-library-schema", String(LIBRARY_SCHEMA));
 }
 
-async function loadLibrary() {
-  const db = await openDb();
-  const items = await new Promise((resolve, reject) => {
-    const request = db.transaction("library", "readonly").objectStore("library").get("items");
-    request.onsuccess = () => resolve(request.result || []);
-    request.onerror = () => reject(request.error);
-  });
-  db.close();
-  return items;
-}
+const loadLibrary = async () => (await idbGet("library", "items")) || [];
 
 function showToast(message) {
   const toast = $("#toast"); toast.textContent = message; toast.classList.add("show");
@@ -91,6 +101,173 @@ async function fetchJson(url) {
 
 function categoryMap(categories) {
   const map = new Map(); for (const item of categories || []) map.set(String(item.category_id), item.category_name); return map;
+}
+
+/* ---------- artwork and ratings ----------
+   Providers give covers for series and rarely a backdrop for films, so most of
+   the library arrives with nothing to look at. TMDB fills the gap; OMDb adds
+   the IMDb and Rotten Tomatoes numbers. Keys live on this Mac, never in the
+   build, and every answer is cached so a title is only ever looked up once. */
+
+const TMDB = "https://api.themoviedb.org/3";
+const artUrl = (path, size) => (path ? `https://image.tmdb.org/t/p/${size}${path}` : "");
+const apiKeys = () => { try { return JSON.parse(localStorage.getItem("aurora-keys") || "{}") } catch { return {} } };
+const hasTmdb = () => Boolean(apiKeys().tmdb);
+
+// provider titles carry language tags, quality flags and the year
+function searchTitle(name) {
+  return String(name || "")
+    .replace(/^\s*[\[|(]?\s*[A-Za-z]{2,4}\s*[\]|)]?\s*[|:\-–]\s*/u, "")
+    .replace(/\[[^\]]*\]|\([^)]*\)/g, " ")
+    .replace(/\b(4k|uhd|fhd|hd|sd|hevc|x26[45]|h\.?26[45]|multi|vf|vo|vostfr|dub(bed)?|sub(bed)?|imax|remux|blu-?ray|web-?dl|\d{3,4}p)\b/gi, " ")
+    .replace(/[_.]+/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .replace(/\s+\b((?:19|20)\d{2})\b$/, (match, year) => (Number(year) <= new Date().getFullYear() + 2 ? "" : match))
+    .trim();
+}
+
+// providers often bury the year in the title when the year field is empty
+function releaseYear(item) {
+  if (item.year) return String(item.year);
+  const limit = new Date().getFullYear() + 2;
+  const years = (String(item.name || "").match(/\b(?:19|20)\d{2}\b/g) || []).map(Number).filter((y) => y <= limit);
+  return years.length ? String(years[years.length - 1]) : "";
+}
+
+const queue = [];
+let running = 0;
+
+function enqueue(task) {
+  return new Promise((resolve) => {
+    queue.push(async () => { resolve(await task().catch(() => null)) });
+    pump();
+  });
+}
+
+function pump() {
+  while (running < 4 && queue.length) {
+    const task = queue.shift();
+    running += 1;
+    task().finally(() => { running -= 1; pump() });
+  }
+}
+
+const metaCache = new Map();
+
+async function cachedMeta(id) {
+  if (metaCache.has(id)) return metaCache.get(id);
+  const stored = await idbGet("meta", id).catch(() => null);
+  if (stored) metaCache.set(id, stored);
+  return stored || null;
+}
+
+async function storeMeta(id, value) {
+  metaCache.set(id, value);
+  await idbPut("meta", id, value).catch(() => {});
+  return value;
+}
+
+async function tmdbSearch(item) {
+  const key = apiKeys().tmdb;
+  const query = searchTitle(item.name);
+  if (!key || !query) return { miss: true, at: Date.now() };
+  const kind = item.type === "series" ? "tv" : "movie";
+  const yearField = kind === "tv" ? "first_air_date_year" : "year";
+  const base = `${TMDB}/search/${kind}?api_key=${key}&include_adult=false&query=${encodeURIComponent(query)}`;
+  const year = releaseYear(item);
+  let results = (await fetchJson(year ? `${base}&${yearField}=${encodeURIComponent(year)}` : base))?.results;
+  if (!results?.length && year) results = (await fetchJson(base))?.results;
+  const hit = results?.[0];
+  if (!hit) return { miss: true, at: Date.now() };
+  return {
+    kind,
+    tmdbId: hit.id,
+    title: hit.title || hit.name || "",
+    poster: hit.poster_path || "",
+    backdrop: hit.backdrop_path || "",
+    overview: hit.overview || "",
+    score: hit.vote_average ? Number(hit.vote_average).toFixed(1) : "",
+    year: String(hit.release_date || hit.first_air_date || "").slice(0, 4),
+    at: Date.now(),
+  };
+}
+
+// only look a title up when the provider gave us nothing, so the API is not
+// hammered for a hundred thousand items that already have covers
+async function metaFor(item, { force = false } = {}) {
+  if (!hasTmdb()) return null;
+  const cached = await cachedMeta(item.id);
+  if (cached && (!force || cached.tmdbId)) return cached;
+  return enqueue(async () => storeMeta(item.id, await tmdbSearch(item)));
+}
+
+async function fullMeta(item) {
+  const key = apiKeys().tmdb;
+  const base = await metaFor(item, { force: true });
+  if (!key || !base?.tmdbId || base.details) return base;
+  const data = await fetchJson(`${TMDB}/${base.kind}/${base.tmdbId}?api_key=${key}&append_to_response=credits,videos,external_ids`).catch(() => null);
+  if (!data) return base;
+  const trailer = (data.videos?.results || []).find((v) => v.site === "YouTube" && /trailer/i.test(v.type || ""));
+  const details = {
+    genres: (data.genres || []).map((g) => g.name).join(", "),
+    runtime: data.runtime ? `${Math.floor(data.runtime / 60)}h ${String(data.runtime % 60).padStart(2, "0")}m` : "",
+    cast: (data.credits?.cast || []).slice(0, 6).map((c) => c.name).join(", "),
+    director: (data.credits?.crew || []).filter((c) => c.job === "Director").map((c) => c.name).join(", "),
+    trailer: trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : "",
+    imdbId: data.external_ids?.imdb_id || data.imdb_id || "",
+    tagline: data.tagline || "",
+  };
+  const merged = { ...base, overview: data.overview || base.overview, backdrop: data.backdrop_path || base.backdrop, poster: data.poster_path || base.poster, details };
+  if (merged.details.imdbId && apiKeys().omdb) merged.ratings = await omdbRatings(merged.details.imdbId);
+  return storeMeta(item.id, merged);
+}
+
+async function omdbRatings(imdbId) {
+  const key = apiKeys().omdb;
+  if (!key || !imdbId) return null;
+  const data = await fetchJson(`https://www.omdbapi.com/?apikey=${key}&i=${encodeURIComponent(imdbId)}`).catch(() => null);
+  if (!data || data.Response === "False") return null;
+  const find = (source) => (data.Ratings || []).find((r) => r.Source === source)?.Value || "";
+  return { imdb: find("Internet Movie Database").split("/")[0], rt: find("Rotten Tomatoes"), metacritic: find("Metacritic").split("/")[0], imdbId };
+}
+
+/* Fills artwork in place, without re-rendering. This deliberately does not use
+   IntersectionObserver: it delivers nothing while the window is occluded or in
+   the background, so artwork would silently never arrive. Only what is already
+   rendered gets queued, and the queue caps concurrency. */
+async function hydrateArt(node) {
+  const item = state.items.find((entry) => entry.id === node.dataset.artFor);
+  if (!item || node.querySelector("img")) return;
+  const meta = await metaFor(item);
+  if (!meta || !node.isConnected) return;
+  // the provider's title carries language tags and quality flags; once TMDB has
+  // matched it, show the name the film actually has
+  if (meta.title) {
+    const card = node.closest(".card");
+    const heading = card?.querySelector(".card-copy h3");
+    if (heading && heading.textContent !== meta.title) { heading.textContent = meta.title; heading.title = item.name }
+    const subtitle = card?.querySelector(".card-copy p");
+    if (subtitle && meta.year) subtitle.textContent = [meta.year, item.category].filter(Boolean).join(" • ");
+  }
+  if (!meta.poster) return;
+  const image = new Image();
+  image.src = artUrl(meta.poster, "w342");
+  image.decoding = "async";
+  image.addEventListener("load", () => {
+    if (!node.isConnected || node.querySelector("img")) return;
+    node.insertBefore(image, node.firstChild);
+    node.classList.add("has-art");
+  });
+}
+
+function watchArtwork() {
+  if (!hasTmdb()) return;
+  for (const node of document.querySelectorAll(".art[data-art-for]")) {
+    if (node.dataset.artQueued || node.querySelector("img")) continue;
+    node.dataset.artQueued = "1";
+    hydrateArt(node);
+  }
 }
 
 /* ---------- watch progress ---------- */
@@ -203,7 +380,7 @@ function card(item, wide = false) {
   const art = item.logo || item.backdrop;
   const bar = item.type === "movie" ? percent(progressOf(item.id)) : 0;
   const opens = item.type === "live" ? "play-item" : "open-detail";
-  return `<article class="card ${wide ? "wide" : ""}" data-id="${escapeHtml(item.id)}"><div class="art ${opens}">${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${item.rating ? `<span class="score">${icon("star")}${escapeHtml(item.rating)}</span>` : ""}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
+  return `<article class="card ${wide ? "wide" : ""}" data-id="${escapeHtml(item.id)}"><div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${item.rating ? `<span class="score">${icon("star")}${escapeHtml(item.rating)}</span>` : ""}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
 function resumeCard(record) {
@@ -247,6 +424,7 @@ function renderHome() {
   if (!featured) return renderWelcome();
   const image = featured.backdrop || featured.logo;
   $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">Featured from your library</span><h1>${escapeHtml(featured.name)}</h1><div class="meta"><span>${featured.rating ? `${icon("star")}${escapeHtml(featured.rating)}` : escapeHtml(featured.category)}</span>${featured.year ? `<span>${escapeHtml(featured.year)}</span>` : ""}${featured.duration ? `<span>${escapeHtml(featured.duration)}</span>` : ""}</div><p>${escapeHtml(featured.description || "Ready to watch from your connected IPTV source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${resumeShelf()}${shelf("Live now", state.items.filter((x) => x.type === "live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Movies", state.items.filter((x) => x.type === "movie"))}${shelf("Series", state.items.filter((x) => x.type === "series"))}`;
+  hydrateHero(featured);
 }
 
 function renderWelcome() {
@@ -268,6 +446,7 @@ function renderCollection() {
   const base = itemsForView(true), categories = ["All", ...new Set(base.map((item) => item.category).filter(Boolean))], items = itemsForView();
   $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${items.length ? `<div class="grid">${items.slice(0, state.limit).map((item) => card(item, item.type === "live")).join("")}</div>${items.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more • ${(items.length - state.limit).toLocaleString()} remaining</button></div>` : ""}` : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
   updateRails();
+  watchArtwork();
 }
 
 function render() {
@@ -277,6 +456,7 @@ function render() {
   else renderCollection();
   document.querySelectorAll("nav button").forEach((button) => button.classList.toggle("active", button.dataset.view === state.view));
   updateRails();
+  watchArtwork();
   updateSource();
 }
 
@@ -304,6 +484,15 @@ function detailHero({ backdrop, poster, eyebrow, name, meta, description, action
   return `<section class="series-hero">${backdrop ? `<img class="series-backdrop" src="${escapeHtml(backdrop)}" onerror="this.style.display='none'">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span><h2>${escapeHtml(name)}</h2><div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
 }
 
+function mergedInfo(info, meta) {
+  const details = meta?.details || {};
+  return { ...info, cast: details.cast || info.cast, director: details.director || info.director, genre: details.genres || info.genre };
+}
+
+function trailerButton(meta) {
+  return meta?.details?.trailer ? `<a class="secondary trailer" href="${escapeHtml(meta.details.trailer)}" target="_blank" rel="noreferrer">${icon("play")}Trailer</a>` : "";
+}
+
 function creditsBlock(info) {
   const rows = [["Cast", info.cast], ["Director", info.director], ["Genre", info.genre], ["Released", info.releasedate || info.releaseDate]].filter(([, value]) => value);
   if (!rows.length) return "";
@@ -323,15 +512,16 @@ function renderSeriesDetail() {
     const duration = episode.info?.duration || episode.duration || "Ready to play";
     return `<button class="episode ${finished(record) ? "watched" : ""}" data-episode-index="${index}"><span class="episode-number">E${escapeHtml(episodeNumber(episode, index))}</span><span class="episode-copy"><strong>${escapeHtml(episodeTitle(episode, index))}</strong><small>Season ${escapeHtml(state.selectedSeason)} • ${escapeHtml(duration)}${finished(record) ? " • Watched" : record ? ` • ${clock(record.position)} in` : ""}</small>${bar > 1 && !finished(record) ? `<span class="episode-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="episode-play">${icon("play")}</span></button>`;
   }).join("");
-  const actions = `${next ? `<button class="primary detail-play-next">${icon("play")}${escapeHtml(next.label)}</button>` : ""}<button class="secondary series-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
+  const actions = `${next ? `<button class="primary detail-play-next">${icon("play")}${escapeHtml(next.label)}</button>` : ""}${trailerButton(state.detailMeta)}<button class="secondary series-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
+  const meta = state.detailMeta;
   $("#series-detail").innerHTML = detailHero({
-    backdrop: backdropValue || item.backdrop || item.logo,
-    poster: info.cover || info.movie_image || item.logo,
-    eyebrow: "Series", name: item.name,
-    meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releaseDate || info.releasedate || item.year || "").slice(0, 4), info.genre || item.category, `${seasons.length} season${seasons.length === 1 ? "" : "s"}`],
-    description: info.plot || item.description || "Choose a season and episode to start watching.",
+    backdrop: artUrl(meta?.backdrop, "w1280") || backdropValue || item.backdrop || item.logo,
+    poster: artUrl(meta?.poster, "w342") || info.cover || info.movie_image || item.logo,
+    eyebrow: "Series", name: state.detailMeta?.title || item.name,
+    meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releaseDate || info.releasedate || item.year || meta?.year || "").slice(0, 4), meta?.details?.genres || info.genre || item.category, `${seasons.length} season${seasons.length === 1 ? "" : "s"}`],
+    description: meta?.overview || info.plot || item.description || "Choose a season and episode to start watching.",
     actions,
-  }) + creditsBlock(info) + `<section class="episodes-pane"><div class="episodes-head"><h3>Episodes</h3>${rail(`<div class="season-tabs rail-scroller">${seasons.map(([number]) => `<button class="season-tab ${number === state.selectedSeason ? "active" : ""}" data-season="${escapeHtml(number)}">Season ${escapeHtml(number)}</button>`).join("")}</div>`)}</div>${episodeRows ? `<div class="episode-list">${episodeRows}</div>` : '<div class="episodes-empty">No episodes were returned for this season.</div>'}</section>`;
+  }) + ratingsRow(meta) + creditsBlock(mergedInfo(info, meta)) + `<section class="episodes-pane"><div class="episodes-head"><h3>Episodes</h3>${rail(`<div class="season-tabs rail-scroller">${seasons.map(([number]) => `<button class="season-tab ${number === state.selectedSeason ? "active" : ""}" data-season="${escapeHtml(number)}">Season ${escapeHtml(number)}</button>`).join("")}</div>`)}</div>${episodeRows ? `<div class="episode-list">${episodeRows}</div>` : '<div class="episodes-empty">No episodes were returned for this season.</div>'}</section>`;
 }
 
 function nextUnwatchedEpisode(seasons) {
@@ -350,21 +540,55 @@ function renderMovieDetail() {
   const item = state.detailItem, info = state.detailData?.info || {};
   if (!item) return;
   const record = progressOf(item.id), bar = percent(record);
+  const meta = state.detailMeta;
   const backdropValue = Array.isArray(info.backdrop_path) ? info.backdrop_path[0] : info.backdrop_path;
-  const actions = `<button class="primary detail-play">${record && !finished(record) ? `${icon("play")}Resume • ${clock(record.duration - record.position)} left` : `${icon("play")}Play`}</button>${record ? '<button class="secondary detail-restart">Start over</button>' : ""}<button class="secondary detail-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
+  const actions = `<button class="primary detail-play">${record && !finished(record) ? `${icon("play")}Resume • ${clock(record.duration - record.position)} left` : `${icon("play")}Play`}</button>${record ? '<button class="secondary detail-restart">Start over</button>' : ""}${trailerButton(meta)}<button class="secondary detail-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
   $("#series-detail").innerHTML = detailHero({
-    backdrop: backdropValue || item.backdrop || item.logo,
-    poster: info.movie_image || info.cover_big || item.logo,
-    eyebrow: "Movie", name: item.name,
-    meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releasedate || info.releaseDate || item.year || "").slice(0, 4), info.duration || item.duration, item.category],
-    description: info.plot || info.description || "Ready to watch from your connected IPTV source.",
+    backdrop: artUrl(meta?.backdrop, "w1280") || backdropValue || item.backdrop || item.logo,
+    poster: artUrl(meta?.poster, "w342") || info.movie_image || info.cover_big || item.logo,
+    eyebrow: "Movie", name: state.detailMeta?.title || item.name,
+    meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releasedate || info.releaseDate || item.year || meta?.year || "").slice(0, 4), meta?.details?.runtime || info.duration || item.duration, item.category],
+    description: meta?.overview || info.plot || info.description || "Ready to watch from your connected IPTV source.",
     actions,
-  }) + creditsBlock(info) + (bar > 1 ? `<section class="detail-progress"><span><i style="width:${bar.toFixed(1)}%"></i></span><small>${escapeHtml(`${clock(record.position)} of ${clock(record.duration)} watched`)}</small></section>` : "");
+  }) + ratingsRow(meta) + creditsBlock(mergedInfo(info, meta)) + (bar > 1 ? `<section class="detail-progress"><span><i style="width:${bar.toFixed(1)}%"></i></span><small>${escapeHtml(`${clock(record.position)} of ${clock(record.duration)} watched`)}</small></section>` : "");
 }
 
 function renderDetail() {
   if (state.seriesItem) renderSeriesDetail(); else if (state.detailItem) renderMovieDetail();
   updateRails();
+}
+
+function ratingsRow(meta) {
+  const cells = [
+    meta?.ratings?.imdb && { label: "IMDb", value: meta.ratings.imdb },
+    meta?.ratings?.rt && { label: "Rotten Tomatoes", value: meta.ratings.rt },
+    meta?.ratings?.metacritic && { label: "Metacritic", value: meta.ratings.metacritic },
+    meta?.score && { label: "TMDB", value: meta.score },
+  ].filter(Boolean);
+  if (!cells.length) return "";
+  return `<section class="ratings">${cells.map((cell) => `<div><small>${escapeHtml(cell.label)}</small><strong>${escapeHtml(cell.value)}</strong></div>`).join("")}</section>`;
+}
+
+async function hydrateDetail(item) {
+  if (!hasTmdb()) return;
+  const meta = await fullMeta(item).catch(() => null);
+  if (!meta || (state.detailItem?.id !== item.id && state.seriesItem?.id !== item.id)) return;
+  state.detailMeta = meta;
+  renderDetail();
+}
+
+async function hydrateHero(item) {
+  if (!hasTmdb() || !item) return;
+  const meta = await metaFor(item, { force: true }).catch(() => null);
+  if (!meta?.backdrop) return;
+  const hero = document.querySelector(".hero");
+  if (!hero) return;
+  const url = artUrl(meta.backdrop, "w1280");
+  const existing = hero.querySelector("img");
+  if (existing) { existing.src = url; return }
+  const image = new Image();
+  image.src = url;
+  image.addEventListener("load", () => { if (hero.isConnected && !hero.querySelector("img")) hero.insertBefore(image, hero.firstChild) });
 }
 
 async function openSeries(item) {
@@ -373,9 +597,10 @@ async function openSeries(item) {
     setLoading(true, "Loading episodes", item.name);
     const data = await fetchJson(apiUrl("get_series_info", `&series_id=${item.streamId}`));
     if (!seriesHasEpisodes(data)) throw new Error("No episodes were returned for this series");
-    state.detailItem = null; state.detailData = null;
+    state.detailItem = null; state.detailData = null; state.detailMeta = null;
     state.seriesItem = item; state.seriesData = data; state.selectedSeason = null;
     renderDetail(); $("#series-modal").classList.remove("hidden");
+    hydrateDetail(item);
   } catch (error) { showToast(error.message || "Could not load this series") }
   finally { setLoading(false) }
 }
@@ -383,8 +608,9 @@ async function openSeries(item) {
 async function openMovie(item) {
   if (!state.provider) return;
   state.seriesItem = null; state.seriesData = null;
-  state.detailItem = item; state.detailData = null;
+  state.detailItem = item; state.detailData = null; state.detailMeta = null;
   renderDetail(); $("#series-modal").classList.remove("hidden");
+  hydrateDetail(item);
   try {
     const data = await fetchJson(apiUrl("get_vod_info", `&vod_id=${item.streamId}`));
     if (state.detailItem?.id === item.id) { state.detailData = data; renderDetail() }
@@ -547,7 +773,7 @@ function closeModal(id) {
     state.playing = null; state.playerItem = null; state.queue = null;
     if (state.view === "home" || state.view === "history") render();
   }
-  if (id === "series-modal") { state.seriesItem = null; state.seriesData = null; state.selectedSeason = null; state.detailItem = null; state.detailData = null }
+  if (id === "series-modal") { state.seriesItem = null; state.seriesData = null; state.selectedSeason = null; state.detailItem = null; state.detailData = null; state.detailMeta = null }
 }
 
 function recordPosition(force = false) {
@@ -583,7 +809,13 @@ video.addEventListener("ended", () => {
 document.addEventListener("click", (event) => {
   const target = event.target;
   const close = target.closest("[data-close]"); if (close) return closeModal(close.dataset.close);
-  if (target.closest("#add-source,#source-settings,.open-source")) return $("#source-modal").classList.remove("hidden");
+  if (target.closest("#add-source,.open-source")) return $("#source-modal").classList.remove("hidden");
+  if (target.closest("#source-settings")) {
+    const stored = apiKeys();
+    $("#tmdb-key").value = stored.tmdb || "";
+    $("#omdb-key").value = stored.omdb || "";
+    return $("#settings-modal").classList.remove("hidden");
+  }
   if (target.closest("#source-refresh")) return refreshLibrary();
   const nav = target.closest("nav button");
   if (nav) { state.view = nav.dataset.view; state.category = "All"; state.limit = 120; state.query = ""; $("#search").value = ""; render(); return }
@@ -675,6 +907,13 @@ $("#search").addEventListener("input", (event) => {
   searchTimer = setTimeout(() => { state.query = event.target.value.trim(); state.category = "All"; state.limit = 120; render() }, 180);
 });
 $("#source-form").addEventListener("submit", connectProvider);
+$("#keys-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  localStorage.setItem("aurora-keys", JSON.stringify({ tmdb: $("#tmdb-key").value.trim(), omdb: $("#omdb-key").value.trim() }));
+  closeModal("settings-modal");
+  showToast(hasTmdb() ? "Artwork is on — posters will fill in as you browse" : "Keys cleared");
+  render();
+});
 $("#favorite-player").addEventListener("click", () => toggleFavorite(state.playerItem));
 $("#audio-track").addEventListener("change", (event) => { if (state.hls) state.hls.audioTrack = Number(event.target.value) });
 $("#subtitle-track").addEventListener("change", (event) => {

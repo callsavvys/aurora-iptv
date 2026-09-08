@@ -102,6 +102,20 @@
     </div>
   </div>
 
+  <div class="modal hidden" id="settings-modal">
+    <div class="modal-card source-modal-card">
+      <button class="close" data-close="settings-modal"><svg class="icon"><use href="#i-close"/></svg></button>
+      <h2>Artwork and ratings</h2>
+      <p>Aurora can fetch posters, backdrops, cast and trailers from TMDB, and IMDb and Rotten Tomatoes scores through OMDb. Both are free.</p>
+      <form id="keys-form">
+        <label>TMDB API key<input id="tmdb-key" spellcheck="false" autocomplete="off" placeholder="Required for artwork" /></label>
+        <label>OMDb API key — optional, for IMDb and Rotten Tomatoes<input id="omdb-key" spellcheck="false" autocomplete="off" placeholder="Leave empty to skip" /></label>
+        <button class="primary submit" type="submit">Save keys</button>
+      </form>
+      <div class="privacy">✓ Stored only on this Mac, never in the app you downloaded</div>
+    </div>
+  </div>
+
   <div class="modal hidden" id="player-modal">
     <div class="modal-card player-card">
       <button class="close player-close" data-close="player-modal"><svg class="icon"><use href="#i-close"/></svg></button>
