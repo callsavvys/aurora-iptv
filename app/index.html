@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http: https: data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http: https: data:; media-src 'self' http: https: blob:; connect-src 'self' http: https:;" />
+  <title>Aurora IPTV</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="series.css" />
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand"><span>▶</span><b>Aurora</b></div>
+      <p class="nav-label">Browse</p>
+      <nav>
+        <button class="active" data-view="home"><i>⌂</i>Home</button>
+        <button data-view="live"><i>◉</i>Live TV</button>
+        <button data-view="movies"><i>▰</i>Movies</button>
+        <button data-view="series"><i>▦</i>Series</button>
+        <button data-view="favorites"><i>♡</i>Favorites <em id="favorite-count"></em></button>
+      </nav>
+      <div class="source-card">
+        <div class="source-icon">▣</div>
+        <div><strong id="source-name">No source</strong><small id="source-status">Not connected</small></div>
+        <button id="source-settings" title="Source settings">⚙</button>
+      </div>
+      <div class="local-profile"><span>Z</span><div><strong>Ziad</strong><small>Local Mac profile</small></div></div>
+    </aside>
+
+    <section class="workspace">
+      <header>
+        <label class="search"><span>⌕</span><input id="search" placeholder="Search channels, movies and series" /></label>
+        <button class="primary compact" id="add-source">＋ Add source</button>
+      </header>
+      <div class="scroll" id="content"></div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <div class="loading-overlay hidden" id="loading"><div class="spinner"></div><strong id="loading-title">Connecting</strong><span id="loading-detail">Checking your account…</span></div>
+
+  <div class="modal hidden" id="source-modal">
+    <div class="modal-card source-modal-card">
+      <button class="close" data-close="source-modal">×</button>
+      <h2>Connect a source</h2>
+      <p>Aurora is a player only. Add an Xtream account you’re authorized to use.</p>
+      <form id="source-form">
+        <label>Source name<input id="provider-name" value="My IPTV" /></label>
+        <label>Server address<input id="server" placeholder="your-provider.com:80" required /></label>
+        <div class="form-grid">
+          <label>Username<input id="username" autocomplete="username" required /></label>
+          <label>Password<input id="password" type="password" autocomplete="current-password" required /></label>
+        </div>
+        <div class="form-error hidden" id="form-error"></div>
+        <button class="primary submit" type="submit">＋ Connect source</button>
+      </form>
+      <div class="privacy">✓ Stored only on this Mac and sent directly from your connection</div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="player-modal">
+    <div class="modal-card player-card">
+      <button class="close player-close" data-close="player-modal">×</button>
+      <div class="video-stage"><video id="video" controls autoplay playsinline></video><div class="video-message hidden" id="video-message"></div></div>
+      <div class="player-copy"><div><small>NOW PLAYING</small><h2 id="player-title"></h2></div><button id="favorite-player">♡ My list</button></div>
+    </div>
+  </div>
+
+  <div class="modal hidden" id="series-modal">
+    <div class="modal-card series-card">
+      <button class="close series-close" data-close="series-modal">×</button>
+      <div id="series-detail"></div>
+    </div>
+  </div>
+
+  <script src="hls.min.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
