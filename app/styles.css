@@ -1402,3 +1402,166 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 .shelf-head > button:hover { border-color: var(--accent-edge); color: var(--accent); }
 
 .empty button { margin-top: 18px; height: 36px; padding: 0 16px; border-radius: 10px; }
+
+/* ---------- programme guide ---------- */
+
+.seg { display: flex; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--fill-1); }
+.seg button {
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  border-radius: 7px;
+  height: 28px;
+  padding: 0 14px;
+  cursor: pointer;
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 700;
+}
+.seg button:hover { color: var(--text); }
+.seg button.active { background: var(--accent); color: var(--accent-ink); }
+
+.guide {
+  overflow: auto;
+  max-height: calc(100vh - 260px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar) transparent;
+}
+
+.guide-inner { position: relative; width: max-content; min-width: 100%; }
+
+.guide-times {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.guide-corner {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  flex: none;
+  width: 200px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+.guide-corner .chip { height: 26px; padding: 0 11px; }
+
+.guide-ticks { position: relative; height: 42px; flex: none; }
+.guide-ticks i {
+  position: absolute;
+  top: 13px;
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  padding-left: 7px;
+  border-left: 1px solid var(--line);
+  height: 18px;
+  line-height: 18px;
+}
+
+.guide-rows { display: flex; flex-direction: column; }
+
+.guide-row { display: flex; border-bottom: 1px solid var(--line-soft); height: 58px; }
+.guide-row:last-child { border-bottom: 0; }
+
+.guide-channel {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  flex: none;
+  width: 200px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+
+.guide-logo {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(145deg, var(--art-a), var(--art-b) 60%, var(--art-c));
+  display: grid;
+  place-items: center;
+}
+.guide-logo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.guide-logo b { font-size: 11px; font-weight: 800; color: var(--text); opacity: .5; }
+
+.guide-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.guide-progs { position: relative; flex: none; height: 58px; }
+
+.prog {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  border: 1px solid var(--line);
+  background: var(--fill-1);
+  color: var(--text-2);
+  border-radius: 9px;
+  padding: 0 10px;
+  text-align: left;
+  overflow: hidden;
+  cursor: pointer;
+  transition: .15s;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+.prog:hover { border-color: var(--accent-edge-strong); background: var(--accent-wash); }
+/* a programme that began before the visible window would otherwise have its
+   title scrolled off to the left; pin the label to the visible edge instead */
+.prog b, .prog small { position: sticky; left: 10px; align-self: flex-start; max-width: 100%; }
+.prog b { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prog small { font-family: var(--mono); font-size: 9px; color: var(--text-4); }
+.prog.live { border-color: var(--accent-edge); background: var(--accent-wash-strong); }
+.prog.live b { color: var(--accent); }
+.prog.loading, .prog.blank {
+  left: 0;
+  width: 260px;
+  border-style: dashed;
+  color: var(--text-4);
+  font-family: var(--mono);
+  font-size: 10px;
+  cursor: default;
+  align-items: flex-start;
+  justify-content: center;
+}
+.prog.blank:hover, .prog.loading:hover { border-color: var(--line); background: var(--fill-1); }
+
+.now-line {
+  position: absolute;
+  top: 42px;
+  bottom: 0;
+  width: 2px;
+  margin-left: 200px;
+  background: var(--live);
+  z-index: 2;
+  pointer-events: none;
+}
+.now-line::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--live);
+}
+.now-line[hidden] { display: none; }

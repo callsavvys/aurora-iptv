@@ -23,7 +23,7 @@ const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
   favorites: new Set(JSON.parse(localStorage.getItem("aurora-favorites") || "[]")),
   progress: new Map(Object.entries(JSON.parse(localStorage.getItem("aurora-progress") || "{}"))),
-  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, trending: null, searchScope: "all",
+  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, trending: null, searchScope: "all", liveMode: "guide",
   seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
 const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings" };
@@ -505,6 +505,56 @@ async function loadTrending() {
   if (state.view === "home" && !state.query) render();
 }
 
+/* ---------- programme guide ----------
+   Xtream returns EPG titles and descriptions base64-encoded, and providers are
+   inconsistent about whether timestamps come as unix seconds or as a local
+   string with no offset. Both are handled; entries that survive neither are
+   dropped rather than rendered as an invalid block. */
+
+const EPG_TTL = 30 * 60 * 1000;
+const epgCache = new Map();
+
+function decodeEpgText(value) {
+  if (!value) return "";
+  const plain = String(value).trim();
+  const compact = plain.replace(/\s/g, "");
+  // a plain title can easily look like base64, so decode strictly and reject
+  // anything that comes back as invalid UTF-8 or carries control characters
+  if (!compact || compact.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) return plain;
+  try {
+    const bytes = Uint8Array.from(atob(compact), (char) => char.charCodeAt(0));
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes).trim();
+    if (!text || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(text)) return plain;
+    return text;
+  } catch { return plain }
+}
+
+function normaliseProgramme(entry) {
+  const start = Number(entry.start_timestamp) * 1000 || Date.parse(String(entry.start || "").replace(" ", "T"));
+  const end = Number(entry.stop_timestamp) * 1000 || Date.parse(String(entry.end || "").replace(" ", "T"));
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+  return { start, end, title: decodeEpgText(entry.title) || "No title", description: decodeEpgText(entry.description) };
+}
+
+async function epgFor(item) {
+  const key = `epg:${activeSourceId()}:${item.streamId}`;
+  const held = epgCache.get(key);
+  if (held && Date.now() - held.at < EPG_TTL) return held.list;
+  const stored = await idbGet("meta", key).catch(() => null);
+  if (stored && Date.now() - stored.at < EPG_TTL) { epgCache.set(key, stored); return stored.list }
+  return enqueue(async () => {
+    const data = await fetchJson(apiUrl("get_short_epg", `&stream_id=${item.streamId}&limit=24`)).catch(() => null);
+    const list = (data?.epg_listings || []).map(normaliseProgramme).filter(Boolean).sort((a, b) => a.start - b.start);
+    const record = { at: Date.now(), list };
+    epgCache.set(key, record);
+    await idbPut("meta", key, record).catch(() => {});
+    return list;
+  }, { slow: true });
+}
+
+const nowPlaying = (list, at = Date.now()) => (list || []).find((entry) => entry.start <= at && entry.end > at) || null;
+const upNext = (list, at = Date.now()) => (list || []).find((entry) => entry.start > at) || null;
+
 /* ---------- watch progress ---------- */
 
 function persistProgress() {
@@ -855,7 +905,95 @@ function renderSearch() {
   watchArtwork();
 }
 
+/* ---------- the guide ----------
+   Channels down, time across, a line on the current moment. Pure CSS sticky
+   for both axes, so there is no scroll syncing to get wrong. */
+
+const PX_PER_MIN = 5;
+const GUIDE_HOURS = 8;
+const GUIDE_CHANNELS = 60;
+
+const halfHourFloor = (at) => Math.floor(at / 1800000) * 1800000;
+const clockTime = (at) => new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+
+function renderGuide() {
+  const base = itemsForView(true);
+  const categories = ["All", ...new Set(base.map((item) => item.category).filter(Boolean))];
+  const channels = itemsForView().slice(0, state.limit);
+  const windowStart = halfHourFloor(Date.now()) - 1800000;
+  const windowEnd = windowStart + GUIDE_HOURS * 3600000;
+  const width = ((windowEnd - windowStart) / 60000) * PX_PER_MIN;
+
+  const ticks = [];
+  for (let at = windowStart; at < windowEnd; at += 1800000) {
+    ticks.push(`<i style="left:${((at - windowStart) / 60000) * PX_PER_MIN}px">${escapeHtml(clockTime(at))}</i>`);
+  }
+
+  const rows = channels.map((item) => `<div class="guide-row" data-guide-for="${escapeHtml(item.id)}">
+      <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" src="${escapeHtml(item.logo)}" onerror="this.style.display='none'">` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
+      <div class="guide-progs" style="width:${width}px"><span class="prog loading">Loading guide…</span></div>
+    </div>`).join("");
+
+  const total = itemsForView().length;
+  $("#content").innerHTML = `<section class="page guide-page">
+    <div class="page-title">
+      <div><span class="eyebrow">${escapeHtml(state.provider?.name || "Live TV")}</span><h1>Guide</h1></div>
+      <div class="seg"><button data-live-mode="guide" class="active">Guide</button><button data-live-mode="grid">Channels</button></div>
+    </div>
+    <div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>
+    <div class="guide" id="guide">
+      <div class="guide-inner" style="--track:${width}px">
+        <div class="guide-times"><div class="guide-corner"><button class="chip" id="guide-now">Now</button></div><div class="guide-ticks" style="width:${width}px">${ticks.join("")}</div></div>
+        <div class="guide-rows">${rows || '<p class="panel-empty">No channels in this category.</p>'}</div>
+        <span class="now-line" id="now-line"></span>
+      </div>
+    </div>
+    ${total > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 60 more · ${(total - state.limit).toLocaleString()} remaining</button></div>` : ""}
+  </section>`;
+
+  guideWindow = { start: windowStart, end: windowEnd, width };
+  positionNow();
+  updateRails();
+  for (const node of document.querySelectorAll(".guide-row[data-guide-for]")) paintGuideRow(node);
+  scrollGuideToNow();
+}
+
+let guideWindow = null;
+
+function positionNow() {
+  const line = $("#now-line");
+  if (!line || !guideWindow) return;
+  const offset = ((Date.now() - guideWindow.start) / 60000) * PX_PER_MIN;
+  const inside = offset >= 0 && offset <= guideWindow.width;
+  line.hidden = !inside;
+  line.style.left = `${offset}px`;
+}
+
+function scrollGuideToNow() {
+  const guide = $("#guide");
+  if (!guide || !guideWindow) return;
+  guide.scrollLeft = Math.max(0, ((Date.now() - guideWindow.start) / 60000) * PX_PER_MIN - 120);
+}
+
+async function paintGuideRow(node) {
+  const item = state.items.find((entry) => entry.id === node.dataset.guideFor);
+  if (!item) return;
+  const list = await epgFor(item).catch(() => []);
+  const track = node.querySelector(".guide-progs");
+  if (!node.isConnected || !track || !guideWindow) return;
+  const { start, end } = guideWindow;
+  const visible = (list || []).filter((programme) => programme.end > start && programme.start < end);
+  if (!visible.length) { track.innerHTML = '<span class="prog blank">No guide for this channel</span>'; return }
+  track.innerHTML = visible.map((programme) => {
+    const left = Math.max(0, ((programme.start - start) / 60000) * PX_PER_MIN);
+    const right = Math.min(guideWindow.width, ((programme.end - start) / 60000) * PX_PER_MIN);
+    const live = programme.start <= Date.now() && programme.end > Date.now();
+    return `<button class="prog ${live ? "live" : ""}" style="left:${left}px;width:${Math.max(2, right - left)}px" data-play="${escapeHtml(item.id)}" title="${escapeHtml(`${clockTime(programme.start)}–${clockTime(programme.end)}  ${programme.title}`)}"><b>${escapeHtml(programme.title)}</b><small>${escapeHtml(clockTime(programme.start))}</small></button>`;
+  }).join("");
+}
+
 function renderCollection() {
+  if (state.view === "live" && state.liveMode !== "grid") return renderGuide();
   const base = itemsForView(true), categories = ["All", ...new Set(base.map((item) => item.category).filter(Boolean))], items = itemsForView();
   $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${items.length ? `<div class="grid">${items.slice(0, state.limit).map((item) => card(item, item.type === "live")).join("")}</div>${items.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more • ${(items.length - state.limit).toLocaleString()} remaining</button></div>` : ""}` : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
   updateRails();
@@ -1266,13 +1404,25 @@ document.addEventListener("click", (event) => {
     return window.aurora?.checkForUpdates();
   }
     const nav = target.closest("nav button");
-  if (nav) { state.view = nav.dataset.view; state.category = "All"; state.limit = 120; state.query = ""; $("#search").value = ""; render(); return }
+  if (nav) {
+    state.view = nav.dataset.view;
+    state.category = "All";
+    state.limit = state.view === "live" && state.liveMode !== "grid" ? GUIDE_CHANNELS : 120;
+    state.query = ""; $("#search").value = "";
+    render();
+    return;
+  }
   const use = target.closest("[data-use]"); if (use) return useSource(use.dataset.use);
   const reload = target.closest("[data-refresh]"); if (reload) return refreshLibrary(false, reload.dataset.refresh);
   const remove = target.closest("[data-remove]"); if (remove) { state.confirmRemove = remove.dataset.remove; renderSettings(); return }
   const confirmRemove = target.closest("[data-remove-confirm]");
   if (confirmRemove) { state.confirmRemove = null; return removeSource(confirmRemove.dataset.removeConfirm) }
   const pill = target.closest("#source-pill"); if (pill) { state.view = "settings"; state.confirmRemove = null; render(); return }
+  const mode = target.closest("[data-live-mode]");
+  if (mode) { state.liveMode = mode.dataset.liveMode; state.limit = state.liveMode === "grid" ? 120 : GUIDE_CHANNELS; render(); return }
+  if (target.closest("#guide-now")) return scrollGuideToNow();
+  const programme = target.closest("[data-play]");
+  if (programme) return play(state.items.find((entry) => entry.id === programme.dataset.play));
   if (target.closest("#play-something")) return playSomething();
   const themeButton = target.closest(".theme-switch button");
   if (themeButton) return applyTheme(themeButton.dataset.themeChoice);
@@ -1287,7 +1437,7 @@ document.addEventListener("click", (event) => {
   if (scope) { state.searchScope = scope.dataset.scope; state.limit = 120; render(); return }
   if (target.closest("#clear-search")) { state.query = ""; $("#search").value = ""; render(); return }
   const chip = target.closest(".chip"); if (chip) { state.category = chip.dataset.category; state.limit = 120; renderCollection(); return }
-  if (target.closest("#load-more")) { state.limit += 120; state.query ? renderSearch() : renderCollection(); return }
+  if (target.closest("#load-more")) { state.limit += state.view === "live" && state.liveMode !== "grid" ? GUIDE_CHANNELS : 120; state.query ? renderSearch() : renderCollection(); return }
   if (target.closest("#clear-history")) { state.progress.clear(); persistProgress(); render(); return }
   const featuredPlay = target.closest(".play-featured"); if (featuredPlay) return openDetail(state.items.find((item) => item.id === featuredPlay.dataset.id));
   const featuredFavorite = target.closest(".favorite-featured"); if (featuredFavorite) return toggleFavorite(state.items.find((item) => item.id === featuredFavorite.dataset.id));
