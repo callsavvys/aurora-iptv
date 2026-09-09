@@ -998,3 +998,46 @@ nav i { display: grid; place-items: center; font-size: 19px; }
 .ratings small { display: block; color: var(--text-4); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .ratings strong { display: block; font-family: var(--mono); font-size: 16px; font-weight: 700; margin-top: 5px; color: var(--text); }
 .trailer { height: 37px; padding: 0 15px; border-radius: 10px; font-size: 12px; text-decoration: none; }
+
+/* ---------- score source, ratings hint ---------- */
+.score em { font-style: normal; opacity: .62; font-size: 8px; letter-spacing: .06em; text-transform: uppercase; margin-left: 1px; }
+.ratings-hint {
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  color: var(--text-3);
+  border-radius: 10px;
+  padding: 8px 13px;
+  font-family: var(--display);
+  font-size: 11px;
+  cursor: pointer;
+  align-self: stretch;
+}
+.ratings-hint:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- waiting for artwork ---------- */
+/* only shimmer where something is genuinely on its way */
+.artwork-on .art[data-art-for]:not(.has-art)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, var(--fill-3) 50%, transparent 65%);
+  background-size: 280% 100%;
+  animation: sweep 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes sweep {
+  from { background-position: 160% 0; }
+  to { background-position: -60% 0; }
+}
+
+/* ---------- entering a view ---------- */
+.scroll.enter > * { animation: enter .28s cubic-bezier(.2, .7, .3, 1) both; }
+@keyframes enter { from { opacity: 0; transform: translateY(9px); } }
+
+.art:hover { box-shadow: 0 18px 40px rgba(0, 0, 0, .28); }
+
+@media (prefers-reduced-motion: reduce) {
+  .artwork-on .art[data-art-for]:not(.has-art)::after { animation: none; }
+  .scroll.enter > * { animation: none; }
+}

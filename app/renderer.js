@@ -136,24 +136,39 @@ function releaseYear(item) {
 }
 
 const queue = [];
+const slowQueue = [];
 let running = 0;
 
-function enqueue(task) {
+function enqueue(task, { slow = false } = {}) {
   return new Promise((resolve) => {
-    queue.push(async () => { resolve(await task().catch(() => null)) });
+    (slow ? slowQueue : queue).push(async () => { resolve(await task().catch(() => null)) });
     pump();
   });
 }
 
 function pump() {
-  while (running < 4 && queue.length) {
-    const task = queue.shift();
+  while (running < 4 && (queue.length || (slowQueue.length && running < 2))) {
+    const task = queue.length ? queue.shift() : slowQueue.shift();
     running += 1;
     task().finally(() => { running -= 1; pump() });
   }
 }
 
 const metaCache = new Map();
+
+// OMDb allows 1,000 calls a day. Spend them on what is actually on screen and
+// keep a local tally so browsing can never exhaust the quota in one sitting.
+const OMDB_DAILY = 700;
+
+function omdbBudget() {
+  const today = new Date().toISOString().slice(0, 10);
+  let usage = { date: today, used: 0 };
+  try { const stored = JSON.parse(localStorage.getItem("aurora-omdb-usage") || "null"); if (stored?.date === today) usage = stored } catch { /* start fresh */ }
+  return {
+    left: OMDB_DAILY - usage.used,
+    spend: () => localStorage.setItem("aurora-omdb-usage", JSON.stringify({ date: today, used: usage.used + 1 })),
+  };
+}
 
 async function cachedMeta(id) {
   if (metaCache.has(id)) return metaCache.get(id);
@@ -232,6 +247,38 @@ async function omdbRatings(imdbId) {
   return { imdb: find("Internet Movie Database").split("/")[0], rt: find("Rotten Tomatoes"), metacritic: find("Metacritic").split("/")[0], imdbId };
 }
 
+function scoreBadge(item, meta) {
+  const cached = meta || metaCache.get(item.id);
+  if (cached?.ratings?.imdb) return { source: "IMDb", value: cached.ratings.imdb };
+  if (cached?.score) return { source: "TMDB", value: cached.score };
+  return item.rating ? { source: "", value: item.rating } : null;
+}
+
+// the ratings that need a second and third call, fetched only for what is
+// rendered and only while the OMDb budget lasts
+async function deepEnrich(item) {
+  if (!hasTmdb() || !apiKeys().omdb) return null;
+  const cached = await cachedMeta(item.id);
+  if (!cached?.tmdbId || cached.ratings || cached.ratingsMiss) return cached;
+  if (omdbBudget().left <= 0) return cached;
+  return enqueue(async () => {
+    const budget = omdbBudget();
+    if (budget.left <= 0) return cached;
+    budget.spend();
+    const full = await fullMeta(item).catch(() => null);
+    if (full && !full.ratings) return storeMeta(item.id, { ...full, ratingsMiss: true });
+    return full;
+  }, { slow: true });
+}
+
+function paintScore(item, meta) {
+  const badge = scoreBadge(item, meta);
+  const holder = document.querySelector(`.score[data-score-for="${CSS.escape(item.id)}"]`);
+  if (!holder || !badge) return;
+  holder.innerHTML = `${icon("star")}${escapeHtml(badge.value)}${badge.source ? `<em>${escapeHtml(badge.source)}</em>` : ""}`;
+  holder.hidden = false;
+}
+
 /* Fills artwork in place, without re-rendering. This deliberately does not use
    IntersectionObserver: it delivers nothing while the window is occluded or in
    the background, so artwork would silently never arrive. Only what is already
@@ -250,6 +297,8 @@ async function hydrateArt(node) {
     const subtitle = card?.querySelector(".card-copy p");
     if (subtitle && meta.year) subtitle.textContent = [meta.year, item.category].filter(Boolean).join(" • ");
   }
+  paintScore(item, meta);
+  deepEnrich(item).then((full) => { if (full?.ratings) paintScore(item, full) });
   if (!meta.poster) return;
   const image = new Image();
   image.src = artUrl(meta.poster, "w342");
@@ -380,7 +429,7 @@ function card(item, wide = false) {
   const art = item.logo || item.backdrop;
   const bar = item.type === "movie" ? percent(progressOf(item.id)) : 0;
   const opens = item.type === "live" ? "play-item" : "open-detail";
-  return `<article class="card ${wide ? "wide" : ""}" data-id="${escapeHtml(item.id)}"><div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${item.rating ? `<span class="score">${icon("star")}${escapeHtml(item.rating)}</span>` : ""}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
+  return `<article class="card ${wide ? "wide" : ""}" data-id="${escapeHtml(item.id)}"><div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const badge = scoreBadge(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${badge ? "" : " hidden"}>${badge ? `${icon("star")}${escapeHtml(badge.value)}${badge.source ? `<em>${escapeHtml(badge.source)}</em>` : ""}` : ""}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
 function resumeCard(record) {
@@ -458,6 +507,14 @@ function render() {
   updateRails();
   watchArtwork();
   updateSource();
+  document.documentElement.classList.toggle("artwork-on", hasTmdb());
+  if (render.lastView !== state.view) {
+    const content = $("#content");
+    content.classList.remove("enter");
+    void content.offsetWidth;
+    content.classList.add("enter");
+    render.lastView = state.view;
+  }
 }
 
 function toggleFavorite(item) {
@@ -565,8 +622,9 @@ function ratingsRow(meta) {
     meta?.ratings?.metacritic && { label: "Metacritic", value: meta.ratings.metacritic },
     meta?.score && { label: "TMDB", value: meta.score },
   ].filter(Boolean);
-  if (!cells.length) return "";
-  return `<section class="ratings">${cells.map((cell) => `<div><small>${escapeHtml(cell.label)}</small><strong>${escapeHtml(cell.value)}</strong></div>`).join("")}</section>`;
+  const hint = !apiKeys().omdb ? '<button class="ratings-hint" id="open-settings-hint">Add an OMDb key for IMDb and Rotten Tomatoes</button>' : "";
+  if (!cells.length && !hint) return "";
+  return `<section class="ratings">${cells.map((cell) => `<div><small>${escapeHtml(cell.label)}</small><strong>${escapeHtml(cell.value)}</strong></div>`).join("")}${hint}</section>`;
 }
 
 async function hydrateDetail(item) {
@@ -810,7 +868,7 @@ document.addEventListener("click", (event) => {
   const target = event.target;
   const close = target.closest("[data-close]"); if (close) return closeModal(close.dataset.close);
   if (target.closest("#add-source,.open-source")) return $("#source-modal").classList.remove("hidden");
-  if (target.closest("#source-settings")) {
+  if (target.closest("#source-settings,#open-settings-hint")) {
     const stored = apiKeys();
     $("#tmdb-key").value = stored.tmdb || "";
     $("#omdb-key").value = stored.omdb || "";
