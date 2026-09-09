@@ -17,6 +17,13 @@ function applyTheme(choice) {
 }
 
 applyTheme(themeChoice());
+
+const sidebarHidden = () => localStorage.getItem("aurora-sidebar") === "rail";
+function applySidebar(rail) {
+  localStorage.setItem("aurora-sidebar", rail ? "rail" : "full");
+  document.querySelector(".app")?.classList.toggle("rail", rail);
+}
+applySidebar(sidebarHidden());
 matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (themeChoice() === "system") applyTheme("system") });
 const LIBRARY_SCHEMA = 2;
 const state = {
@@ -72,6 +79,27 @@ async function useSource(id) {
   state.category = "All"; state.limit = 120; state.query = "";
   render();
   if (!state.items.length) showToast(`${source.name} has no cached library yet — refresh it to load`);
+}
+
+async function testSource(id) {
+  const source = readSources().find((entry) => entry.id === id);
+  if (!source) return;
+  const row = document.querySelector(`[data-status-for="${CSS.escape(id)}"]`);
+  const say = (text, tone) => { if (row) { row.textContent = text; row.className = `row-status ${tone}` } };
+  say("Checking…", "");
+  const previous = state.provider;
+  state.provider = source;
+  try {
+    const auth = await fetchJson(apiUrl());
+    const info = auth?.user_info || {};
+    if (Number(info.auth) !== 1) return say("The provider rejected this login", "bad");
+    if (info.status && info.status !== "Active") return say(`Account is ${String(info.status).toLowerCase()}`, "bad");
+    const expiry = Number(info.exp_date) ? new Date(Number(info.exp_date) * 1000).toLocaleDateString() : "";
+    say(`Connected${info.max_connections ? ` · ${info.active_cons || 0}/${info.max_connections} connections` : ""}${expiry ? ` · expires ${expiry}` : ""}`, "good");
+  } catch (error) {
+    const raw = error?.message || "";
+    say(/fetch failed|networkerror|failed to fetch/i.test(raw) ? "Could not reach that server — check the address and that you are online" : raw || "Could not reach this provider", "bad");
+  } finally { state.provider = previous }
 }
 
 async function removeSource(id) {
@@ -171,7 +199,34 @@ function categoryMap(categories) {
 
 const TMDB = "https://api.themoviedb.org/3";
 const artUrl = (path, size) => (path ? `https://image.tmdb.org/t/p/${size}${path}` : "");
-const apiKeys = () => { try { return JSON.parse(localStorage.getItem("aurora-keys") || "{}") } catch { return {} } };
+let secrets = null;
+
+const apiKeys = () => secrets || {};
+
+async function loadSecrets() {
+  secrets = (await window.aurora?.getSecrets?.()) || null;
+  if (!secrets) {
+    // migrate anything left in localStorage from before the keychain existed
+    let legacy = {};
+    try { legacy = JSON.parse(localStorage.getItem("aurora-keys") || "{}") } catch { legacy = {} }
+    secrets = legacy;
+    if (legacy.tmdb || legacy.omdb) {
+      const result = await window.aurora?.setSecrets?.(legacy);
+      if (result?.saved) localStorage.removeItem("aurora-keys");
+    }
+  }
+  return secrets;
+}
+
+async function saveSecrets(next) {
+  secrets = next;
+  const result = await window.aurora?.setSecrets?.(next);
+  if (result && !result.saved) showToast("Could not save the keys to this Mac");
+  else if (result && !result.encrypted) showToast("Keys saved, but this Mac has no keychain available so they are stored unencrypted");
+  return result;
+}
+
+const fingerprint = (value) => (value ? `${"•".repeat(Math.max(0, Math.min(12, value.length - 4)))}${value.slice(-4)}` : "");
 const hasTmdb = () => Boolean(apiKeys().tmdb);
 
 // provider titles carry language tags, quality flags and the year
@@ -815,11 +870,12 @@ function renderSettings() {
       </div>
       <div class="row-actions">
         ${current ? '<span class="tag">In use</span>' : `<button class="secondary small" data-use="${escapeHtml(source.id)}">Use</button>`}
+        <button class="secondary small" data-test="${escapeHtml(source.id)}">Test</button>
         <button class="icon-btn" data-refresh="${escapeHtml(source.id)}" title="Reload this library">${icon("refresh")}</button>
-        ${confirming
-          ? `<button class="secondary small danger" data-remove-confirm="${escapeHtml(source.id)}">Remove for good</button>`
-          : `<button class="icon-btn danger" data-remove="${escapeHtml(source.id)}" title="Remove source">${icon("close")}</button>`}
+        ${confirming ? "" : `<button class="icon-btn danger" data-remove="${escapeHtml(source.id)}" title="Remove source">${icon("close")}</button>`}
       </div>
+      <p class="row-status" data-status-for="${escapeHtml(source.id)}"></p>
+      ${confirming ? `<div class="row-confirm"><p>Remove <b>${escapeHtml(source.name)}</b>? Its cached library of ${(source.count || 0).toLocaleString()} item${source.count === 1 ? "" : "s"} and any artwork are deleted from this Mac. Your account with the provider is untouched.</p><div><button class="secondary small danger" data-remove-confirm="${escapeHtml(source.id)}">Remove it</button><button class="secondary small" data-remove-cancel>Keep it</button></div></div>` : ""}
     </div>`;
   }).join("");
 
@@ -845,9 +901,10 @@ function renderSettings() {
     <section class="panel">
       <header><h2>Artwork and ratings</h2><p>Posters, backdrops, cast and trailers come from TMDB. IMDb and Rotten Tomatoes scores need an OMDb key as well. Both are free, and both stay on this Mac.</p></header>
       <form id="keys-form" class="keys">
-        <label>TMDB API key<input id="tmdb-key" value="${escapeHtml(keys.tmdb || "")}" spellcheck="false" autocomplete="off" placeholder="Required for artwork" /></label>
-        <label>OMDb API key<input id="omdb-key" value="${escapeHtml(keys.omdb || "")}" spellcheck="false" autocomplete="off" placeholder="Optional — IMDb and Rotten Tomatoes" /></label>
+        <label>TMDB API key<span class="field"><input id="tmdb-key" type="password" value="${escapeHtml(keys.tmdb || "")}" spellcheck="false" autocomplete="off" placeholder="Required for artwork" /><button type="button" class="icon-btn" data-reveal="tmdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.tmdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.tmdb))}</small>` : ""}</label>
+        <label>OMDb API key<span class="field"><input id="omdb-key" type="password" value="${escapeHtml(keys.omdb || "")}" spellcheck="false" autocomplete="off" placeholder="Optional — IMDb and Rotten Tomatoes" /><button type="button" class="icon-btn" data-reveal="omdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.omdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.omdb))}</small>` : ""}</label>
         <button class="primary small" type="submit">Save keys</button>
+        <small class="keys-note">Stored in this Mac's keychain, not in the app you downloaded.</small>
       </form>
     </section>
 
@@ -1397,6 +1454,18 @@ document.addEventListener("click", (event) => {
   const close = target.closest("[data-close]"); if (close) return closeModal(close.dataset.close);
   if (target.closest("#add-source,.open-source")) return $("#source-modal").classList.remove("hidden");
   if (target.closest("#open-settings-hint")) { closeModal("series-modal"); state.view = "settings"; render(); return }
+  const reveal = target.closest("[data-reveal]");
+  if (reveal) {
+    const field = $(`#${reveal.dataset.reveal}`);
+    const shown = field.type === "text";
+    field.type = shown ? "password" : "text";
+    reveal.setAttribute("aria-pressed", String(!shown));
+    reveal.title = shown ? "Show" : "Hide";
+    reveal.querySelector("use").setAttribute("href", shown ? "#i-eye" : "#i-eye-off");
+    return;
+  }
+  const test = target.closest("[data-test]");
+  if (test) return testSource(test.dataset.test);
   if (target.closest("#check-updates")) {
     if (renderUpdateBanner.state?.state === "ready") return window.aurora?.installUpdate();
     renderUpdateBanner.hold = Date.now() + 700;
@@ -1415,6 +1484,7 @@ document.addEventListener("click", (event) => {
   const use = target.closest("[data-use]"); if (use) return useSource(use.dataset.use);
   const reload = target.closest("[data-refresh]"); if (reload) return refreshLibrary(false, reload.dataset.refresh);
   const remove = target.closest("[data-remove]"); if (remove) { state.confirmRemove = remove.dataset.remove; renderSettings(); return }
+  if (target.closest("[data-remove-cancel]")) { state.confirmRemove = null; renderSettings(); return }
   const confirmRemove = target.closest("[data-remove-confirm]");
   if (confirmRemove) { state.confirmRemove = null; return removeSource(confirmRemove.dataset.removeConfirm) }
   const pill = target.closest("#source-pill"); if (pill) { state.view = "settings"; state.confirmRemove = null; render(); return }
@@ -1676,10 +1746,10 @@ $("#search").addEventListener("input", (event) => {
   }, 180);
 });
 $("#source-form").addEventListener("submit", connectProvider);
-document.addEventListener("submit", (event) => {
+document.addEventListener("submit", async (event) => {
   if (event.target.id !== "keys-form") return;
   event.preventDefault();
-  localStorage.setItem("aurora-keys", JSON.stringify({ tmdb: $("#tmdb-key").value.trim(), omdb: $("#omdb-key").value.trim() }));
+  await saveSecrets({ tmdb: $("#tmdb-key").value.trim(), omdb: $("#omdb-key").value.trim() });
   showToast(hasTmdb() ? "Saved — posters and ratings will fill in as you browse" : "Keys cleared");
   render();
 });
@@ -1742,6 +1812,8 @@ function renderUpdateBanner(status) {
 }
 
 if (window.aurora) {
+  window.aurora.onMenu("settings", () => { state.view = "settings"; state.query = ""; $("#search").value = ""; render() });
+  window.aurora.onMenu("sidebar", () => applySidebar(!sidebarHidden()));
   window.aurora.version().then((value) => { state.appVersion = value; const slot = $("#app-version"); if (slot) slot.textContent = value });
   window.aurora.updateStatus().then(renderUpdateBanner).catch(() => {});
   window.aurora.onUpdateStatus(renderUpdateBanner);
@@ -1753,6 +1825,7 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
 
 (async function init() {
   try {
+    await loadSecrets();
     await migrateSources();
     const source = activeSource();
     if (source) {

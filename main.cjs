@@ -1,4 +1,5 @@
-const { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell } = require("electron");
+const { app, BrowserWindow, Menu, ipcMain, nativeTheme, safeStorage, shell } = require("electron");
+const fs = require("node:fs");
 const path = require("node:path");
 const { createAuroraServer } = require("./server.cjs");
 const { createUpdater } = require("./updater.cjs");
@@ -18,6 +19,28 @@ let server;
 let mainWindow;
 let updater;
 
+const secretsFile = () => path.join(app.getPath("userData"), "secrets.bin");
+
+ipcMain.handle("secrets:get", () => {
+  try {
+    if (!fs.existsSync(secretsFile())) return null;
+    const blob = fs.readFileSync(secretsFile());
+    if (!safeStorage.isEncryptionAvailable()) return JSON.parse(blob.toString("utf8"));
+    return JSON.parse(safeStorage.decryptString(blob));
+  } catch { return null }
+});
+
+ipcMain.handle("secrets:set", (_event, value) => {
+  try {
+    const json = JSON.stringify(value ?? {});
+    // fall back to plain text only where the OS keychain is unavailable, and
+    // say so, rather than silently failing to save
+    const encrypted = safeStorage.isEncryptionAvailable();
+    fs.writeFileSync(secretsFile(), encrypted ? safeStorage.encryptString(json) : Buffer.from(json, "utf8"), { mode: 0o600 });
+    return { saved: true, encrypted };
+  } catch (error) { return { saved: false, encrypted: false, message: error.message } }
+});
+
 // the renderer owns the theme; the window just has to match so there is no
 // flash of the wrong ground behind it
 ipcMain.on("app:theme", (_event, theme) => {
@@ -33,6 +56,8 @@ function buildMenu(checkForUpdates) {
         { type: "separator" },
         { label: "Check for Updates…", click: checkForUpdates },
         { type: "separator" },
+        { label: "Settings…", accelerator: "CmdOrCtrl+,", click: () => mainWindow?.webContents.send("menu:settings") },
+        { type: "separator" },
         { role: "services" },
         { type: "separator" },
         { role: "hide" },
@@ -43,7 +68,21 @@ function buildMenu(checkForUpdates) {
       ],
     },
     { role: "editMenu" },
-    { role: "viewMenu" },
+    {
+      label: "View",
+      submenu: [
+        { label: "Hide Sidebar", accelerator: "CmdOrCtrl+Ctrl+S", click: () => mainWindow?.webContents.send("menu:sidebar") },
+        { type: "separator" },
+        { role: "reload" },
+        { role: "toggleDevTools" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+      ],
+    },
     { role: "windowMenu" },
     {
       role: "help",
@@ -61,8 +100,8 @@ async function createWindow() {
     minHeight: 640,
     title: "Aurora IPTV",
     backgroundColor: nativeTheme.shouldUseDarkColors ? WINDOW_BG.dark : WINDOW_BG.light,
-    titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 18, y: 18 },
+    titleBarStyle: "hidden",
+    trafficLightPosition: { x: 19, y: 18 },
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
