@@ -307,11 +307,25 @@ async function omdbRatings(imdbId) {
   return { imdb: find("Internet Movie Database").split("/")[0], rt: find("Rotten Tomatoes"), metacritic: find("Metacritic").split("/")[0], imdbId };
 }
 
-function scoreBadge(item, meta) {
+// Text marks rather than the IMDb and Rotten Tomatoes logos: both are
+// trademarks that need written permission, and RT has no non-commercial
+// exemption at all. The numbers are the useful part; the marks name the source.
+function ratingSet(item, meta) {
   const cached = meta || metaCache.get(item.id);
-  if (cached?.ratings?.imdb) return { source: "IMDb", value: cached.ratings.imdb };
-  if (cached?.score) return { source: "TMDB", value: cached.score };
-  return item.rating ? { source: "", value: item.rating } : null;
+  const set = [];
+  if (cached?.ratings?.imdb) set.push({ mark: "IMDb", value: cached.ratings.imdb, tone: "imdb" });
+  if (cached?.ratings?.rt) set.push({ mark: "RT", value: cached.ratings.rt, tone: Number.parseInt(cached.ratings.rt, 10) >= 60 ? "fresh" : "rotten" });
+  if (cached?.ratings?.metacritic) set.push({ mark: "MC", value: cached.ratings.metacritic, tone: "critic" });
+  if (!set.length && cached?.score) set.push({ mark: "TMDB", value: cached.score, tone: "imdb" });
+  if (!set.length && item.rating) set.push({ mark: "", value: item.rating, tone: "imdb" });
+  return set;
+}
+
+function scoreMarkup(item, meta) {
+  const [primary, ...rest] = ratingSet(item, meta);
+  if (!primary) return "";
+  const cell = (entry) => `<b>${escapeHtml(entry.value)}</b>${entry.mark ? `<em>${escapeHtml(entry.mark)}</em>` : ""}`;
+  return `<span class="tone-${primary.tone}">${cell(primary)}</span>${rest.length ? `<span class="score-more">${rest.map((entry) => `<i class="tone-${entry.tone}">${cell(entry)}</i>`).join("")}</span>` : ""}`;
 }
 
 // the ratings that need a second and third call, fetched only for what is
@@ -332,10 +346,10 @@ async function deepEnrich(item) {
 }
 
 function paintScore(item, meta) {
-  const badge = scoreBadge(item, meta);
+  const markup = scoreMarkup(item, meta);
   const holder = document.querySelector(`.score[data-score-for="${CSS.escape(item.id)}"]`);
-  if (!holder || !badge) return;
-  holder.innerHTML = `${icon("star")}${escapeHtml(badge.value)}${badge.source ? `<em>${escapeHtml(badge.source)}</em>` : ""}`;
+  if (!holder || !markup) return;
+  holder.innerHTML = markup;
   holder.hidden = false;
 }
 
@@ -589,7 +603,7 @@ function card(item, wide = false, rank = 0) {
   const art = item.logo || item.backdrop;
   const bar = item.type === "movie" ? percent(progressOf(item.id)) : 0;
   const opens = item.type === "live" ? "play-item" : "open-detail";
-  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""}" data-id="${escapeHtml(item.id)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const badge = scoreBadge(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${badge ? "" : " hidden"}>${badge ? `${icon("star")}${escapeHtml(badge.value)}${badge.source ? `<em>${escapeHtml(badge.source)}</em>` : ""}` : ""}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
+  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""}" data-id="${escapeHtml(item.id)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
 function resumeCard(record) {

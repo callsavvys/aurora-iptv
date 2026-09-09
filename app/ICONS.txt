@@ -1,0 +1,17 @@
+Aurora's icons are drawn from two open sets, used under permissive licences that
+allow bundling in a commercial product with no attribution requirement in the
+interface itself.
+
+  Lucide — ISC Licence
+  Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part
+  of Feather (MIT). All other copyright (c) for Lucide are held by Lucide
+  Contributors 2022.
+  https://github.com/lucide-icons/lucide/blob/main/LICENSE
+
+  Tabler Icons — MIT Licence
+  Copyright (c) 2020-2024 Paweł Kuna
+  https://github.com/tabler/tabler-icons/blob/master/LICENSE
+
+Deliberately NOT used: SF Symbols. Apple's licence permits them solely for
+interfaces in software running on Apple operating systems, forbids extracting
+the artwork into a bundled sprite, and bars their use in app icons or logos.

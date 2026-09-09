@@ -41,6 +41,9 @@
   --danger-edge: rgba(255, 91, 108, .17);
   --live: #ff6170;
   --rating: #ffd479;
+  --fresh: #63d9a4;
+  --rotten: #ff8b95;
+  --critic: #9fc0e8;
 
   --header-bg: rgba(8, 13, 20, .83);
   --scrim: rgba(1, 4, 7, .72);
@@ -120,6 +123,12 @@
     --danger-edge: rgba(184, 47, 59, .22);
     --live: #cf2836;
     --rating: #8a5a00;
+  --fresh: #0f6b49;
+  --rotten: #b3303c;
+  --critic: #2f5d8c;
+    --fresh: #0f6b49;
+    --rotten: #b3303c;
+    --critic: #2f5d8c;
 
     --header-bg: rgba(255, 255, 255, .86);
     --scrim: rgba(24, 38, 42, .42);
@@ -613,14 +622,30 @@ nav em {
   position: absolute;
   right: 8px;
   top: 8px;
-  padding: 3px 6px;
-  border-radius: 6px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  padding: 4px 7px;
+  border-radius: 8px;
   background: var(--badge-bg);
-  color: var(--rating);
+  backdrop-filter: blur(6px);
   font-family: var(--mono);
-  font-size: 9px;
   font-weight: 700;
+  max-width: calc(100% - 16px);
 }
+.score > span { display: flex; align-items: center; gap: 3px; }
+.score b { font-size: 11px; }
+.score em { font-style: normal; font-size: 8px; opacity: .72; letter-spacing: .05em; }
+
+/* the other sources stay out of the way until the card is hovered */
+.score-more { display: flex; align-items: center; max-width: 0; overflow: hidden; opacity: 0; transition: max-width .24s ease, opacity .18s ease; }
+.card:hover .score-more { max-width: 150px; opacity: 1; }
+.score-more i { display: flex; align-items: center; gap: 3px; font-style: normal; margin-left: 7px; padding-left: 7px; border-left: 1px solid var(--line-strong); white-space: nowrap; }
+
+.tone-imdb { color: var(--rating); }
+.tone-fresh { color: var(--fresh); }
+.tone-rotten { color: var(--rotten); }
+.tone-critic { color: var(--critic); }
 
 .resume-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--fill-track); }
 .resume-bar > i { display: block; height: 100%; background: var(--accent); }
@@ -854,7 +879,7 @@ nav em {
   opacity: 0;
   pointer-events: none;
 }
-.tap-flash .icon { width: 28px; height: 28px; }
+.tap-flash .icon { width: 24px; height: 24px; }
 .tap-flash.show { animation: flash .5s ease-out; }
 @keyframes flash { from { opacity: 1; transform: scale(.82); } to { opacity: 0; transform: scale(1.25); } }
 
@@ -905,7 +930,7 @@ nav em {
   transition: background .15s, color .15s;
 }
 .ghost:hover { background: rgba(255, 255, 255, .17); }
-.ghost .icon { width: 19px; height: 19px; }
+.ghost .icon { width: 20px; height: 20px; }
 .ghost[hidden] { display: none; }
 
 .timeline { position: relative; padding: 9px 0; cursor: pointer; touch-action: none; }
@@ -972,7 +997,7 @@ nav em {
 
 .track-select { display: flex; align-items: center; gap: 5px; color: #eef3f4; }
 .track-select[hidden] { display: none; }
-.track-select .icon { width: 18px; height: 18px; }
+.track-select .icon { width: 20px; height: 20px; }
 .track-select select {
   border: 1px solid rgba(255, 255, 255, .2);
   background: rgba(10, 14, 18, .82);
@@ -1066,6 +1091,9 @@ nav em {
 
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 
+/* stroke-width lives in the 24-unit viewBox, so without non-scaling-stroke the
+   visible weight scales with render size — the set ranged 0.78px to 1.98px,
+   2.5x, and the sub-pixel ones rendered as a smear. This pins it. */
 .icon {
   width: 1em;
   height: 1em;
@@ -1074,10 +1102,15 @@ nav em {
   vertical-align: -.14em;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+
+/* transport controls and the rating star read better solid */
+.icon .solid, .icon.solid { fill: currentColor; }
+use[href$="-fill"], .icon .solid-only { stroke: none; }
 
 /* buttons that pair an icon with a word */
 .primary, .secondary, .pbtn, .heart, .forget, .close, .update-dismiss,
@@ -1088,19 +1121,19 @@ nav em {
   gap: 7px;
 }
 
-nav i { display: grid; place-items: center; font-size: 19px; }
-.brand > span .icon { width: 12px; height: 12px; }
-.source-icon .icon, .search span .icon { width: 17px; height: 17px; }
+nav i { display: grid; place-items: center; font-size: 20px; }
+.brand > span .icon { width: 16px; height: 16px; }
+.source-icon .icon, .search span .icon { width: 20px; height: 20px; }
 .search span { display: grid; place-items: center; font-size: 0; transform: none; }
-.close .icon, .update-dismiss .icon { width: 18px; height: 18px; }
-.heart .icon { width: 17px; height: 17px; }
-.forget .icon { width: 15px; height: 15px; }
-.play-bubble .icon { width: 15px; height: 15px; margin-left: 2px; }
-.episode-play .icon { width: 12px; height: 12px; margin-left: 1px; }
-.rail-nav .icon { width: 22px; height: 22px; stroke-width: 2; }
-.score .icon, .meta .icon, .series-meta .icon { width: 11px; height: 11px; }
+.close .icon, .update-dismiss .icon { width: 20px; height: 20px; }
+.heart .icon { width: 20px; height: 20px; }
+.forget .icon { width: 16px; height: 16px; }
+.play-bubble .icon { width: 16px; height: 16px; margin-left: 2px; }
+.episode-play .icon { width: 16px; height: 16px; margin-left: 1px; }
+.rail-nav .icon { width: 24px; height: 24px; }
+.score .icon, .meta .icon, .series-meta .icon { width: 12px; height: 12px; }
 .score, .meta > span, .series-meta > span { display: inline-flex; align-items: center; gap: 4px; }
-.welcome-mark .icon { width: 25px; height: 25px; margin-left: 3px; }
+.welcome-mark .icon { width: 24px; height: 24px; margin-left: 2px; }
 
 /* artwork placeholder: initials rather than a repeated symbol */
 .fallback {
@@ -1207,7 +1240,7 @@ nav i { display: grid; place-items: center; font-size: 19px; }
   background: var(--icon-well);
   color: var(--accent);
 }
-.source-icon .icon { width: 17px; height: 17px; }
+.source-icon .icon { width: 20px; height: 20px; }
 
 .settings { max-width: 780px; }
 
@@ -1288,7 +1321,7 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
   transition: .15s;
 }
 .icon-btn:hover { color: var(--accent); border-color: var(--accent-edge); }
-.icon-btn .icon { width: 15px; height: 15px; }
+.icon-btn .icon { width: 16px; height: 16px; }
 .icon-btn.danger:hover, .secondary.danger { color: var(--danger); border-color: var(--danger-edge); }
 
 .theme-switch.wide { grid-template-columns: repeat(3, minmax(0, 96px)); justify-content: start; }
@@ -1313,7 +1346,7 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 .about .version { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
 .about .version b { color: var(--text); font-weight: 700; }
 #check-updates i { font-style: normal; display: grid; place-items: center; }
-#check-updates i .icon { width: 15px; height: 15px; }
+#check-updates i .icon { width: 16px; height: 16px; }
 #check-updates.busy i { animation: spin 1s linear infinite; }
 
 /* ---------- ranked rows ---------- */
