@@ -1,6 +1,6 @@
 {
   "name": "aurora-iptv-mac",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Local-first IPTV player for macOS",
   "main": "main.cjs",
   "private": true,

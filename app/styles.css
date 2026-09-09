@@ -1315,3 +1315,30 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 #check-updates i { font-style: normal; display: grid; place-items: center; }
 #check-updates i .icon { width: 15px; height: 15px; }
 #check-updates.busy i { animation: spin 1s linear infinite; }
+
+/* ---------- ranked rows ---------- */
+.ranked-row { grid-auto-columns: clamp(176px, 16vw, 226px); }
+.card.ranked { position: relative; padding-left: 34px; }
+
+.card.ranked .rank {
+  position: absolute;
+  left: 0;
+  bottom: 34px;
+  z-index: 2;
+  font-family: var(--display);
+  font-size: 62px;
+  font-weight: 800;
+  line-height: .8;
+  letter-spacing: -.06em;
+  color: var(--bg);
+  -webkit-text-stroke: 2px var(--text-4);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-note {
+  margin: 26px 29px 0;
+  font-family: var(--body);
+  color: var(--text-3);
+  font-size: 14px;
+}

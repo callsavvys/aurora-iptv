@@ -23,7 +23,7 @@ const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
   favorites: new Set(JSON.parse(localStorage.getItem("aurora-favorites") || "[]")),
   progress: new Map(Object.entries(JSON.parse(localStorage.getItem("aurora-progress") || "{}"))),
-  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null,
+  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, trending: null,
   seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
 const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings" };
@@ -67,6 +67,7 @@ async function useSource(id) {
   localStorage.setItem("aurora-active-source", id);
   state.provider = source;
   state.items = await loadLibrary(id);
+  libraryIndex = null; state.trending = null;
   state.view = state.items.length ? "home" : "settings";
   state.category = "All"; state.limit = 120; state.query = "";
   render();
@@ -81,7 +82,7 @@ async function removeSource(id) {
     localStorage.removeItem("aurora-active-source");
     const next = list[0];
     if (next) return useSource(next.id);
-    state.provider = null; state.items = [];
+    state.provider = null; state.items = []; libraryIndex = null; state.trending = null;
   }
   render();
 }
@@ -378,6 +379,94 @@ function watchArtwork() {
   }
 }
 
+/* ---------- library index ----------
+   Built once when the library changes. Ranking and trending both need to look
+   items up by title and by type, and doing that across 101,102 items on every
+   render is what made the old home page expensive. */
+
+let libraryIndex = null;
+
+const indexKey = (name) => searchTitle(name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+function buildIndex() {
+  const byTitle = new Map(), byType = { live: [], movie: [], series: [] };
+  for (const item of state.items) {
+    (byType[item.type] ||= []).push(item);
+    const key = indexKey(item.name);
+    if (!key) continue;
+    const bucket = byTitle.get(key);
+    if (bucket) bucket.push(item); else byTitle.set(key, [item]);
+  }
+  libraryIndex = { byTitle, byType };
+  return libraryIndex;
+}
+
+const index = () => libraryIndex || buildIndex();
+const ofType = (type) => index().byType[type] || [];
+
+/* ---------- trending ----------
+   TMDB publishes a global weekly list. On its own that is a list of films you
+   may not have, so it is matched against the library and only what is actually
+   playable is shown. Cached per ISO week. */
+
+function weekStamp() {
+  const now = new Date();
+  const target = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  target.setUTCDate(target.getUTCDate() + 4 - (target.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((target - yearStart) / 86400000 + 1) / 7);
+  return `${target.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+async function trendingList(kind) {
+  const key = apiKeys().tmdb;
+  if (!key) return [];
+  const cacheKey = `trending:${kind}:${weekStamp()}`;
+  const cached = await idbGet("meta", cacheKey).catch(() => null);
+  if (cached) return cached;
+  const pages = await Promise.all([1, 2].map((page) =>
+    fetchJson(`${TMDB}/trending/${kind}/week?api_key=${key}&page=${page}`).catch(() => null)));
+  const results = pages.flatMap((page) => page?.results || []);
+  if (results.length) await idbPut("meta", cacheKey, results).catch(() => {});
+  return results;
+}
+
+// a trending entry already carries poster, backdrop and score, so a match is
+// also a free metadata record for that item
+function matchTrending(results, type) {
+  const matched = [], seen = new Set();
+  for (const entry of results) {
+    const key = indexKey(entry.title || entry.name || "");
+    if (!key) continue;
+    const item = (index().byTitle.get(key) || []).find((candidate) => candidate.type === type && !seen.has(candidate.id));
+    if (!item) continue;
+    seen.add(item.id);
+    matched.push(item);
+    if (!metaCache.has(item.id)) {
+      storeMeta(item.id, {
+        kind: type === "series" ? "tv" : "movie",
+        tmdbId: entry.id,
+        title: entry.title || entry.name || "",
+        poster: entry.poster_path || "",
+        backdrop: entry.backdrop_path || "",
+        overview: entry.overview || "",
+        score: entry.vote_average ? Number(entry.vote_average).toFixed(1) : "",
+        year: String(entry.release_date || entry.first_air_date || "").slice(0, 4),
+        at: Date.now(),
+      }).catch(() => {});
+    }
+    if (matched.length >= 20) break;
+  }
+  return matched;
+}
+
+async function loadTrending() {
+  if (!hasTmdb() || !state.items.length) return;
+  const [movies, series] = await Promise.all([trendingList("movie"), trendingList("tv")]);
+  state.trending = { movie: matchTrending(movies, "movie"), series: matchTrending(series, "series"), of: movies.length + series.length };
+  if (state.view === "home" && !state.query) render();
+}
+
 /* ---------- watch progress ---------- */
 
 function persistProgress() {
@@ -432,6 +521,7 @@ async function connectProvider(event) {
     upsertSource(provider);
     localStorage.setItem("aurora-active-source", provider.id);
     await saveLibrary(items, provider.id);
+    libraryIndex = null; state.trending = null;
     state.items = items; state.view = "home"; state.category = "All"; state.limit = 120;
     closeModal("source-modal"); render();
     $("#source-form").reset();
@@ -454,6 +544,7 @@ async function refreshLibrary(quiet = false, id = activeSourceId()) {
     if (!quiet) setLoading(true, "Refreshing library", `Asking ${source.name} for the latest content…`);
     const items = await loadEverything();
     await saveLibrary(items, source.id);
+    libraryIndex = null; state.trending = null;
     if (activeSourceId() === source.id) { state.items = items } else { state.provider = previous }
     render();
     showToast(`Library refreshed • ${items.length.toLocaleString()} items`);
@@ -494,11 +585,11 @@ const initials = (name) => {
   return (words.length === 1 ? words[0].slice(0, 2) : words[0][0] + words[1][0]).toUpperCase();
 };
 
-function card(item, wide = false) {
+function card(item, wide = false, rank = 0) {
   const art = item.logo || item.backdrop;
   const bar = item.type === "movie" ? percent(progressOf(item.id)) : 0;
   const opens = item.type === "live" ? "play-item" : "open-detail";
-  return `<article class="card ${wide ? "wide" : ""}" data-id="${escapeHtml(item.id)}"><div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const badge = scoreBadge(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${badge ? "" : " hidden"}>${badge ? `${icon("star")}${escapeHtml(badge.value)}${badge.source ? `<em>${escapeHtml(badge.source)}</em>` : ""}` : ""}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
+  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""}" data-id="${escapeHtml(item.id)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const badge = scoreBadge(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${badge ? "" : " hidden"}>${badge ? `${icon("star")}${escapeHtml(badge.value)}${badge.source ? `<em>${escapeHtml(badge.source)}</em>` : ""}` : ""}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
 function resumeCard(record) {
@@ -521,6 +612,11 @@ function updateRails() {
   }
 }
 
+function rankedShelf(title, items, subtitle) {
+  if (!items?.length) return "";
+  return `<section class="shelf"><div class="shelf-head"><div><span>${escapeHtml(subtitle)}</span><h2>${escapeHtml(title)}</h2></div></div>${rail(`<div class="shelf-row rail-scroller ranked-row">${items.map((item, position) => card(item, false, position + 1)).join("")}</div>`)}</section>`;
+}
+
 function shelf(title, items, wide = false, subtitle = "") {
   if (!items.length) return "";
   return `<section class="shelf"><div class="shelf-head"><div>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}<h2>${escapeHtml(title)}</h2></div></div>${rail(`<div class="shelf-row rail-scroller ${wide ? "wide" : ""}">${items.slice(0, 20).map((item) => card(item, wide)).join("")}</div>`)}</section>`;
@@ -533,15 +629,74 @@ function resumeShelf() {
 }
 
 function recentlyAdded(type, title) {
-  const items = state.items.filter((item) => item.type === type && item.added).sort((a, b) => b.added - a.added);
-  return shelf(title, items, false, "New for you");
+  const cache = (index().cache ||= {});
+  const key = `new:${type}`;
+  if (!cache[key]) cache[key] = ofType(type).filter((item) => item.added).sort((a, b) => b.added - a.added).slice(0, 24);
+  return shelf(title, cache[key], false, "New for you");
+}
+
+function ratedItems(type, limit = 24) {
+  const cache = (index().cache ||= {});
+  const key = `rated:${type}`;
+  if (!cache[key]) {
+    cache[key] = ofType(type)
+      .filter((item) => Number(item.rating) > 0)
+      .sort((a, b) => Number(b.rating) - Number(a.rating))
+      .slice(0, limit);
+  }
+  return cache[key];
+}
+
+function watchedCategories() {
+  const counts = new Map();
+  for (const record of [...state.progress.values()].slice(0, 60)) {
+    const item = state.items.find((entry) => entry.id === record.id);
+    if (!item?.category) continue;
+    counts.set(item.category, (counts.get(item.category) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+}
+
+function becauseYouWatched() {
+  const recent = [...state.progress.values()].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+  if (!recent) return "";
+  const seed = state.items.find((entry) => entry.id === recent.id);
+  if (!seed?.category) return "";
+  const watched = new Set([...state.progress.values()].map((record) => record.id));
+  const picks = [...ofType(seed.type), ...(seed.type === "movie" ? ofType("series") : [])]
+    .filter((item) => item.category === seed.category && !watched.has(item.id))
+    .sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0))
+    .slice(0, 20);
+  return shelf(`More ${seed.category}`, picks, false, `Because you watched ${metaCache.get(seed.id)?.title || seed.name}`);
+}
+
+function unfinishedSeries() {
+  const ids = new Set();
+  for (const record of [...state.progress.values()].sort((a, b) => b.updatedAt - a.updatedAt)) {
+    if (record.type === "episode" && !finished(record)) ids.add(record.id);
+  }
+  const picks = [...ids].map((id) => state.items.find((entry) => entry.id === id)).filter(Boolean).slice(0, 20);
+  return shelf("Carry on with", picks, false, "Series you started");
+}
+
+function heroPick() {
+  const cache = (index().cache ||= {});
+  if (cache.hero !== undefined) return cache.hero;
+  const candidates = [...ratedItems("movie", 60), ...ratedItems("series", 60)]
+    .filter((item) => !finished(progressOf(item.id)));
+  const withArt = candidates.find((item) => metaCache.get(item.id)?.backdrop || item.backdrop);
+  cache.hero = withArt || candidates[0] || state.items.find((item) => item.type === "movie") || state.items[0] || null;
+  return cache.hero;
 }
 
 function renderHome() {
-  const featured = state.items.find((item) => item.type === "movie") || state.items.find((item) => item.type === "series") || state.items[0];
+  const featured = heroPick();
   if (!featured) return renderWelcome();
-  const image = featured.backdrop || featured.logo;
-  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">Featured from your library</span><h1>${escapeHtml(featured.name)}</h1><div class="meta"><span>${featured.rating ? `${icon("star")}${escapeHtml(featured.rating)}` : escapeHtml(featured.category)}</span>${featured.year ? `<span>${escapeHtml(featured.year)}</span>` : ""}${featured.duration ? `<span>${escapeHtml(featured.duration)}</span>` : ""}</div><p>${escapeHtml(featured.description || "Ready to watch from your connected IPTV source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${resumeShelf()}${shelf("Live now", state.items.filter((x) => x.type === "live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Movies", state.items.filter((x) => x.type === "movie"))}${shelf("Series", state.items.filter((x) => x.type === "series"))}`;
+  const meta = metaCache.get(featured.id);
+  const image = artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo;
+  const score = meta?.ratings?.imdb || meta?.score || featured.rating;
+  const missing = state.trending && !state.trending.movie.length && !state.trending.series.length && state.trending.of > 0;
+  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "Most watched worldwide, that you have")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${unfinishedSeries()}${becauseYouWatched()}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
   hydrateHero(featured);
 }
 
@@ -638,6 +793,7 @@ function render() {
   watchArtwork();
   updateSource();
   document.documentElement.classList.toggle("artwork-on", hasTmdb());
+  if (state.view === "home" && !state.trending && hasTmdb() && state.items.length) { state.trending = { movie: [], series: [], of: 0 }; loadTrending() }
   if (render.lastView !== state.view) {
     const content = $("#content");
     content.classList.remove("enter");
@@ -645,6 +801,25 @@ function render() {
     content.classList.add("enter");
     render.lastView = state.view;
   }
+}
+
+function playSomething() {
+  if (!state.items.length) return showToast("Add a source first");
+  const unfinished = continueWatching();
+  if (unfinished.length && Math.random() < 0.35) {
+    const record = unfinished[Math.floor(Math.random() * Math.min(5, unfinished.length))];
+    showToast(`Picking up ${record.title}`);
+    return resumeRecord(record.key);
+  }
+  const watched = new Set([...state.progress.values()].map((record) => record.id));
+  const genres = watchedCategories().slice(0, 3);
+  const rated = ofType("movie").filter((item) => Number(item.rating) >= 6.5 && !watched.has(item.id));
+  const inGenre = genres.length ? rated.filter((item) => genres.includes(item.category)) : [];
+  const pool = inGenre.length >= 12 ? inGenre : (rated.length ? rated : ofType("movie"));
+  if (!pool.length) return showToast("Nothing to play in this library yet");
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  showToast(`${metaCache.get(pick.id)?.title || pick.name}${inGenre.length >= 12 ? ` — ${pick.category}` : ""}`);
+  play(pick);
 }
 
 function toggleFavorite(item) {
@@ -1017,6 +1192,7 @@ document.addEventListener("click", (event) => {
   const confirmRemove = target.closest("[data-remove-confirm]");
   if (confirmRemove) { state.confirmRemove = null; return removeSource(confirmRemove.dataset.removeConfirm) }
   const pill = target.closest("#source-pill"); if (pill) { state.view = "settings"; state.confirmRemove = null; render(); return }
+  if (target.closest("#play-something")) return playSomething();
   const themeButton = target.closest(".theme-switch button");
   if (themeButton) return applyTheme(themeButton.dataset.themeChoice);
   const arrow = target.closest(".rail-nav");
@@ -1334,6 +1510,7 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
       setLoading(true, "Opening Aurora", "Loading your saved library…");
       state.provider = source;
       state.items = await loadLibrary(source.id);
+      libraryIndex = null; state.trending = null;
     }
   } catch (error) { showToast(error.message || "Could not open your library") }
   finally {
