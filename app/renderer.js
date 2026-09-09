@@ -40,8 +40,12 @@ const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series
    list now, each with its own cached library, and the old single account is
    migrated into the list on first run rather than dropped. */
 
-const readSources = () => { try { return JSON.parse(localStorage.getItem("aurora-sources") || "[]") } catch { return [] } };
-const writeSources = (list) => localStorage.setItem("aurora-sources", JSON.stringify(list));
+const readSources = () => (Array.isArray(secrets?.sources) ? secrets.sources : []);
+
+function writeSources(list) {
+  secrets = { ...(secrets || {}), sources: list };
+  saveSecrets(secrets, { quiet: true });
+}
 const activeSourceId = () => localStorage.getItem("aurora-active-source") || readSources()[0]?.id || "";
 const activeSource = () => readSources().find((entry) => entry.id === activeSourceId()) || null;
 const newSourceId = () => `src-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -203,26 +207,36 @@ let secrets = null;
 
 const apiKeys = () => secrets || {};
 
+const readJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback } catch { return fallback } };
+
 async function loadSecrets() {
-  secrets = (await window.aurora?.getSecrets?.()) || null;
-  if (!secrets) {
-    // migrate anything left in localStorage from before the keychain existed
-    let legacy = {};
-    try { legacy = JSON.parse(localStorage.getItem("aurora-keys") || "{}") } catch { legacy = {} }
-    secrets = legacy;
-    if (legacy.tmdb || legacy.omdb) {
-      const result = await window.aurora?.setSecrets?.(legacy);
-      if (result?.saved) localStorage.removeItem("aurora-keys");
-    }
+  secrets = (await window.aurora?.getSecrets?.()) || {};
+  // Pull anything still sitting in localStorage into the keychain. The old copy
+  // is only removed once the encrypted write has actually confirmed success —
+  // losing a provider password because a keychain write failed is unacceptable.
+  const pending = {};
+  const legacyKeys = readJson("aurora-keys", null);
+  if (legacyKeys && (legacyKeys.tmdb || legacyKeys.omdb) && !secrets.tmdb && !secrets.omdb) Object.assign(pending, legacyKeys);
+  const legacySources = readJson("aurora-sources", null);
+  if (Array.isArray(legacySources) && legacySources.length && !secrets.sources?.length) pending.sources = legacySources;
+  if (!Object.keys(pending).length) return secrets;
+
+  secrets = { ...secrets, ...pending };
+  const result = await window.aurora?.setSecrets?.(secrets);
+  if (result?.saved) {
+    if (pending.tmdb || pending.omdb) localStorage.removeItem("aurora-keys");
+    if (pending.sources) localStorage.removeItem("aurora-sources");
+  } else {
+    showToast("Could not move your saved details into this Mac's keychain — they stay where they were");
   }
   return secrets;
 }
 
-async function saveSecrets(next) {
+async function saveSecrets(next, { quiet = false } = {}) {
   secrets = next;
   const result = await window.aurora?.setSecrets?.(next);
-  if (result && !result.saved) showToast("Could not save the keys to this Mac");
-  else if (result && !result.encrypted) showToast("Keys saved, but this Mac has no keychain available so they are stored unencrypted");
+  if (result && !result.saved) showToast("Could not save to this Mac");
+  else if (result && !result.encrypted && !quiet) showToast("Saved, but this Mac has no keychain available so it is stored unencrypted");
   return result;
 }
 
@@ -1749,7 +1763,7 @@ $("#source-form").addEventListener("submit", connectProvider);
 document.addEventListener("submit", async (event) => {
   if (event.target.id !== "keys-form") return;
   event.preventDefault();
-  await saveSecrets({ tmdb: $("#tmdb-key").value.trim(), omdb: $("#omdb-key").value.trim() });
+  await saveSecrets({ ...(secrets || {}), tmdb: $("#tmdb-key").value.trim(), omdb: $("#omdb-key").value.trim() });
   showToast(hasTmdb() ? "Saved — posters and ratings will fill in as you browse" : "Keys cleared");
   render();
 });
