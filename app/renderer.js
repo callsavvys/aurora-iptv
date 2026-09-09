@@ -697,6 +697,7 @@ function startPlayback({ url, title, subtitle = "", isLive = false, resumeAt = 0
   $("#player-modal").classList.remove("hidden");
   const video = $("#video"), source = relay(url), message = $("#video-message");
   message.classList.add("hidden");
+  resetPlayerUi();
   state.hls?.destroy(); state.hls = null;
   video.removeAttribute("src"); video.load();
   startPlayback.resumeAt = resumeAt;
@@ -718,8 +719,10 @@ function startPlayback({ url, title, subtitle = "", isLive = false, resumeAt = 0
 
 function updatePlayerFavorite() {
   const button = $("#favorite-player"), item = state.playerItem;
-  button.classList.toggle("hidden", !item);
-  button.innerHTML = item && state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`;
+  button.hidden = !item;
+  const saved = item && state.favorites.has(item.id);
+  button.innerHTML = icon(saved ? "heart-fill" : "heart");
+  button.title = saved ? "In my list" : "Add to my list";
 }
 
 function play(item, { startOver = false } = {}) {
@@ -825,6 +828,7 @@ function fillSelect(select, options, current) {
 function closeModal(id) {
   $("#" + id).classList.add("hidden");
   if (id === "player-modal") {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     recordPosition(true);
     state.hls?.destroy(); state.hls = null;
     const video = $("#video"); video.pause(); video.removeAttribute("src"); video.load();
@@ -926,7 +930,9 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (event.key === "Escape") {
-    for (const id of ["player-modal", "series-modal", "source-modal"]) {
+    if (!$("#shortcuts").classList.contains("hidden")) return $("#shortcuts").classList.add("hidden");
+    if (!$("#up-next").classList.contains("hidden")) { upNextDismissed = true; return $("#up-next").classList.add("hidden") }
+    for (const id of ["player-modal", "series-modal", "settings-modal", "source-modal"]) {
       if (!$("#" + id).classList.contains("hidden")) return closeModal(id);
     }
     return;
@@ -942,16 +948,160 @@ document.addEventListener("keydown", (event) => {
     ArrowLeft: () => { video.currentTime = Math.max(0, video.currentTime - step) },
     ArrowUp: () => { video.volume = Math.min(1, video.volume + 0.1) },
     ArrowDown: () => { video.volume = Math.max(0, video.volume - 0.1) },
-    f: () => (document.fullscreenElement ? document.exitFullscreen() : $(".video-stage").requestFullscreen()),
+    f: () => (document.fullscreenElement ? document.exitFullscreen() : $("#player-shell").requestFullscreen()),
     m: () => { video.muted = !video.muted },
     n: () => stepEpisode(1),
     p: () => stepEpisode(-1),
+    "?": () => { $("#shortcuts").classList.toggle("hidden"); wakeChrome() },
   };
   const action = keys[event.key] || keys[event.key.toLowerCase()];
   if (!action) return;
   event.preventDefault();
   action();
 });
+
+/* ---------- player controls ---------- */
+
+const shell = $("#player-shell");
+const timeline = $("#timeline");
+let upNextDismissed = false;
+let idleTimer;
+
+const liveStream = () => !Number.isFinite(video.duration) || video.duration <= 0;
+const setIcon = (id, name) => $(id).querySelector("use").setAttribute("href", `#i-${name}`);
+
+function resetPlayerUi() {
+  upNextDismissed = false;
+  $("#up-next").classList.add("hidden");
+  $("#shortcuts").classList.add("hidden");
+  $("#buffering").classList.add("hidden");
+  $("#played").style.width = "0%";
+  $("#buffered").style.width = "0%";
+  $("#knob").style.left = "0%";
+  $("#time-now").textContent = "0:00";
+  $("#time-total").textContent = "";
+  wakeChrome();
+}
+
+function wakeChrome() {
+  shell.classList.remove("idle");
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    if (!video.paused && $("#shortcuts").classList.contains("hidden") && $("#up-next").classList.contains("hidden")) shell.classList.add("idle");
+  }, 2600);
+}
+
+function flash(name) {
+  const badge = $("#tap-flash");
+  badge.querySelector("use").setAttribute("href", `#i-${name}`);
+  badge.classList.remove("show");
+  void badge.offsetWidth;
+  badge.classList.add("show");
+}
+
+function togglePlay() {
+  if (video.paused) { video.play().catch(() => {}); flash("play") } else { video.pause(); flash("pause") }
+}
+
+function syncTransport() {
+  setIcon("#player-toggle", video.paused ? "play" : "pause");
+  $("#player-toggle").title = video.paused ? "Play" : "Pause";
+  if (video.paused) { shell.classList.remove("idle"); clearTimeout(idleTimer) } else wakeChrome();
+}
+
+function syncTime() {
+  const live = liveStream();
+  $("#live-pill").hidden = !live;
+  timeline.classList.toggle("live", live);
+  $("#time-now").textContent = clock(video.currentTime || 0);
+  $("#time-total").textContent = live ? "" : clock(video.duration);
+  const played = live ? 0 : Math.min(100, (video.currentTime / video.duration) * 100);
+  $("#played").style.width = `${played}%`;
+  $("#knob").style.left = `${played}%`;
+  let ahead = 0;
+  if (!live) {
+    for (let i = 0; i < video.buffered.length; i += 1) {
+      if (video.buffered.start(i) <= video.currentTime && video.buffered.end(i) >= video.currentTime) ahead = (video.buffered.end(i) / video.duration) * 100;
+    }
+  }
+  $("#buffered").style.width = `${ahead}%`;
+  maybeUpNext();
+}
+
+function maybeUpNext() {
+  const card = $("#up-next"), queue = state.queue;
+  const due = queue && queue.index < queue.episodes.length - 1 && !liveStream()
+    && video.duration > 90 && video.duration - video.currentTime <= 25;
+  if (!due || upNextDismissed) { if (!due) card.classList.add("hidden"); return }
+  if (!card.classList.contains("hidden")) return;
+  $("#up-next-title").textContent = episodeTitle(queue.episodes[queue.index + 1], queue.index + 1);
+  card.classList.remove("hidden");
+  wakeChrome();
+}
+
+const ratioAt = (event) => {
+  const rect = timeline.getBoundingClientRect();
+  return Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+};
+
+timeline.addEventListener("pointerdown", (event) => {
+  if (liveStream()) return;
+  // seek first: setPointerCapture throws on an id the element does not own, and
+  // a failed capture must not cost the user the seek they asked for
+  video.currentTime = ratioAt(event) * video.duration;
+  timeline.classList.add("scrubbing");
+  try { timeline.setPointerCapture(event.pointerId) } catch { /* scrubbing still works without capture */ }
+});
+
+timeline.addEventListener("pointermove", (event) => {
+  if (liveStream()) return;
+  const ratio = ratioAt(event), bubble = $("#bubble");
+  bubble.hidden = false;
+  bubble.textContent = clock(ratio * video.duration);
+  bubble.style.left = `${ratio * 100}%`;
+  if (timeline.classList.contains("scrubbing")) video.currentTime = ratio * video.duration;
+});
+
+const endScrub = (event) => {
+  timeline.classList.remove("scrubbing");
+  try { timeline.releasePointerCapture(event.pointerId) } catch { /* already released */ }
+};
+timeline.addEventListener("pointerup", endScrub);
+timeline.addEventListener("pointercancel", endScrub);
+timeline.addEventListener("pointerleave", () => { $("#bubble").hidden = true });
+
+video.addEventListener("click", togglePlay);
+video.addEventListener("play", syncTransport);
+video.addEventListener("pause", syncTransport);
+video.addEventListener("timeupdate", syncTime);
+video.addEventListener("durationchange", syncTime);
+video.addEventListener("progress", syncTime);
+video.addEventListener("waiting", () => $("#buffering").classList.remove("hidden"));
+for (const settled of ["playing", "canplay", "seeked", "error", "pause"]) {
+  video.addEventListener(settled, () => $("#buffering").classList.add("hidden"));
+}
+video.addEventListener("volumechange", () => {
+  $("#volume").value = video.muted ? 0 : video.volume;
+  setIcon("#player-mute", video.muted || video.volume === 0 ? "mute" : "volume");
+});
+
+shell.addEventListener("pointermove", wakeChrome);
+shell.addEventListener("pointerleave", () => { if (!video.paused) shell.classList.add("idle") });
+
+$("#player-toggle").addEventListener("click", togglePlay);
+$("#player-back").addEventListener("click", () => { video.currentTime = Math.max(0, video.currentTime - 10) });
+$("#player-forward").addEventListener("click", () => { video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 10) });
+$("#player-mute").addEventListener("click", () => { video.muted = !video.muted });
+$("#volume").addEventListener("input", (event) => { video.volume = Number(event.target.value); video.muted = video.volume === 0 });
+$("#player-full").addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else shell.requestFullscreen().catch(() => showToast("Full screen is not available here"));
+});
+document.addEventListener("fullscreenchange", () => setIcon("#player-full", document.fullscreenElement ? "fullscreen-exit" : "fullscreen"));
+$("#player-help").addEventListener("click", () => { $("#shortcuts").classList.toggle("hidden"); wakeChrome() });
+$("#shortcuts").addEventListener("click", () => $("#shortcuts").classList.add("hidden"));
+$("#up-next-play").addEventListener("click", () => { $("#up-next").classList.add("hidden"); stepEpisode(1) });
+$("#up-next-dismiss").addEventListener("click", () => { upNextDismissed = true; $("#up-next").classList.add("hidden") });
 
 document.addEventListener("scroll", () => {
   cancelAnimationFrame(updateRails.frame);
