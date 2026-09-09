@@ -1375,3 +1375,30 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
   color: var(--text-3);
   font-size: 14px;
 }
+
+/* ---------- search results ---------- */
+.chip em { font-style: normal; font-family: var(--mono); font-size: 9px; opacity: .65; margin-left: 6px; }
+.chip.active em { opacity: .8; }
+
+.best-match { margin: 4px 0 10px; }
+.best-match .eyebrow { display: block; margin-bottom: 11px; }
+.best-row { display: grid; grid-template-columns: 176px minmax(0, 1fr); gap: 22px; align-items: center; }
+.best-row .card.wide { grid-column: auto; }
+.best-copy h2 { font-size: 26px; font-weight: 800; letter-spacing: -.035em; margin: 0; text-wrap: balance; }
+.best-copy p { font-family: var(--mono); color: var(--text-3); font-size: 12px; margin: 9px 0 0; }
+.best-copy small { display: block; color: var(--text-4); font-family: var(--mono); font-size: 10px; margin-top: 10px; }
+
+.shelf-head > button {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-3);
+  border-radius: 9px;
+  height: 30px;
+  padding: 0 12px;
+  font-family: var(--display);
+  font-size: 11px;
+  cursor: pointer;
+}
+.shelf-head > button:hover { border-color: var(--accent-edge); color: var(--accent); }
+
+.empty button { margin-top: 18px; height: 36px; padding: 0 16px; border-radius: 10px; }

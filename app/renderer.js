@@ -23,7 +23,7 @@ const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
   favorites: new Set(JSON.parse(localStorage.getItem("aurora-favorites") || "[]")),
   progress: new Map(Object.entries(JSON.parse(localStorage.getItem("aurora-progress") || "{}"))),
-  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, trending: null,
+  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, trending: null, searchScope: "all",
   seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
 const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings" };
@@ -403,16 +403,40 @@ let libraryIndex = null;
 const indexKey = (name) => searchTitle(name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 
 function buildIndex() {
-  const byTitle = new Map(), byType = { live: [], movie: [], series: [] };
+  const byTitle = new Map(), byType = { live: [], movie: [], series: [] }, rows = [];
   for (const item of state.items) {
     (byType[item.type] ||= []).push(item);
+    rows.push({ item, name: item.name.toLowerCase(), category: (item.category || "").toLowerCase() });
     const key = indexKey(item.name);
     if (!key) continue;
     const bucket = byTitle.get(key);
     if (bucket) bucket.push(item); else byTitle.set(key, [item]);
   }
-  libraryIndex = { byTitle, byType };
+  libraryIndex = { byTitle, byType, rows, cache: {} };
   return libraryIndex;
+}
+
+/* Ranked, not filtered. A plain substring match put "BBC Arabic HD" above
+   "BBC One HD" for the query "bbc". Deliberately no fuzzy matching: on short
+   tokens it destroys precision, and channel names are already noisy. */
+const TIERS = ["Exact", "Starts with", "Word match", "Contains", "Category"];
+
+function searchLibrary(query, limit = 600) {
+  const needle = query.toLowerCase().trim();
+  if (!needle) return [];
+  const found = [];
+  for (const row of index().rows) {
+    const at = row.name.indexOf(needle);
+    let tier = -1;
+    if (row.name === needle) tier = 0;
+    else if (at === 0) tier = 1;
+    else if (at > 0) tier = /[a-z0-9]/.test(row.name[at - 1]) ? 3 : 2;
+    else if (row.category.includes(needle)) tier = 4;
+    if (tier === -1) continue;
+    found.push({ item: row.item, tier, length: row.name.length });
+  }
+  found.sort((a, b) => a.tier - b.tier || a.length - b.length || a.item.name.localeCompare(b.item.name));
+  return found.slice(0, limit).map((entry) => ({ ...entry, item: entry.item }));
 }
 
 const index = () => libraryIndex || buildIndex();
@@ -583,7 +607,6 @@ function itemsForView(ignoreCategory = false) {
   if (state.view === "series") result = result.filter((item) => item.type === "series");
   if (state.view === "favorites") result = result.filter((item) => state.favorites.has(item.id));
   if (!ignoreCategory && state.category !== "All") result = result.filter((item) => item.category === state.category);
-  if (state.query) { const query = state.query.toLowerCase(); result = result.filter((item) => `${item.name} ${item.category}`.toLowerCase().includes(query)) }
   return result;
 }
 
@@ -789,6 +812,49 @@ function renderSettings() {
   </section>`;
 }
 
+const SCOPES = [["all", "Everything"], ["live", "Channels"], ["movie", "Films"], ["series", "Series"]];
+const TYPE_LABEL = { live: "Channels", movie: "Films", series: "Series" };
+
+function renderSearch() {
+  const ranked = searchLibrary(state.query);
+  const scope = state.searchScope || "all";
+  const counts = { all: ranked.length, live: 0, movie: 0, series: 0 };
+  for (const entry of ranked) counts[entry.item.type] = (counts[entry.item.type] || 0) + 1;
+
+  if (!ranked.length) {
+    $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">Search</span><h1>No match for “${escapeHtml(state.query)}”</h1></div></div><div class="empty"><div><h2>Nothing in this library matches that</h2><p>Check the spelling, try fewer words, or search for the channel or studio name instead.</p><button class="secondary" id="clear-search">Clear search</button></div></div></section>`;
+    return;
+  }
+
+  const chips = SCOPES.filter(([key]) => key === "all" || counts[key])
+    .map(([key, label]) => `<button class="chip ${scope === key ? "active" : ""}" data-scope="${key}">${escapeHtml(label)}<em>${counts[key].toLocaleString()}</em></button>`).join("");
+
+  const best = ranked[0];
+  const showBest = scope === "all" && best.tier <= 1;
+  const bestBlock = showBest
+    ? `<section class="best-match"><span class="eyebrow">Best match</span><div class="best-row">${card(best.item, best.item.type === "live")}<div class="best-copy"><h2>${escapeHtml(metaCache.get(best.item.id)?.title || best.item.name)}</h2><p>${escapeHtml([TYPE_LABEL[best.item.type], best.item.category, best.item.year].filter(Boolean).join(" · "))}</p><small>${escapeHtml(TIERS[best.tier])} on the title</small></div></div></section>`
+    : "";
+
+  let body;
+  if (scope === "all") {
+    const groups = ["live", "movie", "series"].map((type) => {
+      const trimmed = ranked
+        .filter((entry) => entry.item.type === type && !(showBest && entry.item.id === best.item.id))
+        .slice(0, 12);
+      if (!trimmed.length) return "";
+      return `<section class="shelf"><div class="shelf-head"><div><span>${counts[type].toLocaleString()} found</span><h2>${TYPE_LABEL[type]}</h2></div>${counts[type] > trimmed.length ? `<button data-scope="${type}">Show all</button>` : ""}</div>${rail(`<div class="shelf-row rail-scroller ${type === "live" ? "wide" : ""}">${trimmed.map((entry) => card(entry.item, type === "live")).join("")}</div>`)}</section>`;
+    }).join("");
+    body = groups;
+  } else {
+    const list = ranked.filter((entry) => entry.item.type === scope);
+    body = `<div class="grid">${list.slice(0, state.limit).map((entry) => card(entry.item, scope === "live")).join("")}</div>${list.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more · ${(list.length - state.limit).toLocaleString()} remaining</button></div>` : ""}`;
+  }
+
+  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">Search</span><h1>“${escapeHtml(state.query)}”</h1></div><span>${ranked.length.toLocaleString()} result${ranked.length === 1 ? "" : "s"}</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${chips}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${bestBlock}${body}</section>`;
+  updateRails();
+  watchArtwork();
+}
+
 function renderCollection() {
   const base = itemsForView(true), categories = ["All", ...new Set(base.map((item) => item.category).filter(Boolean))], items = itemsForView();
   $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${items.length ? `<div class="grid">${items.slice(0, state.limit).map((item) => card(item, item.type === "live")).join("")}</div>${items.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more • ${(items.length - state.limit).toLocaleString()} remaining</button></div>` : ""}` : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
@@ -799,10 +865,11 @@ function renderCollection() {
 function render() {
   if (state.view === "settings") renderSettings();
   else if (!state.provider || !state.items.length) renderWelcome();
+  else if (state.query) renderSearch();
   else if (state.view === "history") renderHistory();
-  else if (state.view === "home" && !state.query) renderHome();
+  else if (state.view === "home") renderHome();
   else renderCollection();
-  document.querySelectorAll("nav button").forEach((button) => button.classList.toggle("active", button.dataset.view === state.view));
+  document.querySelectorAll("nav button").forEach((button) => button.classList.toggle("active", !state.query && button.dataset.view === state.view));
   updateRails();
   watchArtwork();
   updateSource();
@@ -1216,8 +1283,11 @@ document.addEventListener("click", (event) => {
     scroller.scrollBy({ left: arrow.classList.contains("next") ? step : -step, behavior: "smooth" });
     return;
   }
+  const scope = target.closest("[data-scope]");
+  if (scope) { state.searchScope = scope.dataset.scope; state.limit = 120; render(); return }
+  if (target.closest("#clear-search")) { state.query = ""; $("#search").value = ""; render(); return }
   const chip = target.closest(".chip"); if (chip) { state.category = chip.dataset.category; state.limit = 120; renderCollection(); return }
-  if (target.closest("#load-more")) { state.limit += 120; renderCollection(); return }
+  if (target.closest("#load-more")) { state.limit += 120; state.query ? renderSearch() : renderCollection(); return }
   if (target.closest("#clear-history")) { state.progress.clear(); persistProgress(); render(); return }
   const featuredPlay = target.closest(".play-featured"); if (featuredPlay) return openDetail(state.items.find((item) => item.id === featuredPlay.dataset.id));
   const featuredFavorite = target.closest(".favorite-featured"); if (featuredFavorite) return toggleFavorite(state.items.find((item) => item.id === featuredFavorite.dataset.id));
@@ -1252,7 +1322,13 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.target instanceof Element && event.target.matches("input,select,textarea")) {
-    if (event.key === "Escape") event.target.blur();
+    if (event.key === "Escape") {
+      if (event.target.id === "search" && event.target.value) {
+        event.target.value = "";
+        state.query = ""; state.searchScope = "all";
+        render();
+      } else event.target.blur();
+    }
     return;
   }
   if (event.key === "Escape") {
@@ -1264,7 +1340,11 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if ($("#player-modal").classList.contains("hidden")) {
-    if (event.key === "/") { event.preventDefault(); $("#search").focus() }
+    if (event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f")) {
+      event.preventDefault();
+      $("#search").focus();
+      $("#search").select();
+    }
     return;
   }
   const step = event.shiftKey ? 60 : 10;
@@ -1438,7 +1518,12 @@ window.addEventListener("resize", updateRails);
 let searchTimer;
 $("#search").addEventListener("input", (event) => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => { state.query = event.target.value.trim(); state.category = "All"; state.limit = 120; render() }, 180);
+  searchTimer = setTimeout(() => {
+    const next = event.target.value.trim();
+    if (next !== state.query) state.searchScope = "all";
+    state.query = next; state.category = "All"; state.limit = 120;
+    render();
+  }, 180);
 });
 $("#source-form").addEventListener("submit", connectProvider);
 document.addEventListener("submit", (event) => {
