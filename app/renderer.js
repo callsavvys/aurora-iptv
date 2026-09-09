@@ -23,10 +23,68 @@ const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
   favorites: new Set(JSON.parse(localStorage.getItem("aurora-favorites") || "[]")),
   progress: new Map(Object.entries(JSON.parse(localStorage.getItem("aurora-progress") || "{}"))),
-  playerItem: null, playing: null, hls: null, queue: null,
+  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null,
   seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
-const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History" };
+const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings" };
+
+/* ---------- sources ----------
+   Aurora used to hold exactly one account in aurora-provider. Sources are a
+   list now, each with its own cached library, and the old single account is
+   migrated into the list on first run rather than dropped. */
+
+const readSources = () => { try { return JSON.parse(localStorage.getItem("aurora-sources") || "[]") } catch { return [] } };
+const writeSources = (list) => localStorage.setItem("aurora-sources", JSON.stringify(list));
+const activeSourceId = () => localStorage.getItem("aurora-active-source") || readSources()[0]?.id || "";
+const activeSource = () => readSources().find((entry) => entry.id === activeSourceId()) || null;
+const newSourceId = () => `src-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const libraryKey = (id) => `items:${id}`;
+
+async function migrateSources() {
+  // an empty list must not count as "already migrated" — a fresh install writes
+  // one, and that would lock out a legacy account arriving afterwards
+  if (readSources().length) return;
+  let legacy = null;
+  try { legacy = JSON.parse(localStorage.getItem("aurora-provider") || "null") } catch { legacy = null }
+  if (!legacy?.server) return;
+  const id = newSourceId();
+  const existing = (await idbGet("library", "items").catch(() => null)) || [];
+  if (existing.length) await idbPut("library", libraryKey(id), existing).catch(() => {});
+  writeSources([{ id, name: legacy.name || "My IPTV", server: legacy.server, username: legacy.username, password: legacy.password, count: existing.length }]);
+  localStorage.setItem("aurora-active-source", id);
+}
+
+function upsertSource(source) {
+  const list = readSources();
+  const index = list.findIndex((entry) => entry.id === source.id);
+  if (index === -1) list.push(source); else list[index] = { ...list[index], ...source };
+  writeSources(list);
+}
+
+async function useSource(id) {
+  const source = readSources().find((entry) => entry.id === id);
+  if (!source) return;
+  localStorage.setItem("aurora-active-source", id);
+  state.provider = source;
+  state.items = await loadLibrary(id);
+  state.view = state.items.length ? "home" : "settings";
+  state.category = "All"; state.limit = 120; state.query = "";
+  render();
+  if (!state.items.length) showToast(`${source.name} has no cached library yet — refresh it to load`);
+}
+
+async function removeSource(id) {
+  const list = readSources().filter((entry) => entry.id !== id);
+  writeSources(list);
+  await idbPut("library", libraryKey(id), []).catch(() => {});
+  if (activeSourceId() === id) {
+    localStorage.removeItem("aurora-active-source");
+    const next = list[0];
+    if (next) return useSource(next.id);
+    state.provider = null; state.items = [];
+  }
+  render();
+}
 
 const cleanServer = (value) => { const clean = value.trim().replace(/\/$/, ""); return /^https?:\/\//i.test(clean) ? clean : `http://${clean}` };
 const relay = (url) => `/proxy?src=${encodeURIComponent(url)}`;
@@ -75,12 +133,13 @@ async function idbPut(store, key, value) {
   });
 }
 
-async function saveLibrary(items) {
-  await idbPut("library", "items", items);
+async function saveLibrary(items, id = activeSourceId()) {
+  await idbPut("library", libraryKey(id), items);
+  upsertSource({ id, count: items.length });
   localStorage.setItem("aurora-library-schema", String(LIBRARY_SCHEMA));
 }
 
-const loadLibrary = async () => (await idbGet("library", "items")) || [];
+const loadLibrary = async (id = activeSourceId()) => (id ? (await idbGet("library", libraryKey(id))) || [] : []);
 
 function showToast(message) {
   const toast = $("#toast"); toast.textContent = message; toast.classList.add("show");
@@ -361,7 +420,7 @@ async function loadEverything() {
 
 async function connectProvider(event) {
   event.preventDefault(); $("#form-error").classList.add("hidden");
-  const provider = { name: $("#provider-name").value.trim() || "My IPTV", server: cleanServer($("#server").value), username: $("#username").value.trim(), password: $("#password").value };
+  const provider = { id: newSourceId(), name: $("#provider-name").value.trim() || "My IPTV", server: cleanServer($("#server").value), username: $("#username").value.trim(), password: $("#password").value };
   const previous = state.provider;
   try {
     setLoading(true, "Connecting", "Checking the Xtream account from your Mac…");
@@ -370,10 +429,12 @@ async function connectProvider(event) {
     if (Number(auth?.user_info?.auth) !== 1 || auth?.user_info?.status !== "Active") throw new Error("The provider rejected this login or the account is inactive");
     const items = await loadEverything();
     setLoading(true, "Saving your library", `${items.length.toLocaleString()} total items loaded…`);
-    await saveLibrary(items);
+    upsertSource(provider);
+    localStorage.setItem("aurora-active-source", provider.id);
+    await saveLibrary(items, provider.id);
     state.items = items; state.view = "home"; state.category = "All"; state.limit = 120;
-    localStorage.setItem("aurora-provider", JSON.stringify(provider));
     closeModal("source-modal"); render();
+    $("#source-form").reset();
     showToast(`${items.length.toLocaleString()} items loaded successfully`);
   } catch (error) {
     state.provider = previous;
@@ -382,22 +443,30 @@ async function connectProvider(event) {
   } finally { setLoading(false) }
 }
 
-async function refreshLibrary(quiet = false) {
-  if (!state.provider || refreshLibrary.busy) return;
+async function refreshLibrary(quiet = false, id = activeSourceId()) {
+  if (refreshLibrary.busy) return;
+  const source = readSources().find((entry) => entry.id === id) || state.provider;
+  if (!source) return;
   refreshLibrary.busy = true;
+  const previous = state.provider;
+  state.provider = source;
   try {
-    if (!quiet) setLoading(true, "Refreshing library", "Asking your provider for the latest content…");
+    if (!quiet) setLoading(true, "Refreshing library", `Asking ${source.name} for the latest content…`);
     const items = await loadEverything();
-    await saveLibrary(items);
-    state.items = items; render();
+    await saveLibrary(items, source.id);
+    if (activeSourceId() === source.id) { state.items = items } else { state.provider = previous }
+    render();
     showToast(`Library refreshed • ${items.length.toLocaleString()} items`);
-  } catch (error) { showToast(error.message || "Could not refresh the library") }
+  } catch (error) { state.provider = previous; showToast(error.message || "Could not refresh the library") }
   finally { refreshLibrary.busy = false; setLoading(false) }
 }
 
 function updateSource() {
+  const others = readSources().length - 1;
   $("#source-name").textContent = state.provider?.name || "No source";
-  $("#source-status").textContent = state.provider ? `${state.items.length.toLocaleString()} items` : "Not connected";
+  $("#source-status").textContent = state.provider
+    ? `${state.items.length.toLocaleString()} items${others > 0 ? ` · ${others} more` : ""}`
+    : "Not connected";
   const count = state.favorites.size, badge = $("#favorite-count");
   badge.textContent = count; badge.style.display = count ? "grid" : "none";
 }
@@ -491,6 +560,66 @@ function renderHistory() {
   $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>History</h1></div><span>${records.length.toLocaleString()} entries</span></div>${records.length ? `<div class="history-list">${rows}</div><div class="load-more"><button class="secondary" id="clear-history">Clear watch history</button></div>` : '<div class="empty"><div><h2>Nothing watched yet</h2><p>Everything you play shows up here.</p></div></div>'}</section>`;
 }
 
+function renderSettings() {
+  const list = readSources(), active = activeSourceId(), keys = apiKeys(), choice = themeChoice();
+  const rows = list.map((source) => {
+    const current = source.id === active;
+    const confirming = state.confirmRemove === source.id;
+    return `<div class="source-row ${current ? "current" : ""}">
+      <span class="source-icon">${icon("source")}</span>
+      <div class="source-meta">
+        <input class="rename" value="${escapeHtml(source.name)}" data-rename="${escapeHtml(source.id)}" aria-label="Source name" spellcheck="false" />
+        <small>${escapeHtml(String(source.server || "").replace(/^https?:\/\//, ""))} · ${escapeHtml(source.username || "")} · ${(source.count || 0).toLocaleString()} items</small>
+      </div>
+      <div class="row-actions">
+        ${current ? '<span class="tag">In use</span>' : `<button class="secondary small" data-use="${escapeHtml(source.id)}">Use</button>`}
+        <button class="icon-btn" data-refresh="${escapeHtml(source.id)}" title="Reload this library">${icon("refresh")}</button>
+        ${confirming
+          ? `<button class="secondary small danger" data-remove-confirm="${escapeHtml(source.id)}">Remove for good</button>`
+          : `<button class="icon-btn danger" data-remove="${escapeHtml(source.id)}" title="Remove source">${icon("close")}</button>`}
+      </div>
+    </div>`;
+  }).join("");
+
+  $("#content").innerHTML = `<section class="page settings">
+    <div class="page-title"><div><span class="eyebrow">Aurora</span><h1>Settings</h1></div></div>
+
+    <section class="panel">
+      <header><h2>Sources</h2><p>Xtream accounts. The one in use supplies the library you browse; the others keep their own cached copy.</p></header>
+      ${rows || '<p class="panel-empty">No source yet. Add one to load a library.</p>'}
+      <div class="panel-foot">
+        <button class="primary small open-source">${icon("plus")}Add a source</button>
+        <small>M3U playlists are not supported yet — Xtream accounts only.</small>
+      </div>
+    </section>
+
+    <section class="panel">
+      <header><h2>Appearance</h2><p>Auto follows macOS.</p></header>
+      <div class="theme-switch wide">
+        ${["system", "light", "dark"].map((value) => `<button data-theme-choice="${value}" class="${choice === value ? "active" : ""}">${value === "system" ? "Auto" : value[0].toUpperCase() + value.slice(1)}</button>`).join("")}
+      </div>
+    </section>
+
+    <section class="panel">
+      <header><h2>Artwork and ratings</h2><p>Posters, backdrops, cast and trailers come from TMDB. IMDb and Rotten Tomatoes scores need an OMDb key as well. Both are free, and both stay on this Mac.</p></header>
+      <form id="keys-form" class="keys">
+        <label>TMDB API key<input id="tmdb-key" value="${escapeHtml(keys.tmdb || "")}" spellcheck="false" autocomplete="off" placeholder="Required for artwork" /></label>
+        <label>OMDb API key<input id="omdb-key" value="${escapeHtml(keys.omdb || "")}" spellcheck="false" autocomplete="off" placeholder="Optional — IMDb and Rotten Tomatoes" /></label>
+        <button class="primary small" type="submit">Save keys</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <header><h2>About</h2></header>
+      <div class="about">
+        <span class="version">Aurora <b id="app-version">${escapeHtml(state.appVersion || "")}</b></span>
+        ${window.aurora ? `<button class="secondary small" id="check-updates"><i id="update-check-icon">${icon("refresh")}</i><span id="update-check-label">Check for updates</span></button>` : ""}
+        <a class="secondary small" href="https://github.com/callsavvys/aurora-iptv" target="_blank" rel="noreferrer">Source on GitHub</a>
+      </div>
+    </section>
+  </section>`;
+}
+
 function renderCollection() {
   const base = itemsForView(true), categories = ["All", ...new Set(base.map((item) => item.category).filter(Boolean))], items = itemsForView();
   $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${items.length ? `<div class="grid">${items.slice(0, state.limit).map((item) => card(item, item.type === "live")).join("")}</div>${items.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more • ${(items.length - state.limit).toLocaleString()} remaining</button></div>` : ""}` : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
@@ -499,7 +628,8 @@ function renderCollection() {
 }
 
 function render() {
-  if (!state.provider || !state.items.length) renderWelcome();
+  if (state.view === "settings") renderSettings();
+  else if (!state.provider || !state.items.length) renderWelcome();
   else if (state.view === "history") renderHistory();
   else if (state.view === "home" && !state.query) renderHome();
   else renderCollection();
@@ -872,15 +1002,21 @@ document.addEventListener("click", (event) => {
   const target = event.target;
   const close = target.closest("[data-close]"); if (close) return closeModal(close.dataset.close);
   if (target.closest("#add-source,.open-source")) return $("#source-modal").classList.remove("hidden");
-  if (target.closest("#source-settings,#open-settings-hint")) {
-    const stored = apiKeys();
-    $("#tmdb-key").value = stored.tmdb || "";
-    $("#omdb-key").value = stored.omdb || "";
-    return $("#settings-modal").classList.remove("hidden");
+  if (target.closest("#open-settings-hint")) { closeModal("series-modal"); state.view = "settings"; render(); return }
+  if (target.closest("#check-updates")) {
+    if (renderUpdateBanner.state?.state === "ready") return window.aurora?.installUpdate();
+    renderUpdateBanner.hold = Date.now() + 700;
+    renderUpdateBanner({ state: "checking" });
+    return window.aurora?.checkForUpdates();
   }
-  if (target.closest("#source-refresh")) return refreshLibrary();
-  const nav = target.closest("nav button");
+    const nav = target.closest("nav button");
   if (nav) { state.view = nav.dataset.view; state.category = "All"; state.limit = 120; state.query = ""; $("#search").value = ""; render(); return }
+  const use = target.closest("[data-use]"); if (use) return useSource(use.dataset.use);
+  const reload = target.closest("[data-refresh]"); if (reload) return refreshLibrary(false, reload.dataset.refresh);
+  const remove = target.closest("[data-remove]"); if (remove) { state.confirmRemove = remove.dataset.remove; renderSettings(); return }
+  const confirmRemove = target.closest("[data-remove-confirm]");
+  if (confirmRemove) { state.confirmRemove = null; return removeSource(confirmRemove.dataset.removeConfirm) }
+  const pill = target.closest("#source-pill"); if (pill) { state.view = "settings"; state.confirmRemove = null; render(); return }
   const themeButton = target.closest(".theme-switch button");
   if (themeButton) return applyTheme(themeButton.dataset.themeChoice);
   const arrow = target.closest(".rail-nav");
@@ -1115,12 +1251,23 @@ $("#search").addEventListener("input", (event) => {
   searchTimer = setTimeout(() => { state.query = event.target.value.trim(); state.category = "All"; state.limit = 120; render() }, 180);
 });
 $("#source-form").addEventListener("submit", connectProvider);
-$("#keys-form").addEventListener("submit", (event) => {
+document.addEventListener("submit", (event) => {
+  if (event.target.id !== "keys-form") return;
   event.preventDefault();
   localStorage.setItem("aurora-keys", JSON.stringify({ tmdb: $("#tmdb-key").value.trim(), omdb: $("#omdb-key").value.trim() }));
-  closeModal("settings-modal");
-  showToast(hasTmdb() ? "Artwork is on — posters will fill in as you browse" : "Keys cleared");
+  showToast(hasTmdb() ? "Saved — posters and ratings will fill in as you browse" : "Keys cleared");
   render();
+});
+
+document.addEventListener("change", (event) => {
+  const rename = event.target.closest?.("[data-rename]");
+  if (!rename) return;
+  const name = rename.value.trim() || "Untitled source";
+  rename.value = name;
+  upsertSource({ id: rename.dataset.rename, name });
+  if (state.provider?.id === rename.dataset.rename) state.provider.name = name;
+  updateSource();
+  showToast(`Renamed to ${name}`);
 });
 $("#favorite-player").addEventListener("click", () => toggleFavorite(state.playerItem));
 $("#audio-track").addEventListener("change", (event) => { if (state.hls) state.hls.audioTrack = Number(event.target.value) });
@@ -1136,14 +1283,18 @@ window.addEventListener("beforeunload", () => recordPosition(true));
 function renderUpdateBanner(status) {
   const banner = $("#update-banner"), install = $("#update-install"), button = $("#check-updates");
   const busy = status?.state === "checking" || status?.state === "downloading" || status?.state === "verifying";
+  renderUpdateBanner.state = status;
   if (!busy && renderUpdateBanner.hold > Date.now()) {
     clearTimeout(renderUpdateBanner.pending);
     renderUpdateBanner.pending = setTimeout(() => renderUpdateBanner(status), renderUpdateBanner.hold - Date.now());
     return;
   }
-  button.classList.toggle("busy", busy);
-  button.disabled = busy;
-  $("#update-check-label").textContent = { checking: "Checking…", downloading: "Downloading…", verifying: "Checking the download…", ready: "Restart to update" }[status?.state] || "Check for updates";
+  if (button) {
+    button.classList.toggle("busy", busy);
+    button.disabled = busy;
+    const label = $("#update-check-label");
+    if (label) label.textContent = { checking: "Checking…", downloading: "Downloading…", verifying: "Checking the download…", ready: "Restart to update" }[status?.state] || "Check for updates";
+  }
   const version = status?.version ? `Aurora ${status.version}` : "Aurora";
   const copy = {
     downloading: [`Downloading ${version}`, `${status?.percent || 0}% — you can keep watching`],
@@ -1166,16 +1317,9 @@ function renderUpdateBanner(status) {
 }
 
 if (window.aurora) {
-  $("#check-updates").classList.remove("hidden");
-  window.aurora.version().then((value) => { $("#app-version").textContent = value });
+  window.aurora.version().then((value) => { state.appVersion = value; const slot = $("#app-version"); if (slot) slot.textContent = value });
   window.aurora.updateStatus().then(renderUpdateBanner).catch(() => {});
   window.aurora.onUpdateStatus(renderUpdateBanner);
-  $("#check-updates").addEventListener("click", () => {
-    if (renderUpdateBanner.last?.state === "ready") return window.aurora.installUpdate();
-    renderUpdateBanner.hold = Date.now() + 700;
-    renderUpdateBanner({ state: "checking" });
-    window.aurora.checkForUpdates();
-  });
   $("#update-install").addEventListener("click", () => window.aurora.installUpdate());
   $("#update-dismiss").addEventListener("click", () => $("#update-banner").classList.add("hidden"));
 }
@@ -1184,13 +1328,14 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
 
 (async function init() {
   try {
-    const provider = JSON.parse(localStorage.getItem("aurora-provider") || "null");
-    if (provider) {
+    await migrateSources();
+    const source = activeSource();
+    if (source) {
       setLoading(true, "Opening Aurora", "Loading your saved library…");
-      state.provider = provider;
-      state.items = await loadLibrary();
+      state.provider = source;
+      state.items = await loadLibrary(source.id);
     }
-  } catch { localStorage.removeItem("aurora-provider") }
+  } catch (error) { showToast(error.message || "Could not open your library") }
   finally {
     setLoading(false); render();
     if (!state.provider) setTimeout(() => $("#source-modal").classList.remove("hidden"), 250);
