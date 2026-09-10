@@ -30,10 +30,56 @@ const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
   favorites: new Set(JSON.parse(localStorage.getItem("aurora-favorites") || "[]")),
   progress: new Map(Object.entries(JSON.parse(localStorage.getItem("aurora-progress") || "{}"))),
-  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, trending: null, searchScope: "all", liveMode: "guide",
+  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, trending: null, searchScope: "all", liveMode: "guide", detailId: null, history: [], historyAt: -1,
   seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
-const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings" };
+const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings", detail: "Detail" };
+
+/* ---------- navigation ----------
+   Detail used to be a modal, which meant there was nowhere to go back to. It
+   is a view now, and every move through the app is an entry on a stack. */
+
+const entryOf = () => ({ view: state.view, query: state.query, category: state.category, scope: state.searchScope, detailId: state.detailId, limit: state.limit });
+const sameEntry = (a, b) => a && b && a.view === b.view && a.query === b.query && a.detailId === b.detailId;
+
+function applyEntry(entry) {
+  state.view = entry.view;
+  state.query = entry.query || "";
+  state.category = entry.category || "All";
+  state.searchScope = entry.scope || "all";
+  state.detailId = entry.detailId || null;
+  state.limit = entry.limit || (entry.view === "live" && state.liveMode !== "grid" ? GUIDE_CHANNELS : 120);
+  const field = $("#search");
+  if (field && field.value !== state.query) field.value = state.query;
+}
+
+function navigate(patch, { replace = false } = {}) {
+  const entry = { ...entryOf(), category: "All", scope: "all", detailId: null, limit: undefined, ...patch };
+  // a detail page is never a search result, so it must not inherit the query
+  if (entry.view === "detail" && !("query" in patch)) entry.query = "";
+  const current = state.history[state.historyAt];
+  if (!replace && sameEntry(current, entry)) { applyEntry(entry); return render() }
+  if (replace && current) state.history[state.historyAt] = entry;
+  else {
+    state.history = state.history.slice(0, state.historyAt + 1);
+    state.history.push(entry);
+    if (state.history.length > 80) state.history.shift();
+    state.historyAt = state.history.length - 1;
+  }
+  applyEntry(entry);
+  render();
+}
+
+const canGoBack = () => state.historyAt > 0;
+const canGoForward = () => state.historyAt < state.history.length - 1;
+
+function step(delta) {
+  const next = state.historyAt + delta;
+  if (next < 0 || next >= state.history.length) return;
+  state.historyAt = next;
+  applyEntry(state.history[next]);
+  render();
+}
 
 /* ---------- sources ----------
    Aurora used to hold exactly one account in aurora-provider. Sources are a
@@ -1074,6 +1120,7 @@ function renderCollection() {
 function render() {
   if (state.view === "settings") renderSettings();
   else if (!state.provider || !state.items.length) renderWelcome();
+  else if (state.view === "detail") renderDetailView();
   else if (state.query) renderSearch();
   else if (state.view === "history") renderHistory();
   else if (state.view === "home") renderHome();
@@ -1082,6 +1129,8 @@ function render() {
   updateRails();
   watchArtwork();
   updateSource();
+  $("#go-back").disabled = !canGoBack();
+  $("#go-forward").disabled = !canGoForward();
   document.documentElement.classList.toggle("artwork-on", hasTmdb());
   if (state.view === "home" && !state.trending && hasTmdb() && state.items.length) { state.trending = { movie: [], series: [], of: 0 }; loadTrending() }
   if (render.lastView !== state.view) {
@@ -1116,7 +1165,7 @@ function toggleFavorite(item) {
   if (!item) return;
   if (state.favorites.has(item.id)) state.favorites.delete(item.id); else state.favorites.add(item.id);
   localStorage.setItem("aurora-favorites", JSON.stringify([...state.favorites]));
-  if (!$("#series-modal").classList.contains("hidden")) renderDetail(); else render();
+  if (state.view === "detail") renderDetail(); else render();
   updatePlayerFavorite();
   updateSource();
 }
@@ -1244,37 +1293,53 @@ async function hydrateHero(item) {
   image.addEventListener("load", () => { if (hero.isConnected && !hero.querySelector("img")) hero.insertBefore(image, hero.firstChild) });
 }
 
-async function openSeries(item) {
-  if (!state.provider) return;
-  try {
-    setLoading(true, "Loading episodes", item.name);
-    const data = await fetchJson(apiUrl("get_series_info", `&series_id=${item.streamId}`));
-    if (!seriesHasEpisodes(data)) throw new Error("No episodes were returned for this series");
-    state.detailItem = null; state.detailData = null; state.detailMeta = null;
-    state.seriesItem = item; state.seriesData = data; state.selectedSeason = null;
-    renderDetail(); $("#series-modal").classList.remove("hidden");
-    hydrateDetail(item);
-  } catch (error) { showToast(error.message || "Could not load this series") }
-  finally { setLoading(false) }
-}
+async function loadDetail(id) {
+  const item = state.items.find((entry) => entry.id === id);
+  if (!item || loadDetail.current === id) return;
+  loadDetail.current = id;
+  state.seriesItem = null; state.seriesData = null; state.selectedSeason = null;
+  state.detailItem = null; state.detailData = null; state.detailMeta = null;
 
-async function openMovie(item) {
-  if (!state.provider) return;
-  state.seriesItem = null; state.seriesData = null;
-  state.detailItem = item; state.detailData = null; state.detailMeta = null;
-  renderDetail(); $("#series-modal").classList.remove("hidden");
+  if (item.type === "series") {
+    try {
+      setLoading(true, "Loading episodes", metaCache.get(item.id)?.title || item.name);
+      const data = await fetchJson(apiUrl("get_series_info", `&series_id=${item.streamId}`));
+      if (!seriesHasEpisodes(data)) throw new Error("No episodes were returned for this series");
+      if (state.detailId !== id) return;
+      state.seriesItem = item; state.seriesData = data;
+    } catch (error) {
+      showToast(error.message || "Could not load this series");
+      state.detailItem = item;
+    } finally { setLoading(false) }
+  } else {
+    state.detailItem = item;
+  }
+  if (state.detailId !== id) return;
+  renderDetail();
   hydrateDetail(item);
-  try {
-    const data = await fetchJson(apiUrl("get_vod_info", `&vod_id=${item.streamId}`));
-    if (state.detailItem?.id === item.id) { state.detailData = data; renderDetail() }
-  } catch { /* the basic details from the library are already on screen */ }
+  if (item.type === "movie") {
+    try {
+      const data = await fetchJson(apiUrl("get_vod_info", `&vod_id=${item.streamId}`));
+      if (state.detailId === id) { state.detailData = data; renderDetail() }
+    } catch { /* the library already gave us enough to show */ }
+  }
 }
 
 function openDetail(item) {
   if (!item) return;
-  if (item.type === "series") return openSeries(item);
-  if (item.type === "movie") return openMovie(item);
-  return play(item);
+  if (item.type === "live") return play(item);
+  navigate({ view: "detail", detailId: item.id, query: "" });
+}
+
+function renderDetailView() {
+  const item = state.items.find((entry) => entry.id === state.detailId);
+  if (!item) return renderWelcome();
+  $("#content").innerHTML = '<section class="detail-page"><div id="series-detail"></div></section>';
+  if (state.seriesItem?.id === item.id || state.detailItem?.id === item.id) renderDetail();
+  else {
+    $("#series-detail").innerHTML = `<section class="series-hero"><div class="series-poster"></div><div class="series-info"><span class="eyebrow">${escapeHtml(item.type === "series" ? "Series" : "Movie")}</span><h2>${escapeHtml(metaCache.get(item.id)?.title || item.name)}</h2></div></section>`;
+    loadDetail(item.id);
+  }
 }
 
 function seriesHasEpisodes(data) {
@@ -1354,7 +1419,6 @@ function playEpisode(item, season, episodes, index, { startOver = false } = {}) 
 function playSeriesEpisode(index) {
   const item = state.seriesItem, episodes = seriesSeasons().find(([number]) => number === state.selectedSeason)?.[1] || [];
   if (!item || !episodes[index]) return;
-  closeModal("series-modal");
   playEpisode(item, state.selectedSeason, episodes, index);
 }
 
@@ -1430,7 +1494,6 @@ function closeModal(id) {
     state.playing = null; state.playerItem = null; state.queue = null;
     if (state.view === "home" || state.view === "history") render();
   }
-  if (id === "series-modal") { state.seriesItem = null; state.seriesData = null; state.selectedSeason = null; state.detailItem = null; state.detailData = null; state.detailMeta = null }
 }
 
 function recordPosition(force = false) {
@@ -1467,7 +1530,7 @@ document.addEventListener("click", (event) => {
   const target = event.target;
   const close = target.closest("[data-close]"); if (close) return closeModal(close.dataset.close);
   if (target.closest("#add-source,.open-source")) return $("#source-modal").classList.remove("hidden");
-  if (target.closest("#open-settings-hint")) { closeModal("series-modal"); state.view = "settings"; render(); return }
+  if (target.closest("#open-settings-hint")) return navigate({ view: "settings" });
   const reveal = target.closest("[data-reveal]");
   if (reveal) {
     const field = $(`#${reveal.dataset.reveal}`);
@@ -1487,26 +1550,21 @@ document.addEventListener("click", (event) => {
     return window.aurora?.checkForUpdates();
   }
     const nav = target.closest("nav button");
-  if (nav) {
-    state.view = nav.dataset.view;
-    state.category = "All";
-    state.limit = state.view === "live" && state.liveMode !== "grid" ? GUIDE_CHANNELS : 120;
-    state.query = ""; $("#search").value = "";
-    render();
-    return;
-  }
+  if (nav) return navigate({ view: nav.dataset.view, query: "" });
   const use = target.closest("[data-use]"); if (use) return useSource(use.dataset.use);
   const reload = target.closest("[data-refresh]"); if (reload) return refreshLibrary(false, reload.dataset.refresh);
   const remove = target.closest("[data-remove]"); if (remove) { state.confirmRemove = remove.dataset.remove; renderSettings(); return }
   if (target.closest("[data-remove-cancel]")) { state.confirmRemove = null; renderSettings(); return }
   const confirmRemove = target.closest("[data-remove-confirm]");
   if (confirmRemove) { state.confirmRemove = null; return removeSource(confirmRemove.dataset.removeConfirm) }
-  const pill = target.closest("#source-pill"); if (pill) { state.view = "settings"; state.confirmRemove = null; render(); return }
+  if (target.closest("#source-pill")) { state.confirmRemove = null; return navigate({ view: "settings" }) }
   const mode = target.closest("[data-live-mode]");
-  if (mode) { state.liveMode = mode.dataset.liveMode; state.limit = state.liveMode === "grid" ? 120 : GUIDE_CHANNELS; render(); return }
+  if (mode) { state.liveMode = mode.dataset.liveMode; return navigate({ limit: state.liveMode === "grid" ? 120 : GUIDE_CHANNELS }, { replace: true }) }
   if (target.closest("#guide-now")) return scrollGuideToNow();
   const programme = target.closest("[data-play]");
   if (programme) return play(state.items.find((entry) => entry.id === programme.dataset.play));
+  if (target.closest("#go-back")) return step(-1);
+  if (target.closest("#go-forward")) return step(1);
   if (target.closest("#play-something")) return playSomething();
   const themeButton = target.closest(".theme-switch button");
   if (themeButton) return applyTheme(themeButton.dataset.themeChoice);
@@ -1518,10 +1576,10 @@ document.addEventListener("click", (event) => {
     return;
   }
   const scope = target.closest("[data-scope]");
-  if (scope) { state.searchScope = scope.dataset.scope; state.limit = 120; render(); return }
-  if (target.closest("#clear-search")) { state.query = ""; $("#search").value = ""; render(); return }
-  const chip = target.closest(".chip"); if (chip) { state.category = chip.dataset.category; state.limit = 120; renderCollection(); return }
-  if (target.closest("#load-more")) { state.limit += state.view === "live" && state.liveMode !== "grid" ? GUIDE_CHANNELS : 120; state.query ? renderSearch() : renderCollection(); return }
+  if (scope) return navigate({ scope: scope.dataset.scope, limit: 120 }, { replace: true });
+  if (target.closest("#clear-search")) return navigate({ query: "" });
+  const chip = target.closest(".chip"); if (chip && chip.dataset.category) return navigate({ category: chip.dataset.category, limit: 120 }, { replace: true });
+  if (target.closest("#load-more")) return navigate({ limit: state.limit + (state.view === "live" && state.liveMode !== "grid" ? GUIDE_CHANNELS : 120) }, { replace: true });
   if (target.closest("#clear-history")) { state.progress.clear(); persistProgress(); render(); return }
   const featuredPlay = target.closest(".play-featured"); if (featuredPlay) return openDetail(state.items.find((item) => item.id === featuredPlay.dataset.id));
   const featuredFavorite = target.closest(".favorite-featured"); if (featuredFavorite) return toggleFavorite(state.items.find((item) => item.id === featuredFavorite.dataset.id));
@@ -1531,10 +1589,10 @@ document.addEventListener("click", (event) => {
     const next = nextUnwatchedEpisode(seriesSeasons());
     if (!next) return;
     const item = state.seriesItem, episodes = seriesSeasons().find(([number]) => number === next.season)?.[1] || [];
-    closeModal("series-modal"); return playEpisode(item, next.season, episodes, next.index);
+    return playEpisode(item, next.season, episodes, next.index);
   }
-  if (target.closest(".detail-play")) { const item = state.detailItem; closeModal("series-modal"); return play(item) }
-  if (target.closest(".detail-restart")) { const item = state.detailItem; closeModal("series-modal"); return play(item, { startOver: true }) }
+  if (target.closest(".detail-play")) return play(state.detailItem);
+  if (target.closest(".detail-restart")) return play(state.detailItem, { startOver: true });
   if (target.closest(".series-favorite,.detail-favorite")) return toggleFavorite(state.seriesItem || state.detailItem);
   if (target.closest("#player-prev")) return stepEpisode(-1);
   if (target.closest("#player-next")) return stepEpisode(1);
@@ -1568,12 +1626,15 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     if (!$("#shortcuts").classList.contains("hidden")) return $("#shortcuts").classList.add("hidden");
     if (!$("#up-next").classList.contains("hidden")) { upNextDismissed = true; return $("#up-next").classList.add("hidden") }
-    for (const id of ["player-modal", "series-modal", "settings-modal", "source-modal"]) {
+    for (const id of ["player-modal", "source-modal"]) {
       if (!$("#" + id).classList.contains("hidden")) return closeModal(id);
     }
+    if (state.view === "detail" && canGoBack()) return step(-1);
     return;
   }
   if ($("#player-modal").classList.contains("hidden")) {
+    if ((event.metaKey || event.ctrlKey) && event.key === "[") { event.preventDefault(); return step(-1) }
+    if ((event.metaKey || event.ctrlKey) && event.key === "]") { event.preventDefault(); return step(1) }
     if (event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "f")) {
       event.preventDefault();
       $("#search").focus();
@@ -1581,11 +1642,14 @@ document.addEventListener("keydown", (event) => {
     }
     return;
   }
-  const step = event.shiftKey ? 60 : 10;
+  // named `seconds`, not `step`: a `const step` here would shadow the step()
+  // navigation function for this entire handler and put it in the temporal
+  // dead zone, which silently broke Escape, Cmd-[ and Cmd-]
+  const seconds = event.shiftKey ? 60 : 10;
   const keys = {
     " ": () => (video.paused ? video.play() : video.pause()),
-    ArrowRight: () => { video.currentTime = Math.min(video.duration || Infinity, video.currentTime + step) },
-    ArrowLeft: () => { video.currentTime = Math.max(0, video.currentTime - step) },
+    ArrowRight: () => { video.currentTime = Math.min(video.duration || Infinity, video.currentTime + seconds) },
+    ArrowLeft: () => { video.currentTime = Math.max(0, video.currentTime - seconds) },
     ArrowUp: () => { video.volume = Math.min(1, video.volume + 0.1) },
     ArrowDown: () => { video.volume = Math.max(0, video.volume - 0.1) },
     f: () => (document.fullscreenElement ? document.exitFullscreen() : $("#player-shell").requestFullscreen()),
@@ -1754,9 +1818,9 @@ $("#search").addEventListener("input", (event) => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => {
     const next = event.target.value.trim();
-    if (next !== state.query) state.searchScope = "all";
-    state.query = next; state.category = "All"; state.limit = 120;
-    render();
+    if (next === state.query) return;
+    const typing = Boolean(state.query) && Boolean(next);
+    navigate({ view: state.view === "detail" ? "home" : state.view, query: next, limit: 120 }, { replace: typing });
   }, 180);
 });
 $("#source-form").addEventListener("submit", connectProvider);
@@ -1826,7 +1890,7 @@ function renderUpdateBanner(status) {
 }
 
 if (window.aurora) {
-  window.aurora.onMenu("settings", () => { state.view = "settings"; state.query = ""; $("#search").value = ""; render() });
+  window.aurora.onMenu("settings", () => navigate({ view: "settings", query: "" }));
   window.aurora.onMenu("sidebar", () => applySidebar(!sidebarHidden()));
   window.aurora.version().then((value) => { state.appVersion = value; const slot = $("#app-version"); if (slot) slot.textContent = value });
   window.aurora.updateStatus().then(renderUpdateBanner).catch(() => {});
@@ -1850,7 +1914,8 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
     }
   } catch (error) { showToast(error.message || "Could not open your library") }
   finally {
-    setLoading(false); render();
+    setLoading(false);
+    if (state.history.length) render(); else navigate({ view: "home" });
     if (!state.provider) setTimeout(() => $("#source-modal").classList.remove("hidden"), 250);
     else if (Number(localStorage.getItem("aurora-library-schema") || 0) < LIBRARY_SCHEMA) {
       showToast("Updating your library in the background…");

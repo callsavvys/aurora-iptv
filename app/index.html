@@ -70,6 +70,10 @@
 
     <section class="workspace">
       <header>
+        <div class="nav-steps">
+          <button id="go-back" title="Back" aria-label="Back" disabled><svg class="icon"><use href="#i-chev-left"/></svg></button>
+          <button id="go-forward" title="Forward" aria-label="Forward" disabled><svg class="icon"><use href="#i-chev-right"/></svg></button>
+        </div>
         <label class="search"><span><svg class="icon"><use href="#i-search"/></svg></span><input id="search" placeholder="Search channels, movies and series" /></label>
         <button class="primary compact" id="add-source">＋ Add source</button>
       </header>
@@ -175,13 +179,6 @@
           <dt>Esc</dt><dd>Close</dd>
         </dl>
       </div>
-    </div>
-  </div>
-
-  <div class="modal hidden" id="series-modal">
-    <div class="modal-card series-card">
-      <button class="close series-close" data-close="series-modal"><svg class="icon"><use href="#i-close"/></svg></button>
-      <div id="series-detail"></div>
     </div>
   </div>
 

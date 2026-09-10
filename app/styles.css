@@ -1601,3 +1601,27 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 .keys .field input { flex: 1; }
 .keys label > small { color: var(--text-4); font-family: var(--mono); font-size: 10px; font-weight: 400; }
 .keys-note { color: var(--text-4); font-family: var(--mono); font-size: 10px; }
+
+/* ---------- back and forward ---------- */
+.nav-steps { display: flex; gap: 2px; margin-right: 14px; }
+.nav-steps button {
+  border: 1px solid var(--line);
+  background: var(--fill-1);
+  color: var(--text-3);
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: .15s;
+}
+.nav-steps button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent-edge); }
+.nav-steps button:disabled { opacity: .38; cursor: default; }
+.nav-steps .icon { width: 16px; height: 16px; }
+
+/* ---------- detail as a page ---------- */
+.detail-page { padding: 0 0 40px; }
+.detail-page #series-detail { overflow: visible; }
+.detail-page .series-hero { min-height: 340px; border-radius: 0; padding: 46px 42px 34px; }
+.detail-page .series-hero::after { border-radius: 0; }

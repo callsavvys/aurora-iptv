@@ -20,13 +20,7 @@
   top: 16px;
 }
 
-#series-detail {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar) transparent;
-}
+#series-detail { display: block; }
 
 .series-hero {
   position: relative;
@@ -54,7 +48,7 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(0deg, var(--elevated) 3%, var(--hero-veil-b) 48%, var(--hero-veil-c)),
+    linear-gradient(0deg, var(--bg) 3%, var(--hero-veil-b) 48%, var(--hero-veil-c)),
     linear-gradient(90deg, var(--hero-veil-d), transparent);
 }
 
@@ -145,24 +139,20 @@
 /* episodes */
 
 .episodes-pane {
-  padding: 0 34px 30px;
-  overflow: auto;
-  max-height: 480px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar) transparent;
+  padding: 0 42px 30px;
 }
 
 .episodes-head {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--elevated);
+  background: var(--bg);
   padding: 20px 0 13px;
 }
 
 .episodes-head h3 { font-family: var(--display); font-size: 17px; font-weight: 700; margin: 0 0 13px; }
-.episodes-head .rail-nav { width: 34px; font-size: 19px; background: linear-gradient(90deg, var(--elevated), var(--fade-mid) 60%, var(--fade-out)); }
-.episodes-head .rail-nav.next { background: linear-gradient(270deg, var(--elevated), var(--fade-mid) 60%, var(--fade-out)); }
+.episodes-head .rail-nav { width: 34px; font-size: 19px; background: linear-gradient(90deg, var(--bg), var(--fade-mid) 60%, var(--fade-out)); }
+.episodes-head .rail-nav.next { background: linear-gradient(270deg, var(--bg), var(--fade-mid) 60%, var(--fade-out)); }
 
 .season-tabs { display: flex; gap: 7px; overflow: auto; scrollbar-width: none; }
 
