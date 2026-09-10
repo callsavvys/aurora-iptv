@@ -529,8 +529,9 @@ function buildIndex() {
   const byTitle = new Map(), byType = { live: [], movie: [], series: [] }, rows = [];
   for (const item of state.items) {
     (byType[item.type] ||= []).push(item);
-    rows.push({ item, name: item.name.toLowerCase(), category: (item.category || "").toLowerCase() });
-    for (const key of indexKeys(item.name)) {
+    const keys = indexKeys(item.name);
+    rows.push({ item, name: item.name.toLowerCase(), category: (item.category || "").toLowerCase(), key: keys[0] || "", year: Number(releaseYear(item)) || 0 });
+    for (const key of keys) {
       const bucket = byTitle.get(key);
       if (bucket) bucket.push(item); else byTitle.set(key, [item]);
     }
@@ -645,12 +646,41 @@ function pickCandidate(entry, type, seen) {
   return best?.item || null;
 }
 
+/* A provider tag is not always shaped like one. "AMZN - Backrooms (2026)"
+   strips cleanly, but the same line writes "AMZN | The Runner (2026)" with a
+   character Aurora does not read as a separator, so the tag survives into the
+   key and the title never matches. Chasing every separator a provider might
+   invent is a losing game, so an entry that matched nothing exactly gets a
+   second pass: a key that ENDS WITH the wanted title, on a word boundary,
+   behind a short lead-in. Requiring both years to be known and to agree is
+   what keeps this safe — "The Dark Knight" ends with "Knight", but it is not
+   the same year as one. */
+const MAX_LEAD = 12;
+
+function suffixCandidate(entry, type, seen, wanted) {
+  if (!wanted) return null;
+  const keys = entryKeys(entry).filter((key) => key.length >= 4);
+  if (!keys.length) return null;
+  let best = null;
+  for (const row of index().rows) {
+    if (row.item.type !== type || seen.has(row.item.id) || !row.key) continue;
+    if (!row.year || Math.abs(row.year - wanted) > YEAR_SLACK) continue; // the year carries this on its own
+    for (const key of keys) {
+      if (!row.key.endsWith(` ${key}`)) continue;
+      const lead = row.key.length - key.length - 1;
+      if (lead > MAX_LEAD) continue; // that is half a title, not a tag
+      if (!best || lead < best.lead) best = { item: row.item, lead };
+    }
+  }
+  return best?.item || null;
+}
+
 // a trending entry already carries poster, backdrop and score, so a match is
 // also a free metadata record for that item
 function matchTrending(results, type) {
   const matched = [], seen = new Set();
   for (const entry of results) {
-    const item = pickCandidate(entry, type, seen);
+    const item = pickCandidate(entry, type, seen) || suffixCandidate(entry, type, seen, entryYear(entry));
     if (!item) continue;
     seen.add(item.id);
     matched.push(item);
