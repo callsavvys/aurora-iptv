@@ -1014,11 +1014,13 @@ function renderSearch() {
     body = groups;
   } else {
     const list = ranked.filter((entry) => entry.item.type === scope);
-    body = `<div class="grid">${list.slice(0, state.limit).map((entry) => card(entry.item, scope === "live")).join("")}</div>${list.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more · ${(list.length - state.limit).toLocaleString()} remaining</button></div>` : ""}`;
+    body = gridMarkup();
   }
 
   $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">Search</span><h1>“${escapeHtml(state.query)}”</h1></div><span>${ranked.length.toLocaleString()} result${ranked.length === 1 ? "" : "s"}</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${chips}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${bestBlock}${body}</section>`;
   updateRails();
+  if (scope === "all") grid = null;
+  else mountGrid(ranked.filter((entry) => entry.item.type === scope).map((entry) => entry.item), scope === "live");
   watchArtwork();
 }
 
@@ -1109,11 +1111,64 @@ async function paintGuideRow(node) {
   }).join("");
 }
 
+/* ---------- virtualised grid ----------
+   The grid used to render 120 cards and offer a Show more button. At 101,102
+   items that is a treadmill. Only the rows inside the viewport are in the DOM;
+   the container is padded to full height so the scrollbar tells the truth. Row
+   height is measured rather than assumed, because card height follows column
+   width, which follows the window. */
+
+const GRID_GAP = 24;
+const OVERSCAN = 2;
+let grid = null;
+
+const gridMarkup = () => '<div class="vgrid" id="vgrid"><div class="vgrid-inner" id="vgrid-inner"></div></div>';
+
+function mountGrid(items, wide) {
+  const host = $("#vgrid"), inner = $("#vgrid-inner");
+  if (!host || !inner) { grid = null; return }
+  grid = { items, wide, host, inner, rowHeight: 0, columns: 0, from: -1, to: -1 };
+  inner.classList.toggle("wide", Boolean(wide));
+  measureGrid();
+}
+
+function measureGrid() {
+  if (!grid || !grid.inner.isConnected) return;
+  const { inner, items } = grid;
+  inner.style.transform = "translateY(0px)";
+  inner.innerHTML = items.slice(0, 12).map((item) => card(item, grid.wide)).join("");
+  const columns = getComputedStyle(inner).gridTemplateColumns.split(" ").filter(Boolean).length || 1;
+  const first = inner.firstElementChild;
+  grid.columns = columns;
+  grid.rowHeight = (first ? first.getBoundingClientRect().height : 240) + GRID_GAP;
+  grid.from = grid.to = -1;
+  const rows = Math.ceil(items.length / columns);
+  grid.host.style.height = `${Math.max(0, rows * grid.rowHeight - GRID_GAP)}px`;
+  paintGrid();
+}
+
+function paintGrid() {
+  if (!grid || !grid.inner.isConnected || !grid.rowHeight) return;
+  const { host, inner, items, columns, rowHeight } = grid;
+  const scroller = $("#content");
+  const top = host.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  const firstRow = Math.max(0, Math.floor((scroller.scrollTop - top) / rowHeight) - OVERSCAN);
+  const rows = Math.ceil(scroller.clientHeight / rowHeight) + OVERSCAN * 2;
+  const from = firstRow * columns;
+  const to = Math.min(items.length, from + rows * columns);
+  if (grid.from === from && grid.to === to) return;
+  grid.from = from; grid.to = to;
+  inner.style.transform = `translateY(${firstRow * rowHeight}px)`;
+  inner.innerHTML = items.slice(from, to).map((item) => card(item, grid.wide)).join("");
+  watchArtwork();
+}
+
 function renderCollection() {
   if (state.view === "live" && state.liveMode !== "grid") return renderGuide();
   const base = itemsForView(true), categories = ["All", ...new Set(base.map((item) => item.category).filter(Boolean))], items = itemsForView();
-  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${items.length ? `<div class="grid">${items.slice(0, state.limit).map((item) => card(item, item.type === "live")).join("")}</div>${items.length > state.limit ? `<div class="load-more"><button class="secondary" id="load-more">Show 120 more • ${(items.length - state.limit).toLocaleString()} remaining</button></div>` : ""}` : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
+  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${items.length ? gridMarkup() : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
   updateRails();
+  if (items.length) mountGrid(items, state.view === "live"); else grid = null;
   watchArtwork();
 }
 
@@ -1809,9 +1864,13 @@ $("#up-next-dismiss").addEventListener("click", () => { upNextDismissed = true; 
 
 document.addEventListener("scroll", () => {
   cancelAnimationFrame(updateRails.frame);
-  updateRails.frame = requestAnimationFrame(updateRails);
+  updateRails.frame = requestAnimationFrame(() => { updateRails(); paintGrid() });
 }, true);
-window.addEventListener("resize", updateRails);
+window.addEventListener("resize", () => {
+  updateRails();
+  clearTimeout(measureGrid.timer);
+  measureGrid.timer = setTimeout(measureGrid, 120);
+});
 
 let searchTimer;
 $("#search").addEventListener("input", (event) => {

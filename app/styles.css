@@ -686,8 +686,13 @@ nav em {
 
 .chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
 
-.grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 24px 14px; }
+.grid, .vgrid-inner { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 24px 14px; }
 .grid .wide { grid-column: span 2; }
+
+/* only the visible rows exist; the host carries the full height */
+.vgrid { position: relative; }
+.vgrid-inner { position: absolute; top: 0; left: 0; right: 0; align-content: start; }
+.vgrid-inner.wide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .load-more { display: flex; justify-content: center; padding: 35px; }
 .load-more button { height: 40px; padding: 0 18px; border-radius: 11px; }
