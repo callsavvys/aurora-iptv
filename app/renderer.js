@@ -290,9 +290,14 @@ const fingerprint = (value) => (value ? `${"•".repeat(Math.max(0, Math.min(12,
 const hasTmdb = () => Boolean(apiKeys().tmdb);
 
 // provider titles carry language tags, quality flags and the year
-function searchTitle(name) {
-  return String(name || "")
-    .replace(/^\s*[\[|(]?\s*[A-Za-z]{2,4}\s*[\]|)]?\s*[|:\-–]\s*/u, "")
+// "AR| Dune" is a language tag; "Troy: The Odyssey" is a title. The shapes are
+// identical, so the prefix is stripped for one key and kept for another, and
+// the scoring decides which reading was right.
+const LEAD_TAG = /^\s*[\[|(]?\s*[A-Za-z]{2,4}\s*[\]|)]?\s*[|:\-–]\s*/u;
+
+function searchTitle(name, { keepPrefix = false } = {}) {
+  const raw = String(name || "");
+  return (keepPrefix ? raw : raw.replace(LEAD_TAG, ""))
     .replace(/\[[^\]]*\]|\([^)]*\)/g, " ")
     .replace(/\b(4k|uhd|fhd|hd|sd|hevc|x26[45]|h\.?26[45]|multi|vf|vo|vostfr|dub(bed)?|sub(bed)?|imax|remux|blu-?ray|web-?dl|\d{3,4}p)\b/gi, " ")
     .replace(/[_.]+/g, " ")
@@ -515,17 +520,20 @@ function watchArtwork() {
 
 let libraryIndex = null;
 
-const indexKey = (name) => searchTitle(name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const indexKey = (name, options) => searchTitle(name, options).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+// both readings of the name, so neither interpretation of a prefix loses a match
+const indexKeys = (name) => [...new Set([indexKey(name), indexKey(name, { keepPrefix: true })])].filter(Boolean);
 
 function buildIndex() {
   const byTitle = new Map(), byType = { live: [], movie: [], series: [] }, rows = [];
   for (const item of state.items) {
     (byType[item.type] ||= []).push(item);
     rows.push({ item, name: item.name.toLowerCase(), category: (item.category || "").toLowerCase() });
-    const key = indexKey(item.name);
-    if (!key) continue;
-    const bucket = byTitle.get(key);
-    if (bucket) bucket.push(item); else byTitle.set(key, [item]);
+    for (const key of indexKeys(item.name)) {
+      const bucket = byTitle.get(key);
+      if (bucket) bucket.push(item); else byTitle.set(key, [item]);
+    }
   }
   libraryIndex = { byTitle, byType, rows, cache: {} };
   return libraryIndex;
@@ -584,14 +592,65 @@ async function trendingList(kind) {
   return results;
 }
 
+/* A title alone cannot identify a film. "Dune" is two films, "Nosferatu" is
+   four, and indexKey strips the year, so the old lookup put whichever one the
+   provider happened to list first into "Top 20 this week". A title match now
+   only nominates candidates; the year picks between them, and a TMDB id we
+   already hold decides outright. */
+const YEAR_SLACK = 1; // regional release dates slip a year either way
+
+const entryYear = (entry) => Number(String(entry.release_date || entry.first_air_date || "").slice(0, 4)) || 0;
+
+// the original title catches libraries that name films in their own language,
+// and TMDB titles wear the same colon that trips the tag stripper ("IT: Chapter Two")
+function entryKeys(entry) {
+  const keys = new Set();
+  for (const name of [entry.title, entry.name, entry.original_title, entry.original_name]) {
+    if (name) for (const key of indexKeys(name)) keys.add(key);
+  }
+  return [...keys];
+}
+
+/* Having nothing to compare on is not the same as disagreeing. Plenty of
+   providers ship no year at all, so a yearless item stays eligible — it just
+   loses to one whose year lands on the nose. */
+function scoreCandidate(candidate, entry, wanted) {
+  const meta = metaCache.get(candidate.id);
+  const sameId = entry.id && meta?.tmdbId ? String(meta.tmdbId) === String(entry.id) : null;
+  if (sameId === true) return 100;
+  const year = Number(releaseYear(candidate) || meta?.year || 0);
+  let score = 40;
+  if (wanted && year) {
+    const gap = Math.abs(year - wanted);
+    if (gap > YEAR_SLACK) return -1; // same title, different film
+    score = 80 - gap * 10;
+  }
+  return sameId === false ? Math.min(score, 20) : score; // a cached id that says otherwise
+}
+
+function pickCandidate(entry, type, seen) {
+  const wanted = entryYear(entry);
+  let best = null;
+  const weighed = new Set();
+  for (const key of entryKeys(entry)) {
+    for (const candidate of index().byTitle.get(key) || []) {
+      if (candidate.type !== type || seen.has(candidate.id) || weighed.has(candidate.id)) continue;
+      weighed.add(candidate.id);
+      const score = scoreCandidate(candidate, entry, wanted);
+      if (score < 0) continue;
+      // shorter names carry less provider junk, so they break ties
+      if (!best || score > best.score || (score === best.score && candidate.name.length < best.item.name.length)) best = { item: candidate, score };
+    }
+  }
+  return best?.item || null;
+}
+
 // a trending entry already carries poster, backdrop and score, so a match is
 // also a free metadata record for that item
 function matchTrending(results, type) {
   const matched = [], seen = new Set();
   for (const entry of results) {
-    const key = indexKey(entry.title || entry.name || "");
-    if (!key) continue;
-    const item = (index().byTitle.get(key) || []).find((candidate) => candidate.type === type && !seen.has(candidate.id));
+    const item = pickCandidate(entry, type, seen);
     if (!item) continue;
     seen.add(item.id);
     matched.push(item);
