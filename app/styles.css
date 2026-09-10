@@ -1538,7 +1538,9 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 .prog.live b { color: var(--accent); }
 .prog.loading, .prog.blank {
   left: 0;
-  width: 260px;
+  /* spans the row so the message stays put instead of scrolling out of view */
+  width: 100%;
+  max-width: none;
   border-style: dashed;
   color: var(--text-4);
   font-family: var(--mono);
@@ -1548,6 +1550,21 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
   justify-content: center;
 }
 .prog.blank:hover, .prog.loading:hover { border-color: var(--line); background: var(--fill-1); }
+/* pinned like the programme labels, so it reads at any scroll position */
+.prog.loading > span, .prog.blank > span { position: sticky; left: 12px; }
+
+.guide-note {
+  margin: 0 0 14px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--fill-1);
+  color: var(--text-2);
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.guide-note[hidden] { display: none; }
 
 .now-line {
   position: absolute;

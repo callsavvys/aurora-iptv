@@ -651,19 +651,34 @@ function normaliseProgramme(entry) {
   return { start, end, title: decodeEpgText(entry.title) || "No title", description: decodeEpgText(entry.description) };
 }
 
+/* Providers differ in which EPG endpoint they populate, so try both, and record
+   WHY a channel came back empty. Collapsing every failure into an empty list
+   made "no guide" indistinguishable from "the request failed" and from
+   "listings arrived but Aurora could not read them" — which are three very
+   different problems, only one of which is the provider's. */
 async function epgFor(item) {
   const key = `epg:${activeSourceId()}:${item.streamId}`;
   const held = epgCache.get(key);
-  if (held && Date.now() - held.at < EPG_TTL) return held.list;
+  if (held && Date.now() - held.at < EPG_TTL) return held;
   const stored = await idbGet("meta", key).catch(() => null);
-  if (stored && Date.now() - stored.at < EPG_TTL) { epgCache.set(key, stored); return stored.list }
+  if (stored?.reason && Date.now() - stored.at < EPG_TTL) { epgCache.set(key, stored); return stored }
+
   return enqueue(async () => {
-    const data = await fetchJson(apiUrl("get_short_epg", `&stream_id=${item.streamId}&limit=24`)).catch(() => null);
-    const list = (data?.epg_listings || []).map(normaliseProgramme).filter(Boolean).sort((a, b) => a.start - b.start);
-    const record = { at: Date.now(), list };
+    let raw = [], failed = 0, tried = [];
+    for (const [action, extra] of [["get_short_epg", `&stream_id=${item.streamId}&limit=24`], ["get_simple_data_table", `&stream_id=${item.streamId}`]]) {
+      tried.push(action);
+      try {
+        const data = await fetchJson(apiUrl(action, extra));
+        const listings = data?.epg_listings || data?.epg || (Array.isArray(data) ? data : []);
+        if (listings.length) { raw = listings; break }
+      } catch { failed += 1 }
+    }
+    const list = raw.map(normaliseProgramme).filter(Boolean).sort((a, b) => a.start - b.start);
+    const reason = list.length ? "ok" : raw.length ? "unreadable" : failed === tried.length ? "failed" : "empty";
+    const record = { at: Date.now(), list, raw: raw.length, reason, sample: reason === "unreadable" ? raw[0] : null };
     epgCache.set(key, record);
     await idbPut("meta", key, record).catch(() => {});
-    return list;
+    return record;
   }, { slow: true });
 }
 
@@ -1050,7 +1065,7 @@ function renderGuide() {
 
   const rows = channels.map((item) => `<div class="guide-row" data-guide-for="${escapeHtml(item.id)}">
       <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" src="${escapeHtml(item.logo)}" onerror="this.style.display='none'">` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
-      <div class="guide-progs" style="width:${width}px"><span class="prog loading">Loading guide…</span></div>
+      <div class="guide-progs" style="width:${width}px"><span class="prog loading"><span>Loading guide…</span></span></div>
     </div>`).join("");
 
   const total = itemsForView().length;
@@ -1060,6 +1075,7 @@ function renderGuide() {
       <div class="seg"><button data-live-mode="guide" class="active">Guide</button><button data-live-mode="grid">Channels</button></div>
     </div>
     <div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>
+    <p class="guide-note" id="guide-note" hidden></p>
     <div class="guide" id="guide">
       <div class="guide-inner" style="--track:${width}px">
         <div class="guide-times"><div class="guide-corner"><button class="chip" id="guide-now">Now</button></div><div class="guide-ticks" style="width:${width}px">${ticks.join("")}</div></div>
@@ -1071,6 +1087,7 @@ function renderGuide() {
   </section>`;
 
   guideWindow = { start: windowStart, end: windowEnd, width };
+  guideCounts = { seen: 0, total: channels.length };
   positionNow();
   updateRails();
   for (const node of document.querySelectorAll(".guide-row[data-guide-for]")) paintGuideRow(node);
@@ -1078,6 +1095,26 @@ function renderGuide() {
 }
 
 let guideWindow = null;
+let guideCounts = null;
+
+function guideTally(reason) {
+  if (!guideCounts) return;
+  guideCounts[reason] = (guideCounts[reason] || 0) + 1;
+  guideCounts.seen += 1;
+  clearTimeout(guideTally.timer);
+  guideTally.timer = setTimeout(showGuideVerdict, 400);
+}
+
+function showGuideVerdict() {
+  const note = $("#guide-note");
+  if (!note || !guideCounts || guideCounts.seen < guideCounts.total) return;
+  const { ok = 0, empty = 0, failed = 0, unreadable = 0, total } = guideCounts;
+  if (ok) { note.hidden = true; return }
+  note.hidden = false;
+  if (unreadable) note.innerHTML = `All ${total} channels returned listings Aurora could not read. That is a bug on my side, not your provider's — tell me and I will fix the parsing.`;
+  else if (failed) note.innerHTML = `The guide request failed for ${failed} of ${total} channels. Check the source is reachable under Settings, then reload the library.`;
+  else note.innerHTML = `Your provider returned no guide for any of these ${total} channels. Many lines only carry EPG for some categories — try another category above. If none have it, the line simply does not supply a guide.`;
+}
 
 function positionNow() {
   const line = $("#now-line");
@@ -1094,15 +1131,23 @@ function scrollGuideToNow() {
   guide.scrollLeft = Math.max(0, ((Date.now() - guideWindow.start) / 60000) * PX_PER_MIN - 120);
 }
 
+const EPG_REASON = {
+  empty: "Provider has no guide for this channel",
+  failed: "Guide request failed",
+  unreadable: "Guide arrived in a format Aurora could not read",
+  ok: "Nothing scheduled in this window",
+};
+
 async function paintGuideRow(node) {
   const item = state.items.find((entry) => entry.id === node.dataset.guideFor);
   if (!item) return;
-  const list = await epgFor(item).catch(() => []);
+  const record = await epgFor(item).catch(() => ({ list: [], reason: "failed" }));
   const track = node.querySelector(".guide-progs");
   if (!node.isConnected || !track || !guideWindow) return;
+  guideTally(record.reason);
   const { start, end } = guideWindow;
-  const visible = (list || []).filter((programme) => programme.end > start && programme.start < end);
-  if (!visible.length) { track.innerHTML = '<span class="prog blank">No guide for this channel</span>'; return }
+  const visible = (record.list || []).filter((programme) => programme.end > start && programme.start < end);
+  if (!visible.length) { track.innerHTML = `<span class="prog blank"><span>${escapeHtml(EPG_REASON[record.reason] || EPG_REASON.empty)}</span></span>`; return }
   track.innerHTML = visible.map((programme) => {
     const left = Math.max(0, ((programme.start - start) / 60000) * PX_PER_MIN);
     const right = Math.min(guideWindow.width, ((programme.end - start) / 60000) * PX_PER_MIN);
