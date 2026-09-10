@@ -3,13 +3,71 @@ const $ = (selector) => document.querySelector(selector);
 
 /* ---------- appearance ---------- */
 
+/* localStorage is keyed to the page origin, and the origin carries the server
+   port. When 41791 is busy the server falls back to another port, the origin
+   changes, and every one of these comes back empty — favourites and resume
+   positions included. This machine already has two origins on disk, so it is
+   not hypothetical. They live in userData now, which no port can move. */
+const prefs = { ...(window.aurora?.prefs || {}) };
+let prefsPending = null;
+
+const readPref = (key, fallback) => (prefs[key] === undefined || prefs[key] === null ? fallback : prefs[key]);
+
+function writePref(key, value) {
+  if (value === undefined) delete prefs[key]; else prefs[key] = value;
+  clearTimeout(prefsPending);
+  // a heart click should not wait on a disk write, but a quit should not lose one
+  prefsPending = setTimeout(flushPrefs, 150);
+}
+
+function flushPrefs() {
+  clearTimeout(prefsPending);
+  prefsPending = null;
+  return window.aurora?.setPrefs?.({ ...prefs })?.catch?.(() => {});
+}
+
+addEventListener("pagehide", () => { if (prefsPending) flushPrefs() });
+
+/* Lift whatever an older origin still holds. Per key, not all-or-nothing: a
+   user can land on a fresh port, write a theme there, and only later come back
+   to the origin that still holds their list. Anything userData already answers
+   wins, so this can never overwrite a newer setting with a stale one, and the
+   old copies are dropped once the save is confirmed. */
+const LEGACY_PREFS = {
+  theme: "aurora-theme", sidebar: "aurora-sidebar", activeSource: "aurora-active-source",
+  librarySchema: "aurora-library-schema", favorites: "aurora-favorites",
+  progress: "aurora-progress", omdbUsage: "aurora-omdb-usage",
+};
+const JSON_PREFS = new Set(["favorites", "progress", "omdbUsage"]);
+
+(function liftFromLocalStorage() {
+  const moved = [];
+  for (const [key, legacy] of Object.entries(LEGACY_PREFS)) {
+    if (prefs[key] !== undefined && prefs[key] !== null) continue; // userData already knows better
+    let raw;
+    try { raw = localStorage.getItem(legacy) } catch { return }
+    if (raw === null) continue;
+    let value = raw;
+    if (JSON_PREFS.has(key)) { try { value = JSON.parse(raw) } catch { continue } }
+    else if (key === "librarySchema") value = Number(raw) || 0;
+    if (value === null || value === undefined) continue;
+    prefs[key] = value;
+    moved.push(legacy);
+  }
+  if (!moved.length) return;
+  // the page needs these now; clearing the old copies can wait for the write
+  flushPrefs()?.then?.((result) => {
+    if (result?.saved) for (const legacy of moved) { try { localStorage.removeItem(legacy) } catch { /* nothing to clean */ } }
+  });
+})();
+
 const THEMES = ["system", "light", "dark"];
-const themeChoice = () => { const stored = localStorage.getItem("aurora-theme"); return THEMES.includes(stored) ? stored : "system" };
+const themeChoice = () => { const stored = readPref("theme", ""); return THEMES.includes(stored) ? stored : "system" };
 const resolvedTheme = () => { const choice = themeChoice(); return choice === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : choice };
 
 function applyTheme(choice) {
   const value = THEMES.includes(choice) ? choice : "system";
-  localStorage.setItem("aurora-theme", value);
+  writePref("theme", value);
   if (value === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", value);
   document.querySelectorAll(".theme-switch button").forEach((button) => button.classList.toggle("active", button.dataset.themeChoice === value));
@@ -18,9 +76,9 @@ function applyTheme(choice) {
 
 applyTheme(themeChoice());
 
-const sidebarHidden = () => localStorage.getItem("aurora-sidebar") === "rail";
+const sidebarHidden = () => readPref("sidebar", "") === "rail";
 function applySidebar(rail) {
-  localStorage.setItem("aurora-sidebar", rail ? "rail" : "full");
+  writePref("sidebar", rail ? "rail" : "full");
   document.querySelector(".app")?.classList.toggle("rail", rail);
 }
 applySidebar(sidebarHidden());
@@ -28,8 +86,8 @@ matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { i
 const LIBRARY_SCHEMA = 2;
 const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
-  favorites: new Set(JSON.parse(localStorage.getItem("aurora-favorites") || "[]")),
-  progress: new Map(Object.entries(JSON.parse(localStorage.getItem("aurora-progress") || "{}"))),
+  favorites: new Set(readPref("favorites", [])),
+  progress: new Map(Object.entries(readPref("progress", {}))),
   playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, trending: null, searchScope: "all", liveMode: "guide", detailId: null, history: [], historyAt: -1,
   seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
@@ -92,7 +150,7 @@ function writeSources(list) {
   secrets = { ...(secrets || {}), sources: list };
   saveSecrets(secrets, { quiet: true });
 }
-const activeSourceId = () => localStorage.getItem("aurora-active-source") || readSources()[0]?.id || "";
+const activeSourceId = () => readPref("activeSource", "") || readSources()[0]?.id || "";
 const activeSource = () => readSources().find((entry) => entry.id === activeSourceId()) || null;
 const newSourceId = () => `src-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const libraryKey = (id) => `items:${id}`;
@@ -108,7 +166,7 @@ async function migrateSources() {
   const existing = (await idbGet("library", "items").catch(() => null)) || [];
   if (existing.length) await idbPut("library", libraryKey(id), existing).catch(() => {});
   writeSources([{ id, name: legacy.name || "My IPTV", server: legacy.server, username: legacy.username, password: legacy.password, count: existing.length }]);
-  localStorage.setItem("aurora-active-source", id);
+  writePref("activeSource", id);
 }
 
 function upsertSource(source) {
@@ -121,7 +179,7 @@ function upsertSource(source) {
 async function useSource(id) {
   const source = readSources().find((entry) => entry.id === id);
   if (!source) return;
-  localStorage.setItem("aurora-active-source", id);
+  writePref("activeSource", id);
   state.provider = source;
   state.items = await loadLibrary(id);
   libraryIndex = null; state.trending = null;
@@ -157,7 +215,7 @@ async function removeSource(id) {
   writeSources(list);
   await idbPut("library", libraryKey(id), []).catch(() => {});
   if (activeSourceId() === id) {
-    localStorage.removeItem("aurora-active-source");
+    writePref("activeSource", undefined);
     const next = list[0];
     if (next) return useSource(next.id);
     state.provider = null; state.items = []; libraryIndex = null; state.trending = null;
@@ -215,7 +273,7 @@ async function idbPut(store, key, value) {
 async function saveLibrary(items, id = activeSourceId()) {
   await idbPut("library", libraryKey(id), items);
   upsertSource({ id, count: items.length });
-  localStorage.setItem("aurora-library-schema", String(LIBRARY_SCHEMA));
+  writePref("librarySchema", LIBRARY_SCHEMA);
 }
 
 const loadLibrary = async (id = activeSourceId()) => (id ? (await idbGet("library", libraryKey(id))) || [] : []);
@@ -343,10 +401,11 @@ const OMDB_DAILY = 700;
 function omdbBudget() {
   const today = new Date().toISOString().slice(0, 10);
   let usage = { date: today, used: 0 };
-  try { const stored = JSON.parse(localStorage.getItem("aurora-omdb-usage") || "null"); if (stored?.date === today) usage = stored } catch { /* start fresh */ }
+  const stored = readPref("omdbUsage", null);
+  if (stored?.date === today) usage = stored;
   return {
     left: OMDB_DAILY - usage.used,
-    spend: () => localStorage.setItem("aurora-omdb-usage", JSON.stringify({ date: today, used: usage.used + 1 })),
+    spend: () => writePref("omdbUsage", { date: today, used: usage.used + 1 }),
   };
 }
 
@@ -779,7 +838,7 @@ const upNext = (list, at = Date.now()) => (list || []).find((entry) => entry.sta
 function persistProgress() {
   const entries = [...state.progress.entries()].sort((a, b) => b[1].updatedAt - a[1].updatedAt).slice(0, 400);
   state.progress = new Map(entries);
-  localStorage.setItem("aurora-progress", JSON.stringify(Object.fromEntries(entries)));
+  writePref("progress", Object.fromEntries(entries));
 }
 
 function saveProgress(patch) {
@@ -826,7 +885,7 @@ async function connectProvider(event) {
     const items = await loadEverything();
     setLoading(true, "Saving your library", `${items.length.toLocaleString()} total items loaded…`);
     upsertSource(provider);
-    localStorage.setItem("aurora-active-source", provider.id);
+    writePref("activeSource", provider.id);
     await saveLibrary(items, provider.id);
     libraryIndex = null; state.trending = null;
     state.items = items; state.view = "home"; state.category = "All"; state.limit = 120;
@@ -1353,7 +1412,7 @@ function playSomething() {
 function toggleFavorite(item) {
   if (!item) return;
   if (state.favorites.has(item.id)) state.favorites.delete(item.id); else state.favorites.add(item.id);
-  localStorage.setItem("aurora-favorites", JSON.stringify([...state.favorites]));
+  writePref("favorites", [...state.favorites]);
   if (state.view === "detail") renderDetail(); else render();
   updatePlayerFavorite();
   updateSource();
@@ -2110,7 +2169,7 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
     setLoading(false);
     if (state.history.length) render(); else navigate({ view: "home" });
     if (!state.provider) setTimeout(() => $("#source-modal").classList.remove("hidden"), 250);
-    else if (Number(localStorage.getItem("aurora-library-schema") || 0) < LIBRARY_SCHEMA) {
+    else if (Number(readPref("librarySchema", 0)) < LIBRARY_SCHEMA) {
       showToast("Updating your library in the background…");
       refreshLibrary(true);
     }

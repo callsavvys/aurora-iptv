@@ -21,6 +21,34 @@ let updater;
 
 const secretsFile = () => path.join(app.getPath("userData"), "secrets.bin");
 
+/* Everything the renderer used to keep in localStorage. localStorage is keyed
+   to the page origin, the origin carries the server port, and the port is not
+   guaranteed — so favourites and resume positions could vanish because some
+   unrelated process held 41791. This file is keyed to nothing. */
+const prefsFile = () => path.join(app.getPath("userData"), "prefs.json");
+let prefsCache = null;
+
+function readPrefs() {
+  if (prefsCache) return prefsCache;
+  try { prefsCache = JSON.parse(fs.readFileSync(prefsFile(), "utf8")) } catch { prefsCache = {} }
+  return prefsCache && typeof prefsCache === "object" ? prefsCache : (prefsCache = {});
+}
+
+// synchronous: the renderer needs the theme and the favourites before it paints
+ipcMain.on("prefs:load", (event) => { event.returnValue = readPrefs() });
+
+ipcMain.handle("prefs:set", (_event, value) => {
+  try {
+    prefsCache = value && typeof value === "object" ? value : {};
+    // write beside the real file and rename, so a crash mid-write cannot
+    // truncate the only copy of someone's list
+    const target = prefsFile(), temporary = `${target}.tmp`;
+    fs.writeFileSync(temporary, JSON.stringify(prefsCache), { mode: 0o600 });
+    fs.renameSync(temporary, target);
+    return { saved: true };
+  } catch (error) { return { saved: false, message: error.message } }
+});
+
 ipcMain.handle("secrets:get", () => {
   try {
     if (!fs.existsSync(secretsFile())) return null;

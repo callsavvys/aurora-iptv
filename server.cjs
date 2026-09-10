@@ -107,9 +107,15 @@ function createAuroraServer(assetDir, port = 41791) {
       port: server.address().port,
       close: () => new Promise((done) => server.close(done)),
     });
+    /* The renderer's storage is keyed to the origin, and the origin carries
+       this port, so a different port means an empty IndexedDB. Walk a short
+       fixed range before giving up and taking whatever the OS offers — that
+       way a busy port costs a cache, not a different identity every launch. */
+    const ladder = [port + 1, port + 2, port + 3, port + 4, port + 5, 0];
+    let rung = 0;
     server.on("error", (error) => {
-      if (error.code !== "EADDRINUSE") return reject(error);
-      server.listen(0, "127.0.0.1", ready);
+      if (error.code !== "EADDRINUSE" || rung >= ladder.length) return reject(error);
+      server.listen(ladder[rung++], "127.0.0.1", ready);
     });
     server.listen(port, "127.0.0.1", ready);
   });
