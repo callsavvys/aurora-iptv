@@ -570,25 +570,24 @@ const ofType = (type) => index().byType[type] || [];
    may not have, so it is matched against the library and only what is actually
    playable is shown. Cached per ISO week. */
 
-function weekStamp() {
-  const now = new Date();
-  const target = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-  target.setUTCDate(target.getUTCDate() + 4 - (target.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((target - yearStart) / 86400000 + 1) / 7);
-  return `${target.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
-}
+
+/* TMDB's "this week" is a rolling window that moves every day, so keying the
+   cache to the ISO week froze the list until the week rolled over — a film
+   that started trending on Tuesday could not appear until the next Monday.
+   Both The Runner and Moana were sitting at #1 and #2 and never showed up. */
+const TRENDING_TTL = 6 * 60 * 60 * 1000;
 
 async function trendingList(kind) {
   const key = apiKeys().tmdb;
   if (!key) return [];
-  const cacheKey = `trending:${kind}:${weekStamp()}`;
+  const cacheKey = `trending:${kind}`;
   const cached = await idbGet("meta", cacheKey).catch(() => null);
-  if (cached) return cached;
+  if (cached?.at && Date.now() - cached.at < TRENDING_TTL) return cached.list || [];
   const pages = await Promise.all([1, 2].map((page) =>
     fetchJson(`${TMDB}/trending/${kind}/week?api_key=${key}&page=${page}`).catch(() => null)));
   const results = pages.flatMap((page) => page?.results || []);
-  if (results.length) await idbPut("meta", cacheKey, results).catch(() => {});
+  if (!results.length) return cached?.list || []; // offline: yesterday's list beats an empty row
+  await idbPut("meta", cacheKey, { at: Date.now(), list: results }).catch(() => {});
   return results;
 }
 
@@ -616,15 +615,16 @@ function entryKeys(entry) {
    loses to one whose year lands on the nose. */
 function scoreCandidate(candidate, entry, wanted) {
   const meta = metaCache.get(candidate.id);
+  const year = Number(releaseYear(candidate) || 0);
+  /* The item's own year came from the provider; the cached TMDB id was written
+     by this matcher and earlier versions of it got plenty wrong. So the year
+     is checked first and gets to veto the id, not the other way round. */
+  if (wanted && year && Math.abs(year - wanted) > YEAR_SLACK) return -1; // same title, different film
   const sameId = entry.id && meta?.tmdbId ? String(meta.tmdbId) === String(entry.id) : null;
   if (sameId === true) return 100;
-  const year = Number(releaseYear(candidate) || meta?.year || 0);
   let score = 40;
-  if (wanted && year) {
-    const gap = Math.abs(year - wanted);
-    if (gap > YEAR_SLACK) return -1; // same title, different film
-    score = 80 - gap * 10;
-  }
+  if (wanted && year) score = 80 - Math.abs(year - wanted) * 10;
+  else if (wanted && meta?.year) score = Math.abs(Number(meta.year) - wanted) <= YEAR_SLACK ? 50 : 30;
   return sameId === false ? Math.min(score, 20) : score; // a cached id that says otherwise
 }
 
