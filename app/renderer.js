@@ -1607,7 +1607,9 @@ function startPlayback({ url, title, subtitle = "", isLive = false, resumeAt = 0
   message.classList.add("hidden");
   resetPlayerUi();
   state.hls?.destroy(); state.hls = null;
+  clearLoadedSubtitle(); // it belonged to the last file, not this one
   video.removeAttribute("src"); video.load();
+  video.playbackRate = Number($("#playback-rate").value) || 1; // survives into the next episode
   startPlayback.resumeAt = resumeAt;
   if (isLive && Hls.isSupported()) {
     state.hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 30 });
@@ -1716,16 +1718,29 @@ function updatePlayerNav() {
   $("#player-next").hidden = !queue || queue.index >= queue.episodes.length - 1;
 }
 
+/* Two independent sources of subtitles — the ones inside the manifest and any
+   file the viewer loaded onto the element — share one menu, so the values are
+   namespaced. Plain indices collided: picking "1" could mean either. */
 function refreshTrackMenus() {
   const video = $("#video");
-  const audio = state.hls ? state.hls.audioTracks.map((track, index) => ({ value: index, label: track.name || track.lang || `Audio ${index + 1}` })) : [];
-  const subtitles = [{ value: -1, label: "Off" }];
-  if (state.hls) state.hls.subtitleTracks.forEach((track, index) => subtitles.push({ value: index, label: track.name || track.lang || `Subtitle ${index + 1}` }));
-  else [...video.textTracks].forEach((track, index) => subtitles.push({ value: index, label: track.label || track.language || `Subtitle ${index + 1}` }));
-  fillSelect($("#audio-track"), audio, state.hls ? state.hls.audioTrack : -1);
-  fillSelect($("#subtitle-track"), subtitles.length > 1 ? subtitles : [], state.hls ? state.hls.subtitleTrack : -1);
+  const audio = state.hls ? state.hls.audioTracks.map((track, index) => ({ value: String(index), label: track.name || track.lang || `Audio ${index + 1}` })) : [];
+  const subtitles = [{ value: "off", label: "Off" }];
+  if (state.hls) state.hls.subtitleTracks.forEach((track, index) => subtitles.push({ value: `hls:${index}`, label: track.name || track.lang || `Subtitle ${index + 1}` }));
+  [...video.textTracks].forEach((track, index) => subtitles.push({ value: `el:${index}`, label: track.label || track.language || `Subtitle ${index + 1}` }));
+  // one track is the common case; requiring two meant most streams looked like
+  // they had no subtitles at all
+  subtitles.push({ value: "file", label: "Load subtitle file\u2026" });
+  fillSelect($("#audio-track"), audio, String(state.hls ? state.hls.audioTrack : -1));
+  fillSelect($("#subtitle-track"), subtitles, currentSubtitleValue());
   $("#audio-wrap").hidden = audio.length < 2;
-  $("#subtitle-wrap").hidden = subtitles.length < 2;
+  $("#subtitle-wrap").hidden = false;
+}
+
+function currentSubtitleValue() {
+  const showing = [...$("#video").textTracks].findIndex((track) => track.mode === "showing");
+  if (showing >= 0) return `el:${showing}`;
+  if (state.hls && state.hls.subtitleTrack >= 0) return `hls:${state.hls.subtitleTrack}`;
+  return "off";
 }
 
 function fillSelect(select, options, current) {
@@ -1765,6 +1780,11 @@ video.addEventListener("loadedmetadata", () => {
     showToast(`Resuming from ${clock(resumeAt)}`);
   }
   startPlayback.resumeAt = 0;
+  // a new source can reset the rate back to 1, so it is reapplied once the
+  // media is actually there rather than only before it loads
+  const chosen = Number($("#playback-rate").value) || 1;
+  if (video.playbackRate !== chosen) video.playbackRate = chosen;
+  $("#rate-wrap").hidden = liveStream(); // speed means nothing on a live feed
   refreshTrackMenus();
 });
 video.addEventListener("timeupdate", () => recordPosition());
@@ -2041,8 +2061,72 @@ shell.addEventListener("pointermove", wakeChrome);
 shell.addEventListener("pointerleave", () => { if (!video.paused) shell.classList.add("idle") });
 
 $("#player-toggle").addEventListener("click", togglePlay);
-$("#player-back").addEventListener("click", () => { video.currentTime = Math.max(0, video.currentTime - 10) });
-$("#player-forward").addEventListener("click", () => { video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 10) });
+/* Seeking used to happen in silence — the picture jumped and nothing said why.
+   Repeated taps inside the window accumulate, so a triple tap reads "30
+   seconds" and skips thirty, the way every other player behaves. */
+const SEEK_WINDOW = 900;
+let seekRun = { direction: 0, seconds: 0, at: 0 };
+
+function nudge(direction) {
+  const now = Date.now();
+  const continuing = seekRun.direction === direction && now - seekRun.at < SEEK_WINDOW;
+  seekRun = { direction, seconds: (continuing ? seekRun.seconds : 0) + 10, at: now };
+  const target = video.currentTime + direction * 10;
+  video.currentTime = Math.max(0, Math.min(video.duration || Infinity, target));
+  const flash = $(direction < 0 ? "#seek-back" : "#seek-fwd");
+  flash.querySelector("b").textContent = `${seekRun.seconds} seconds`;
+  flash.classList.remove("show");
+  void flash.offsetWidth; // restart the animation on a rapid second tap
+  flash.classList.add("show");
+  wakeChrome();
+}
+
+$("#player-back").addEventListener("click", () => nudge(-1));
+$("#player-forward").addEventListener("click", () => nudge(1));
+
+$("#playback-rate").addEventListener("change", (event) => {
+  const rate = Number(event.target.value) || 1;
+  video.playbackRate = rate;
+  showToast(rate === 1 ? "Normal speed" : `Playing at ${rate}\u00d7`);
+});
+
+/* Providers ship subtitles inconsistently, so a file the viewer already has
+   should work. SRT is converted rather than rejected — it is the format that
+   actually turns up, and WebVTT only needs a header and dotted timestamps. */
+function srtToVtt(text) {
+  const body = text.replace(/\r+/g, "").replace(/^\uFEFF/, "")
+    .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2");
+  return /^WEBVTT/.test(body.trim()) ? body : `WEBVTT\n\n${body}`;
+}
+
+let loadedSubtitle = null;
+
+function clearLoadedSubtitle() {
+  if (!loadedSubtitle) return;
+  URL.revokeObjectURL(loadedSubtitle.src);
+  loadedSubtitle.element.remove();
+  loadedSubtitle = null;
+}
+
+$("#subtitle-file").addEventListener("change", async (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (!file) return;
+  try {
+    const vtt = srtToVtt(await file.text());
+    if (loadedSubtitle) URL.revokeObjectURL(loadedSubtitle.src);
+    const url = URL.createObjectURL(new Blob([vtt], { type: "text/vtt" }));
+    const track = document.createElement("track");
+    track.kind = "subtitles";
+    track.label = file.name.replace(/\.[^.]+$/, "");
+    track.src = url;
+    track.default = true;
+    video.appendChild(track);
+    loadedSubtitle = { src: url, element: track };
+    track.addEventListener("load", () => { track.track.mode = "showing"; refreshTrackMenus() }, { once: true });
+    showToast(`Subtitles loaded from ${file.name}`);
+  } catch { showToast("Could not read that subtitle file") }
+});
 $("#player-mute").addEventListener("click", () => { video.muted = !video.muted });
 $("#volume").addEventListener("input", (event) => { video.volume = Number(event.target.value); video.muted = video.volume === 0 });
 $("#player-full").addEventListener("click", () => {
@@ -2097,9 +2181,15 @@ document.addEventListener("change", (event) => {
 $("#favorite-player").addEventListener("click", () => toggleFavorite(state.playerItem));
 $("#audio-track").addEventListener("change", (event) => { if (state.hls) state.hls.audioTrack = Number(event.target.value) });
 $("#subtitle-track").addEventListener("change", (event) => {
-  const value = Number(event.target.value);
-  if (state.hls) { state.hls.subtitleTrack = value; state.hls.subtitleDisplay = value >= 0; return }
-  [...video.textTracks].forEach((track, index) => { track.mode = index === value ? "showing" : "disabled" });
+  const value = event.target.value;
+  if (value === "file") { refreshTrackMenus(); return $("#subtitle-file").click() }
+  const element = value.startsWith("el:") ? Number(value.slice(3)) : -1;
+  [...video.textTracks].forEach((track, index) => { track.mode = index === element ? "showing" : "disabled" });
+  if (state.hls) {
+    const hls = value.startsWith("hls:") ? Number(value.slice(4)) : -1;
+    state.hls.subtitleTrack = hls;
+    state.hls.subtitleDisplay = hls >= 0;
+  }
 });
 window.addEventListener("beforeunload", () => recordPosition(true));
 

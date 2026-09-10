@@ -34,8 +34,12 @@ function readPrefs() {
   return prefsCache && typeof prefsCache === "object" ? prefsCache : (prefsCache = {});
 }
 
-// synchronous: the renderer needs the theme and the favourites before it paints
-ipcMain.on("prefs:load", (event) => { event.returnValue = readPrefs() });
+/* Synchronous, because the renderer needs the theme and the favourites before
+   it paints. sendSync blocks the renderer until this replies, so it MUST reply
+   on every path — a throw here is a permanently blank window, not an error. */
+ipcMain.on("prefs:load", (event) => {
+  try { event.returnValue = readPrefs() } catch { event.returnValue = {} }
+});
 
 ipcMain.handle("prefs:set", (_event, value) => {
   try {

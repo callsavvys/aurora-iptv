@@ -830,16 +830,30 @@ nav em {
    Aurora's own controls. The browser's native bar is the wrong typeface and
    the wrong proportions, and it cannot show an up-next card or a live pill. */
 
+/* The player is a place you go, not a dialog that hovers. Netflix, Disney+ and
+   every other streaming app take over the window; a rounded card floating on a
+   blurred page reads as a preview, not as watching something. */
+#player-modal {
+  padding: 0;
+  background: var(--video-bg);
+  backdrop-filter: none;
+  place-items: stretch;
+}
+
 .player-shell {
   position: relative;
-  /* exactly 16:9, capped by both viewport dimensions, so video never pillarboxes */
-  width: min(1280px, 96vw, calc(76vh * 16 / 9));
-  aspect-ratio: 16 / 9;
+  width: 100%;
+  height: 100%;
   background: var(--video-bg);
-  border-radius: 18px;
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: var(--shadow-modal);
 }
+
+#video { width: 100%; height: 100%; object-fit: contain; background: var(--video-bg); }
+
+/* clear of the traffic lights, which sit at 19/18 in a hidden title bar */
+.player-shell:not(:fullscreen) .chrome-top { padding-top: 46px; -webkit-app-region: drag; }
+.chrome-top button, .chrome-top .now { -webkit-app-region: no-drag; }
 
 .player-shell video { width: 100%; height: 100%; display: block; background: var(--video-bg); }
 .player-shell.idle { cursor: none; }
@@ -887,6 +901,35 @@ nav em {
 .tap-flash .icon { width: 24px; height: 24px; }
 .tap-flash.show { animation: flash .5s ease-out; }
 @keyframes flash { from { opacity: 1; transform: scale(.82); } to { opacity: 0; transform: scale(1.25); } }
+
+/* A skip has to be visible or it feels like nothing happened. Repeated taps
+   accumulate the way they do everywhere else, so the number counts up. */
+.seek-flash {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  transform: translateY(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 18px 22px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--video-bg) 62%, transparent);
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.seek-flash.back { left: 8%; }
+.seek-flash.fwd { right: 8%; }
+.seek-flash .icon { width: 30px; height: 30px; }
+.seek-flash b { font-size: 12px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; }
+.seek-flash.show { animation: seek-pop .62s ease-out; }
+@keyframes seek-pop { 0% { opacity: 0; transform: translateY(-50%) scale(.86); } 22% { opacity: 1; transform: translateY(-50%) scale(1); } 100% { opacity: 0; transform: translateY(-50%) scale(1.04); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .seek-flash.show { animation-duration: .3s; }
+}
 
 .chrome {
   position: absolute;
