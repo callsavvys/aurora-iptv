@@ -33,6 +33,7 @@
     <symbol id="i-fullscreen-exit" viewBox="0 0 24 24"><path d="M8 3v3a2 2 0 0 1-2 2H3" /> <path d="M21 8h-3a2 2 0 0 1-2-2V3" /> <path d="M3 16h3a2 2 0 0 1 2 2v3" /> <path d="M16 21v-3a2 2 0 0 1 2-2h3" /></symbol>
     <symbol id="i-subtitles" viewBox="0 0 24 24"><rect width="18" height="14" x="3" y="5" rx="2" ry="2" /> <path d="M7 15h4M15 15h2M7 11h2M13 11h4" /></symbol>
       <symbol id="i-speed" viewBox="0 0 24 24"><path d="M4.6 18a9 9 0 1 1 14.8 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M12 13.6 15.8 9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="14.4" r="1.5" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-episodes" viewBox="0 0 24 24"><path d="M3 5.5h12M3 10.5h12M3 15.5h7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M15.5 13.2v6.1a.5.5 0 0 0 .76.43l4.9-3.05a.5.5 0 0 0 0-.86l-4.9-3.05a.5.5 0 0 0-.76.43z" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-audio" viewBox="0 0 24 24"><path d="M2 10v3" /> <path d="M6 6v11" /> <path d="M10 3v18" /> <path d="M14 8v7" /> <path d="M18 5v13" /> <path d="M22 10v3" /></symbol>
     <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /> <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /> <path d="M12 17h.01" /></symbol>
     <symbol id="i-pip" viewBox="0 0 24 24"><path d="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4" /> <rect width="10" height="7" x="12" y="13" rx="2" /></symbol>
@@ -144,6 +145,7 @@
             <span class="clock"><b id="time-now">0:00</b><span id="time-total"></span></span>
             <span class="live-pill" id="live-pill" hidden>Live</span>
             <span class="grow"></span>
+            <button class="ghost" id="player-episodes" hidden title="Episodes (E)"><svg class="icon"><use href="#i-episodes"/></svg></button>
             <button class="ghost" id="player-prev" hidden title="Previous episode"><svg class="icon"><use href="#i-prev"/></svg></button>
             <button class="ghost" id="player-next" hidden title="Next episode"><svg class="icon"><use href="#i-next"/></svg></button>
             <label class="track-select" id="audio-wrap" hidden><svg class="icon"><use href="#i-audio"/></svg><select id="audio-track" aria-label="Audio track"></select></label>
@@ -164,6 +166,15 @@
         </div>
       </div>
 
+      <aside class="episodes-panel hidden" id="episodes-panel" aria-label="Episodes">
+        <header class="episodes-panel-head">
+          <div class="episodes-panel-title"><small id="episodes-series"></small><strong>Episodes</strong></div>
+          <label class="episodes-season-wrap" id="episodes-season-wrap"><select id="episodes-season" aria-label="Season"></select></label>
+          <button class="ghost" id="episodes-close" title="Close episodes"><svg class="icon"><use href="#i-close"/></svg></button>
+        </header>
+        <div class="episodes-panel-list" id="episodes-list"></div>
+      </aside>
+
       <div class="up-next hidden" id="up-next">
         <small>Up next</small>
         <strong id="up-next-title"></strong>
@@ -183,6 +194,7 @@
           <dt>F</dt><dd>Full screen</dd>
           <dt>M</dt><dd>Mute</dd>
           <dt>N / P</dt><dd>Next or previous episode</dd>
+          <dt>E</dt><dd>Episodes</dd>
           <dt>?</dt><dd>This list</dd>
           <dt>Esc</dt><dd>Close</dd>
         </dl>

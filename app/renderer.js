@@ -1420,13 +1420,26 @@ function toggleFavorite(item) {
 
 /* ---------- detail sheet ---------- */
 
-function seriesSeasons() {
-  return Object.entries(state.seriesData?.episodes || {})
+function seriesSeasons(data = state.seriesData) {
+  return Object.entries(data?.episodes || {})
     .filter(([, episodes]) => Array.isArray(episodes) && episodes.length)
     .sort(([a], [b]) => String(a).localeCompare(String(b), undefined, { numeric: true }));
 }
 
 const episodeTitle = (episode, index) => episode.title || episode.info?.name || `Episode ${episode.episode_num || episode.info?.episode_num || index + 1}`;
+function shortDuration(info = {}) {
+  let minutes = Number(info.duration_secs) > 0 ? Math.round(Number(info.duration_secs) / 60) : 0;
+  if (!minutes && info.duration) {
+    const parts = String(info.duration).split(":").map(Number);
+    if (parts.length >= 2 && parts.every(Number.isFinite)) {
+      const [hours, mins, secs = 0] = parts.length === 3 ? parts : [0, parts[0], parts[1]];
+      minutes = hours * 60 + mins + (secs >= 30 ? 1 : 0);
+    } else return String(info.duration);
+  }
+  if (!minutes) return "";
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h${minutes % 60 ? ` ${minutes % 60}m` : ""}`;
+}
+
 const episodeNumber = (episode, index) => episode.episode_num || episode.info?.episode_num || index + 1;
 
 function detailHero({ backdrop, poster, eyebrow, name, meta, description, actions }) {
@@ -1458,7 +1471,7 @@ function renderSeriesDetail() {
   const next = nextUnwatchedEpisode(seasons);
   const episodeRows = episodes.map((episode, index) => {
     const record = progressOf(`episode-${episode.id}`), bar = percent(record);
-    const duration = episode.info?.duration || episode.duration || "Ready to play";
+    const duration = shortDuration(episode.info) || (episode.duration ? shortDuration({ duration: episode.duration }) : "") || "Ready to play";
     return `<button class="episode ${finished(record) ? "watched" : ""}" data-episode-index="${index}"><span class="episode-number">E${escapeHtml(episodeNumber(episode, index))}</span><span class="episode-copy"><strong>${escapeHtml(episodeTitle(episode, index))}</strong><small>Season ${escapeHtml(state.selectedSeason)} • ${escapeHtml(duration)}${finished(record) ? " • Watched" : record ? ` • ${clock(record.position)} in` : ""}</small>${bar > 1 && !finished(record) ? `<span class="episode-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="episode-play">${icon("play")}</span></button>`;
   }).join("");
   const actions = `${next ? `<button class="primary detail-play-next">${icon("play")}${escapeHtml(next.label)}</button>` : ""}${trailerButton(state.detailMeta)}<button class="secondary series-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
@@ -1657,7 +1670,11 @@ function playEpisode(item, season, episodes, index, { startOver = false } = {}) 
   const number = episodeNumber(episode, index), title = episodeTitle(episode, index);
   const key = `episode-${episode.id}`;
   const saved = startOver ? null : progressOf(key);
-  state.queue = { item, season, episodes, index };
+  // carry every season along, so the next episode after a finale is the next
+  // season's first rather than nothing at all
+  const seasons = (state.queue?.item?.id === item.id && state.queue.seasons)
+    || (state.seriesItem?.id === item.id ? seriesSeasons() : null);
+  state.queue = { item, season: String(season), episodes, index, seasons };
   startPlayback({
     url: `${server}/series/${user}/${pass}/${episode.id}.${episode.container_extension || "mp4"}`,
     title: `${item.name} • S${season} E${number}`, subtitle: title,
@@ -1696,26 +1713,106 @@ async function loadQueueForEpisode(item, record) {
   if (!item?.streamId) return;
   try {
     const data = await fetchJson(apiUrl("get_series_info", `&series_id=${item.streamId}`));
-    const episodes = Object.entries(data.episodes || {}).find(([number]) => String(number) === String(record.season))?.[1] || [];
+    // the viewer may have moved on while this was loading; a late queue would
+    // attach another show's episodes to whatever is playing now
+    if (state.playing?.key !== record.key) return;
+    const seasons = seriesSeasons(data);
+    const episodes = seasons.find(([number]) => String(number) === String(record.season))?.[1] || [];
     const index = episodes.findIndex((episode) => String(episode.id) === String(record.episodeId));
     if (index < 0) return;
-    state.queue = { item, season: String(record.season), episodes, index };
+    state.queue = { item, season: String(record.season), episodes, index, seasons };
     updatePlayerNav();
   } catch { /* next-episode navigation stays hidden */ }
 }
 
-function stepEpisode(delta) {
-  const queue = state.queue;
-  if (!queue) return;
+/* The episode `delta` away from the one playing, crossing into the neighbouring
+   season when this one runs out. Stopping at the season boundary meant a
+   finale ended in silence: no up-next card, no auto-advance, N did nothing. */
+function episodeAt(queue, delta) {
+  if (!queue || !delta) return null;
   const index = queue.index + delta;
-  if (index < 0 || index >= queue.episodes.length) return;
-  playEpisode(queue.item, queue.season, queue.episodes, index);
+  if (index >= 0 && index < queue.episodes.length) return { season: queue.season, episodes: queue.episodes, index };
+  const seasons = queue.seasons || [];
+  const at = seasons.findIndex(([number]) => String(number) === String(queue.season));
+  const neighbour = at < 0 ? null : seasons[at + Math.sign(delta)];
+  if (!neighbour?.[1]?.length) return null;
+  return { season: String(neighbour[0]), episodes: neighbour[1], index: delta > 0 ? 0 : neighbour[1].length - 1 };
+}
+
+function stepEpisode(delta) {
+  const queue = state.queue, target = episodeAt(queue, delta);
+  if (!target) return;
+  playEpisode(queue.item, target.season, target.episodes, target.index);
 }
 
 function updatePlayerNav() {
   const queue = state.queue;
-  $("#player-prev").hidden = !queue || queue.index <= 0;
-  $("#player-next").hidden = !queue || queue.index >= queue.episodes.length - 1;
+  $("#player-prev").hidden = !episodeAt(queue, -1);
+  $("#player-next").hidden = !episodeAt(queue, 1);
+  $("#player-episodes").hidden = !queue;
+  if (!queue) closeEpisodesPanel();
+  else if (!$("#episodes-panel").classList.contains("hidden")) renderEpisodesPanel();
+}
+
+/* ---------- episodes panel ---------- */
+
+let panelSeason = null;
+
+const panelOpen = () => !$("#episodes-panel").classList.contains("hidden");
+
+function openEpisodesPanel() {
+  if (!state.queue) return;
+  panelSeason = state.queue.season;
+  renderEpisodesPanel();
+  $("#episodes-panel").classList.remove("hidden");
+  wakeChrome();
+  $("#episodes-list .playing")?.scrollIntoView({ block: "center" });
+}
+
+function closeEpisodesPanel() {
+  const panel = $("#episodes-panel");
+  if (panel.classList.contains("hidden")) return;
+  panel.classList.add("hidden");
+  wakeChrome();
+}
+
+const toggleEpisodesPanel = () => (panelOpen() ? closeEpisodesPanel() : openEpisodesPanel());
+
+function panelSeasons() {
+  const queue = state.queue;
+  return queue.seasons?.length ? queue.seasons : [[queue.season, queue.episodes]];
+}
+
+function renderEpisodesPanel() {
+  const queue = state.queue;
+  if (!queue) return;
+  const seasons = panelSeasons();
+  if (!seasons.some(([number]) => String(number) === String(panelSeason))) panelSeason = queue.season;
+  const episodes = seasons.find(([number]) => String(number) === String(panelSeason))?.[1] || [];
+  $("#episodes-series").textContent = metaCache.get(queue.item.id)?.title || queue.item.name || "";
+  $("#episodes-season").innerHTML = seasons.map(([number]) => `<option value="${escapeHtml(number)}" ${String(number) === String(panelSeason) ? "selected" : ""}>Season ${escapeHtml(number)}</option>`).join("");
+  $("#episodes-season-wrap").hidden = seasons.length < 2;
+  $("#episodes-list").innerHTML = episodes.map((episode, index) => {
+    const playing = String(panelSeason) === String(queue.season) && index === queue.index;
+    const record = progressOf(`episode-${episode.id}`), bar = percent(record);
+    const number = episodeNumber(episode, index), title = episodeTitle(episode, index);
+    // "Episode 4" already carries its number; "4. Episode 4" reads as a stutter
+    const label = /^episode\s+\d+$/i.test(title) ? title : `${number}. ${title}`;
+    const still = episode.info?.movie_image || episode.info?.cover_big || "";
+    const plot = episode.info?.plot || episode.info?.overview || "";
+    const duration = shortDuration(episode.info);
+    const status = finished(record) ? "Watched" : record && bar > 1 ? `${clock(record.duration - record.position)} left` : "";
+    return `<button class="panel-episode ${playing ? "playing" : ""} ${finished(record) ? "watched" : ""}" data-panel-index="${index}"><span class="panel-still">${still ? `<img loading="lazy" src="${escapeHtml(still)}" alt="" onerror="this.remove()">` : ""}<span class="panel-num">${escapeHtml(number)}</span>${playing ? '<span class="panel-now">Now playing</span>' : ""}${bar > 1 && !finished(record) ? `<span class="panel-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="panel-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml([duration, status].filter(Boolean).join(" \u2022 ") || `Season ${panelSeason}`)}</small>${plot ? `<p>${escapeHtml(plot)}</p>` : ""}</span></button>`;
+  }).join("") || '<p class="episodes-empty">No episodes were returned for this season.</p>';
+}
+
+function pickPanelEpisode(index) {
+  const queue = state.queue;
+  if (!queue) return;
+  const episodes = panelSeasons().find(([number]) => String(number) === String(panelSeason))?.[1] || [];
+  closeEpisodesPanel();
+  if (String(panelSeason) === String(queue.season) && index === queue.index) return; // already watching it
+  playEpisode(queue.item, panelSeason, episodes, index);
 }
 
 /* Two independent sources of subtitles — the ones inside the manifest and any
@@ -1755,6 +1852,7 @@ function closeModal(id) {
     state.hls?.destroy(); state.hls = null;
     const video = $("#video"); video.pause(); video.removeAttribute("src"); video.load();
     state.playing = null; state.playerItem = null; state.queue = null;
+    closeEpisodesPanel();
     if (state.view === "home" || state.view === "history") render();
   }
 }
@@ -1791,7 +1889,8 @@ video.addEventListener("timeupdate", () => recordPosition());
 video.addEventListener("pause", () => recordPosition(true));
 video.addEventListener("ended", () => {
   recordPosition(true);
-  if (state.queue && state.queue.index < state.queue.episodes.length - 1) { showToast("Playing the next episode…"); stepEpisode(1) }
+  const target = episodeAt(state.queue, 1);
+  if (target) { showToast(target.season === state.queue.season ? "Playing the next episode…" : `Starting season ${target.season}…`); stepEpisode(1) }
 });
 
 document.addEventListener("click", (event) => {
@@ -1862,6 +1961,10 @@ document.addEventListener("click", (event) => {
   if (target.closest(".detail-play")) return play(state.detailItem);
   if (target.closest(".detail-restart")) return play(state.detailItem, { startOver: true });
   if (target.closest(".series-favorite,.detail-favorite")) return toggleFavorite(state.seriesItem || state.detailItem);
+  if (target.closest("#player-episodes")) return toggleEpisodesPanel();
+  if (target.closest("#episodes-close")) return closeEpisodesPanel();
+  const panelPick = target.closest("[data-panel-index]");
+  if (panelPick) return pickPanelEpisode(Number(panelPick.dataset.panelIndex));
   if (target.closest("#player-prev")) return stepEpisode(-1);
   if (target.closest("#player-next")) return stepEpisode(1);
   if (target.closest("#player-pip")) return video.requestPictureInPicture?.().catch(() => showToast("Picture in Picture is not available for this stream"));
@@ -1893,6 +1996,7 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape") {
     if (!$("#shortcuts").classList.contains("hidden")) return $("#shortcuts").classList.add("hidden");
+    if (!$("#player-modal").classList.contains("hidden") && panelOpen()) return closeEpisodesPanel();
     if (!$("#up-next").classList.contains("hidden")) { upNextDismissed = true; return $("#up-next").classList.add("hidden") }
     for (const id of ["player-modal", "source-modal"]) {
       if (!$("#" + id).classList.contains("hidden")) return closeModal(id);
@@ -1916,14 +2020,15 @@ document.addEventListener("keydown", (event) => {
   const seconds = event.shiftKey ? 60 : 10;
   const keys = {
     " ": () => (video.paused ? video.play() : video.pause()),
-    ArrowRight: () => { video.currentTime = Math.min(video.duration || Infinity, video.currentTime + seconds) },
-    ArrowLeft: () => { video.currentTime = Math.max(0, video.currentTime - seconds) },
+    ArrowRight: () => nudge(1, seconds),
+    ArrowLeft: () => nudge(-1, seconds),
     ArrowUp: () => { video.volume = Math.min(1, video.volume + 0.1) },
     ArrowDown: () => { video.volume = Math.max(0, video.volume - 0.1) },
     f: () => (document.fullscreenElement ? document.exitFullscreen() : $("#player-shell").requestFullscreen()),
     m: () => { video.muted = !video.muted },
     n: () => stepEpisode(1),
     p: () => stepEpisode(-1),
+    e: () => toggleEpisodesPanel(),
     "?": () => { $("#shortcuts").classList.toggle("hidden"); wakeChrome() },
   };
   const action = keys[event.key] || keys[event.key.toLowerCase()];
@@ -1939,7 +2044,11 @@ const timeline = $("#timeline");
 let upNextDismissed = false;
 let idleTimer;
 
-const liveStream = () => !Number.isFinite(video.duration) || video.duration <= 0;
+/* Live is a property of what is playing, not of a missing duration. Deciding it
+   from duration alone put a red LIVE pill on every film and episode for as long
+   as the provider took to send metadata — seconds, on a slow line. */
+const durationKnown = () => Number.isFinite(video.duration) && video.duration > 0;
+const liveStream = () => (state.playing ? state.playing.type === "live" : !durationKnown());
 const setIcon = (id, name) => $(id).querySelector("use").setAttribute("href", `#i-${name}`);
 
 function resetPlayerUi() {
@@ -1959,7 +2068,7 @@ function wakeChrome() {
   shell.classList.remove("idle");
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    if (!video.paused && $("#shortcuts").classList.contains("hidden") && $("#up-next").classList.contains("hidden")) shell.classList.add("idle");
+    if (!video.paused && $("#shortcuts").classList.contains("hidden") && $("#up-next").classList.contains("hidden") && !panelOpen()) shell.classList.add("idle");
   }, 2600);
 }
 
@@ -1986,8 +2095,8 @@ function syncTime() {
   $("#live-pill").hidden = !live;
   timeline.classList.toggle("live", live);
   $("#time-now").textContent = clock(video.currentTime || 0);
-  $("#time-total").textContent = live ? "" : clock(video.duration);
-  const played = live ? 0 : Math.min(100, (video.currentTime / video.duration) * 100);
+  $("#time-total").textContent = live || !durationKnown() ? "" : clock(video.duration);
+  const played = live || !durationKnown() ? 0 : Math.min(100, (video.currentTime / video.duration) * 100);
   $("#played").style.width = `${played}%`;
   $("#knob").style.left = `${played}%`;
   let ahead = 0;
@@ -2001,12 +2110,12 @@ function syncTime() {
 }
 
 function maybeUpNext() {
-  const card = $("#up-next"), queue = state.queue;
-  const due = queue && queue.index < queue.episodes.length - 1 && !liveStream()
-    && video.duration > 90 && video.duration - video.currentTime <= 25;
+  const card = $("#up-next"), target = episodeAt(state.queue, 1);
+  const due = target && !liveStream() && video.duration > 90 && video.duration - video.currentTime <= 25;
   if (!due || upNextDismissed) { if (!due) card.classList.add("hidden"); return }
   if (!card.classList.contains("hidden")) return;
-  $("#up-next-title").textContent = episodeTitle(queue.episodes[queue.index + 1], queue.index + 1);
+  const title = episodeTitle(target.episodes[target.index], target.index);
+  $("#up-next-title").textContent = target.season === state.queue.season ? title : `Season ${target.season} \u2022 ${title}`;
   card.classList.remove("hidden");
   wakeChrome();
 }
@@ -2017,7 +2126,7 @@ const ratioAt = (event) => {
 };
 
 timeline.addEventListener("pointerdown", (event) => {
-  if (liveStream()) return;
+  if (liveStream() || !durationKnown()) return;
   // seek first: setPointerCapture throws on an id the element does not own, and
   // a failed capture must not cost the user the seek they asked for
   video.currentTime = ratioAt(event) * video.duration;
@@ -2026,7 +2135,7 @@ timeline.addEventListener("pointerdown", (event) => {
 });
 
 timeline.addEventListener("pointermove", (event) => {
-  if (liveStream()) return;
+  if (liveStream() || !durationKnown()) return;
   const ratio = ratioAt(event), bubble = $("#bubble");
   bubble.hidden = false;
   bubble.textContent = clock(ratio * video.duration);
@@ -2058,7 +2167,7 @@ video.addEventListener("volumechange", () => {
 });
 
 shell.addEventListener("pointermove", wakeChrome);
-shell.addEventListener("pointerleave", () => { if (!video.paused) shell.classList.add("idle") });
+shell.addEventListener("pointerleave", () => { if (!video.paused && !panelOpen()) shell.classList.add("idle") });
 
 $("#player-toggle").addEventListener("click", togglePlay);
 /* Seeking used to happen in silence — the picture jumped and nothing said why.
@@ -2067,19 +2176,23 @@ $("#player-toggle").addEventListener("click", togglePlay);
 const SEEK_WINDOW = 900;
 let seekRun = { direction: 0, seconds: 0, at: 0 };
 
-function nudge(direction) {
+function nudge(direction, amount = 10) {
   const now = Date.now();
   const continuing = seekRun.direction === direction && now - seekRun.at < SEEK_WINDOW;
-  seekRun = { direction, seconds: (continuing ? seekRun.seconds : 0) + 10, at: now };
-  const target = video.currentTime + direction * 10;
+  seekRun = { direction, seconds: (continuing ? seekRun.seconds : 0) + amount, at: now };
+  const target = video.currentTime + direction * amount;
   video.currentTime = Math.max(0, Math.min(video.duration || Infinity, target));
   const flash = $(direction < 0 ? "#seek-back" : "#seek-fwd");
-  flash.querySelector("b").textContent = `${seekRun.seconds} seconds`;
+  const total = seekRun.seconds;
+  flash.querySelector("b").textContent = total >= 60 && total % 60 === 0 ? `${total / 60} minute${total === 60 ? "" : "s"}` : `${total} seconds`;
   flash.classList.remove("show");
   void flash.offsetWidth; // restart the animation on a rapid second tap
   flash.classList.add("show");
   wakeChrome();
 }
+
+// once the fade has run, nothing of it stays behind — not even at opacity 0
+for (const flash of [$("#seek-back"), $("#seek-fwd")]) flash.addEventListener("animationend", () => flash.classList.remove("show"));
 
 $("#player-back").addEventListener("click", () => nudge(-1));
 $("#player-forward").addEventListener("click", () => nudge(1));
@@ -2179,6 +2292,7 @@ document.addEventListener("change", (event) => {
   showToast(`Renamed to ${name}`);
 });
 $("#favorite-player").addEventListener("click", () => toggleFavorite(state.playerItem));
+$("#episodes-season").addEventListener("change", (event) => { panelSeason = event.target.value; renderEpisodesPanel(); $("#episodes-list").scrollTop = 0 });
 $("#audio-track").addEventListener("change", (event) => { if (state.hls) state.hls.audioTrack = Number(event.target.value) });
 $("#subtitle-track").addEventListener("change", (event) => {
   const value = event.target.value;

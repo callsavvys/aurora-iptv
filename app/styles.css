@@ -1058,6 +1058,118 @@ nav em {
   max-width: 150px;
 }
 
+/* Episodes, without leaving the episode. A panel over the right of the picture
+   rather than a page, so playback keeps running behind the choice. */
+.episodes-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  /* stops above the transport: covering it hid volume, fullscreen and the very
+     button that opened the panel */
+  bottom: 86px;
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  border-bottom-left-radius: 16px;
+  color-scheme: dark; /* the page is light by default; this panel never is */
+  z-index: 7;
+  width: min(430px, 92vw);
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 12, 16, .94);
+  border-left: 1px solid rgba(255, 255, 255, .1);
+  box-shadow: -30px 0 80px rgba(0, 0, 0, .45);
+  backdrop-filter: blur(18px);
+  color: #fff;
+  animation: panel-in .22s ease-out;
+}
+.episodes-panel.hidden { display: none; }
+@keyframes panel-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .episodes-panel { animation: none; } }
+
+.player-shell:not(:fullscreen) .episodes-panel { padding-top: 34px; }
+
+.episodes-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+.episodes-panel-title { flex: 1; min-width: 0; }
+.episodes-panel-title small { display: block; color: rgba(255, 255, 255, .62); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.episodes-panel-title strong { display: block; font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.episodes-season-wrap select {
+  height: 34px;
+  padding: 0 30px 0 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(255, 255, 255, .06);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+.episodes-panel-head .ghost { color: #fff; }
+
+.episodes-panel-list { flex: 1; overflow-y: auto; padding: 8px 10px 20px; overscroll-behavior: contain; }
+
+.panel-episode {
+  display: grid;
+  grid-template-columns: 148px 1fr;
+  gap: 13px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.panel-episode:hover, .panel-episode:focus-visible { background: rgba(255, 255, 255, .07); outline: none; }
+.panel-episode.playing { background: rgba(255, 255, 255, .1); box-shadow: inset 3px 0 0 var(--accent); }
+
+.panel-still {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .06);
+  display: grid;
+  place-items: center;
+}
+.panel-still img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.panel-num { position: relative; font-size: 22px; font-weight: 700; color: rgba(255, 255, 255, .4); }
+.panel-still img + .panel-num { display: none; }
+.panel-now {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--accent);
+  color: #04120d;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.panel-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(255, 255, 255, .25); }
+.panel-bar i { display: block; height: 100%; background: var(--accent); }
+
+.panel-copy { min-width: 0; align-self: center; }
+.panel-copy strong { display: block; font-size: 14px; font-weight: 650; line-height: 1.3; }
+.panel-copy small { display: block; margin-top: 3px; color: rgba(255, 255, 255, .62); font-size: 12px; }
+.panel-copy p {
+  margin: 6px 0 0;
+  color: rgba(255, 255, 255, .72);
+  font-size: 12px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.panel-episode.watched .panel-copy strong::after { content: " \2713"; color: var(--accent); font-weight: 700; }
+
 .up-next {
   position: absolute;
   right: 18px;
