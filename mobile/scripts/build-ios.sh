@@ -19,6 +19,7 @@ sed -i '' 's#content="width=device-width,initial-scale=1"#content="width=device-
 sed -i '' 's#placeholder="Search channels, movies and series"#placeholder="Search"#' www/index.html
 # "Normal" does not fit the phone's speed control
 sed -i '' 's#<option value="1" selected>Normal</option>#<option value="1" selected>1\&times;</option>#' www/index.html
+sed -i '' 's#Stored only on this Mac and sent directly#Stored only on this iPhone and sent directly#' www/index.html
 grep -q 'platform-ios.js' www/index.html || { echo "shim was not injected"; exit 1; }
 grep -q 'mobile.css' www/index.html || { echo "mobile.css was not injected"; exit 1; }
 

@@ -877,7 +877,7 @@ function hideFromContinue(keys) {
 const progressOf = (key) => state.progress.get(key) || null;
 const finished = (record) => Boolean(record && record.duration > 0 && record.position >= record.duration * 0.95);
 const percent = (record) => (record && record.duration > 0 ? Math.min(100, (record.position / record.duration) * 100) : 0);
-const underway = (record) => record.position > 20 && !finished(record);
+const underway = (record) => Boolean(record) && record.position > 20 && !finished(record);
 
 /* A record only knows its own episode, so when one is played the episode after
    it is written down with it. That is what lets a show move on to "next
@@ -1036,7 +1036,7 @@ function card(item, wide = false, rank = 0) {
   const art = item.logo || item.backdrop;
   const bar = item.type === "movie" ? percent(progressOf(item.id)) : 0;
   const opens = item.type === "live" ? "play-item" : "open-detail";
-  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""}" data-id="${escapeHtml(item.id)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
+  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""}" data-id="${escapeHtml(item.id)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
 function resumeCard(entry) {
@@ -1044,7 +1044,7 @@ function resumeCard(entry) {
   const bar = fresh ? 0 : percent(record);
   const left = fresh ? "Next episode" : record.duration > record.position ? `${clock(record.duration - record.position)} left` : "Ready";
   const target = entry.kind === "series" ? `data-show-play="${escapeHtml(entry.show.id)}"` : `data-resume="${escapeHtml(record.key)}"`;
-  return `<article class="card wide" ${target}><div class="art play-resume">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div><span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" \u2022 "))}</p></div><button class="forget" title="Remove from Continue watching">${icon("close")}</button></div></article>`;
+  return `<article class="card wide" ${target}><div class="art play-resume">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div><span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" \u2022 "))}</p></div><button class="forget" title="Remove from Continue watching">${icon("close")}</button></div></article>`;
 }
 
 function rail(scroller) {
@@ -1217,7 +1217,7 @@ function showRow(show) {
 function recordRow(record) {
   const live = record.type === "live", bar = live ? 0 : percent(record);
   const inLibrary = !live && state.items.some((item) => item.id === record.id);
-  const status = live ? "Live channel" : finished(record) ? "Finished \u2022 watch again" : `${clock(Math.max(0, record.duration - record.position))} left`;
+  const status = live ? "Live channel" : finished(record) ? "Finished \u2022 watch again" : underway(record) ? `${clock(Math.max(0, record.duration - record.position))} left` : "Started";
   return `<article class="history-item" data-kind="${escapeHtml(record.type)}">
     ${historyArt(record.poster, record.title, `data-resume="${escapeHtml(record.key)}"`, `Play ${record.title}`)}
     <div class="history-copy" ${inLibrary ? `data-history-detail="${escapeHtml(record.id)}"` : `data-resume="${escapeHtml(record.key)}"`}>
@@ -1307,8 +1307,8 @@ function renderSettings() {
     <section class="panel">
       <header><h2>Artwork and ratings</h2><p>Posters, backdrops, cast and trailers come from TMDB. IMDb and Rotten Tomatoes scores need an OMDb key as well. Both are free, and both stay on ${DEVICE}.</p></header>
       <form id="keys-form" class="keys">
-        <label>TMDB API key<span class="field"><input id="tmdb-key" type="password" value="${escapeHtml(keys.tmdb || "")}" spellcheck="false" autocomplete="off" placeholder="Required for artwork" /><button type="button" class="icon-btn" data-reveal="tmdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.tmdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.tmdb))}</small>` : ""}</label>
-        <label>OMDb API key<span class="field"><input id="omdb-key" type="password" value="${escapeHtml(keys.omdb || "")}" spellcheck="false" autocomplete="off" placeholder="Optional — IMDb and Rotten Tomatoes" /><button type="button" class="icon-btn" data-reveal="omdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.omdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.omdb))}</small>` : ""}</label>
+        <label>TMDB API key<span class="field"><input id="tmdb-key" type="password" value="${escapeHtml(keys.tmdb || "")}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Required for artwork" /><button type="button" class="icon-btn" data-reveal="tmdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.tmdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.tmdb))}</small>` : ""}</label>
+        <label>OMDb API key<span class="field"><input id="omdb-key" type="password" value="${escapeHtml(keys.omdb || "")}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Optional — IMDb and Rotten Tomatoes" /><button type="button" class="icon-btn" data-reveal="omdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.omdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.omdb))}</small>` : ""}</label>
         <button class="primary small" type="submit">Save keys</button>
         <small class="keys-note">${IOS ? "Stored in this app's storage on your iPhone, not in the app you downloaded." : "Stored in this Mac's keychain, not in the app you downloaded."}</small>
       </form>
@@ -1395,7 +1395,7 @@ function renderGuide() {
   }
 
   const rows = channels.map((item) => `<div class="guide-row" data-guide-for="${escapeHtml(item.id)}">
-      <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" src="${escapeHtml(item.logo)}" onerror="this.style.display='none'">` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
+      <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" src="${escapeHtml(item.logo)}" onerror="this.remove()">` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
       <div class="guide-progs" style="width:${width}px"><span class="prog loading"><span>Loading guide…</span></span></div>
     </div>`).join("");
 
@@ -1483,7 +1483,7 @@ async function paintGuideRow(node) {
     const left = Math.max(0, ((programme.start - start) / 60000) * PX_PER_MIN);
     const right = Math.min(guideWindow.width, ((programme.end - start) / 60000) * PX_PER_MIN);
     const live = programme.start <= Date.now() && programme.end > Date.now();
-    return `<button class="prog ${live ? "live" : ""}" style="left:${left}px;width:${Math.max(2, right - left)}px" data-play="${escapeHtml(item.id)}" title="${escapeHtml(`${clockTime(programme.start)}–${clockTime(programme.end)}  ${programme.title}`)}"><b>${escapeHtml(programme.title)}</b><small>${escapeHtml(clockTime(programme.start))}</small></button>`;
+    return `<button class="prog ${live ? "on-air" : ""}" style="left:${left}px;width:${Math.max(2, right - left)}px" data-play="${escapeHtml(item.id)}" title="${escapeHtml(`${clockTime(programme.start)}–${clockTime(programme.end)}  ${programme.title}`)}"><b>${escapeHtml(programme.title)}</b><small>${escapeHtml(clockTime(programme.start))}</small></button>`;
   }).join("");
 }
 
@@ -1626,7 +1626,7 @@ function shortDuration(info = {}) {
 const episodeNumber = (episode, index) => episode.episode_num || episode.info?.episode_num || index + 1;
 
 function detailHero({ backdrop, poster, eyebrow, name, meta, description, actions }) {
-  return `<section class="series-hero">${backdrop ? `<img class="series-backdrop" src="${escapeHtml(backdrop)}" onerror="this.style.display='none'">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span><h2>${escapeHtml(name)}</h2><div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
+  return `<section class="series-hero">${backdrop ? `<img class="series-backdrop" src="${escapeHtml(backdrop)}" onerror="this.remove()">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span><h2>${escapeHtml(name)}</h2><div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
 }
 
 function mergedInfo(info, meta) {
@@ -1687,12 +1687,12 @@ function renderMovieDetail() {
   const record = progressOf(item.id), bar = percent(record);
   const meta = state.detailMeta;
   const backdropValue = Array.isArray(info.backdrop_path) ? info.backdrop_path[0] : info.backdrop_path;
-  const actions = `<button class="primary detail-play">${record && !finished(record) ? `${icon("play")}Resume • ${clock(record.duration - record.position)} left` : `${icon("play")}Play`}</button>${record ? '<button class="secondary detail-restart">Start over</button>' : ""}${trailerButton(meta)}<button class="secondary detail-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
+  const actions = `<button class="primary detail-play">${underway(record) ? `${icon("play")}Resume • ${clock(record.duration - record.position)} left` : `${icon("play")}Play`}</button>${underway(record) ? '<button class="secondary detail-restart">Start over</button>' : ""}${trailerButton(meta)}<button class="secondary detail-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
   $("#series-detail").innerHTML = detailHero({
     backdrop: artUrl(meta?.backdrop, "w1280") || backdropValue || item.backdrop || item.logo,
     poster: artUrl(meta?.poster, "w342") || info.movie_image || info.cover_big || item.logo,
     eyebrow: "Movie", name: state.detailMeta?.title || item.name,
-    meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releasedate || info.releaseDate || item.year || meta?.year || "").slice(0, 4), meta?.details?.runtime || info.duration || item.duration, item.category],
+    meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releasedate || info.releaseDate || item.year || meta?.year || "").slice(0, 4), meta?.details?.runtime || shortDuration(info) || (item.duration ? shortDuration({ duration: item.duration }) : ""), item.category],
     description: meta?.overview || info.plot || info.description || "Ready to watch from your connected IPTV source.",
     actions,
   }) + ratingsRow(meta) + creditsBlock(mergedInfo(info, meta)) + (bar > 1 ? `<section class="detail-progress"><span><i style="width:${bar.toFixed(1)}%"></i></span><small>${escapeHtml(`${clock(record.position)} of ${clock(record.duration)} watched`)}</small></section>` : "");
@@ -2017,7 +2017,8 @@ function refreshTrackMenus() {
   fillSelect($("#audio-track"), audio, String(state.hls ? state.hls.audioTrack : -1));
   fillSelect($("#subtitle-track"), subtitles, currentSubtitleValue());
   $("#audio-wrap").hidden = audio.length < 2;
-  $("#subtitle-wrap").hidden = false;
+  // a live channel with nothing to offer gets no menu; loading a file onto a live feed is not a real use
+  $("#subtitle-wrap").hidden = liveStream() && subtitles.length <= 2;
 }
 
 function currentSubtitleValue() {
@@ -2074,6 +2075,29 @@ video.addEventListener("loadedmetadata", () => {
 });
 video.addEventListener("timeupdate", () => recordPosition());
 video.addEventListener("pause", () => recordPosition(true));
+/* A stream that could not play left a black screen and nothing else — no
+   message, no reason. hls.js reports its own failures; this covers everything
+   the video element plays directly, which on iPhone is every stream. */
+$("#video-message").addEventListener("click", () => wakeChrome());
+
+video.addEventListener("error", () => {
+  if (state.hls || !state.playing || !video.getAttribute("src")) return; // not ours, or the src was just cleared
+  const ext = String(state.playing.container || state.playerItem?.ext || "").toLowerCase();
+  const mkv = ext === "mkv" || /\.mkv(\?|$)/i.test(video.currentSrc || "");
+  const text = IOS && mkv
+    ? "This film is an MKV file, and iPhone cannot play MKV. It plays in Aurora on a Mac."
+    : video.error?.code === 4
+      ? "This stream is in a format this device cannot play."
+      : state.playing.type === "live"
+        ? "This channel could not be played. Close any other IPTV player because your account allows only one connection."
+        : "This could not be played. The provider may be busy, or your account may allow only one connection at a time.";
+  const message = $("#video-message");
+  message.textContent = text;
+  message.classList.remove("hidden");
+  $("#buffering").classList.add("hidden");
+  wakeChrome();
+});
+
 video.addEventListener("ended", () => {
   recordPosition(true);
   const target = episodeAt(state.queue, 1);
@@ -2286,7 +2310,8 @@ function wakeChrome() {
   shell.classList.remove("idle");
   clearTimeout(idleTimer);
   idleTimer = setTimeout(() => {
-    if (!video.paused && $("#shortcuts").classList.contains("hidden") && $("#up-next").classList.contains("hidden") && !panelOpen()) shell.classList.add("idle");
+    // never fade out over an error: the message covers the video, so a tap could not bring the controls back
+    if (!video.paused && $("#shortcuts").classList.contains("hidden") && $("#up-next").classList.contains("hidden") && !panelOpen() && $("#video-message").classList.contains("hidden")) shell.classList.add("idle");
   }, 2600);
 }
 
@@ -2311,7 +2336,9 @@ function syncTransport() {
 function syncTime() {
   const live = liveStream();
   $("#live-pill").hidden = !live;
-  timeline.classList.toggle("live", live);
+  // "is-live", not "live": .live is the LIVE badge on cards, and the timeline
+  // was picking up its background, padding and corners — a white pill in light mode
+  timeline.classList.toggle("is-live", live);
   $("#time-now").textContent = clock(video.currentTime || 0);
   $("#time-total").textContent = live || !durationKnown() ? "" : clock(video.duration);
   const played = live || !durationKnown() ? 0 : Math.min(100, (video.currentTime / video.duration) * 100);
@@ -2369,7 +2396,28 @@ timeline.addEventListener("pointerup", endScrub);
 timeline.addEventListener("pointercancel", endScrub);
 timeline.addEventListener("pointerleave", () => { $("#bubble").hidden = true });
 
-video.addEventListener("click", togglePlay);
+/* On a phone: a tap shows or hides the controls, and a double tap on the left or
+   right third skips back or forward, adding up on further taps — the gesture
+   every phone video player uses. A single tap waits a moment so a double tap is
+   not also read as two toggles. Pausing is the play button's job. */
+let tapTimer = null, lastTap = 0;
+video.addEventListener("click", (event) => {
+  if (!IOS) return togglePlay();
+  const now = Date.now(), box = video.getBoundingClientRect(), third = box.width / 3, x = event.clientX - box.left;
+  const side = x < third ? -1 : x > third * 2 ? 1 : 0;
+  if (side && now - lastTap < 320 && !liveStream()) {
+    clearTimeout(tapTimer);
+    lastTap = now; // keep the run going: tap-tap-tap reads 20, then 30 seconds
+    return nudge(side);
+  }
+  lastTap = now;
+  clearTimeout(tapTimer);
+  tapTimer = setTimeout(() => {
+    if (shell.classList.contains("idle")) wakeChrome();
+    else if (!video.paused && !panelOpen()) { clearTimeout(idleTimer); shell.classList.add("idle") }
+    else wakeChrome();
+  }, 260);
+});
 video.addEventListener("play", syncTransport);
 video.addEventListener("pause", syncTransport);
 video.addEventListener("timeupdate", syncTime);
@@ -2385,7 +2433,8 @@ video.addEventListener("volumechange", () => {
 });
 
 shell.addEventListener("pointermove", wakeChrome);
-shell.addEventListener("pointerleave", () => { if (!video.paused && !panelOpen()) shell.classList.add("idle") });
+// a finger "leaves" at the end of every tap, which hid the controls it had just shown
+shell.addEventListener("pointerleave", () => { if (!IOS && !video.paused && !panelOpen()) shell.classList.add("idle") });
 
 $("#player-toggle").addEventListener("click", togglePlay);
 /* Seeking used to happen in silence — the picture jumped and nothing said why.

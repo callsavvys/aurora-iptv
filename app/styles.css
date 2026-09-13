@@ -581,6 +581,9 @@ nav em {
 .card.wide .art { aspect-ratio: 16 / 9; }
 .art:hover { transform: translateY(-3px); border-color: var(--accent-edge-strong); }
 .art img { width: 100%; height: 100%; object-fit: cover; }
+/* the initials are for a missing poster, not a loaded one; they were being drawn
+   over real artwork. A failed image removes itself, so they come back when needed */
+.art > img + .fallback { display: none; }
 .fallback { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-4); font-size: 28px; }
 
 .play-bubble {
@@ -1071,7 +1074,7 @@ nav em {
   transition: transform .14s;
 }
 .timeline:hover .knob, .timeline.scrubbing .knob { transform: scale(1); }
-.timeline.live { pointer-events: none; opacity: .35; }
+.timeline.is-live { pointer-events: none; opacity: .35; }
 
 .bubble {
   position: absolute;
@@ -1759,8 +1762,9 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 .prog b, .prog small { position: sticky; left: 10px; align-self: flex-start; max-width: 100%; }
 .prog b { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prog small { font-family: var(--mono); font-size: 9px; color: var(--text-4); }
-.prog.live { border-color: var(--accent-edge); background: var(--accent-wash-strong); }
-.prog.live b { color: var(--accent); }
+/* "on-air", not "live": .live is the card badge and its styles leaked in */
+.prog.on-air { border-color: var(--accent-edge); background: var(--accent-wash-strong); }
+.prog.on-air b { color: var(--accent); }
 .prog.loading, .prog.blank {
   left: 0;
   /* spans the row so the message stays put instead of scrolling out of view */
