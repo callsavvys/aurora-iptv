@@ -1,0 +1,15 @@
+{
+  "appId": "com.callsavvys.aurora",
+  "appName": "Aurora",
+  "webDir": "www",
+  "backgroundColor": "#070b0f",
+  "ios": {
+    "contentInset": "never",
+    "allowsLinkPreview": false,
+    "scrollEnabled": false,
+    "minVersion": "15.0"
+  },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  }
+}

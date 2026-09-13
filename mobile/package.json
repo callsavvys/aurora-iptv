@@ -1,0 +1,17 @@
+{
+  "name": "aurora-iptv-mobile",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Aurora for iPhone: the same renderer as the Mac app in a Capacitor shell",
+  "scripts": {
+    "build:ios": "bash scripts/build-ios.sh"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.5.2",
+    "@capacitor/ios": "8.5.2",
+    "@capacitor/preferences": "8.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2"
+  }
+}

@@ -224,7 +224,12 @@ async function removeSource(id) {
 }
 
 const cleanServer = (value) => { const clean = value.trim().replace(/\/$/, ""); return /^https?:\/\//i.test(clean) ? clean : `http://${clean}` };
-const relay = (url) => `/proxy?src=${encodeURIComponent(url)}`;
+/* The Mac app has a local server that fetches from the provider on the page's
+   behalf. The iPhone build has none: its requests go out natively (Capacitor's
+   HTTP bridge, so no CORS) and media plays straight from the provider. */
+const IOS = window.aurora?.platform === "ios";
+const relay = (url) => (IOS ? url : `/proxy?src=${encodeURIComponent(url)}`);
+const DEVICE = IOS ? "this iPhone" : "this Mac";
 const escapeHtml = (value = "") => String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
 const rating = (value) => { const n = Number(value); return Number.isFinite(n) && n > 0 ? n.toFixed(1) : "" };
 const clock = (value) => {
@@ -331,7 +336,7 @@ async function loadSecrets() {
     if (pending.tmdb || pending.omdb) localStorage.removeItem("aurora-keys");
     if (pending.sources) localStorage.removeItem("aurora-sources");
   } else {
-    showToast("Could not move your saved details into this Mac's keychain — they stay where they were");
+    showToast(IOS ? "Could not move your saved details into app storage — they stay where they were" : "Could not move your saved details into this Mac's keychain — they stay where they were");
   }
   return secrets;
 }
@@ -339,8 +344,9 @@ async function loadSecrets() {
 async function saveSecrets(next, { quiet = false } = {}) {
   secrets = next;
   const result = await window.aurora?.setSecrets?.(next);
-  if (result && !result.saved) showToast("Could not save to this Mac");
-  else if (result && !result.encrypted && !quiet) showToast("Saved, but this Mac has no keychain available so it is stored unencrypted");
+  if (result && !result.saved) showToast(`Could not save to ${DEVICE}`);
+  // the iPhone build keeps these in app storage by design; the warning is for a Mac without a keychain
+  else if (result && !result.encrypted && !quiet && !IOS) showToast("Saved, but this Mac has no keychain available so it is stored unencrypted");
   return result;
 }
 
@@ -1251,7 +1257,7 @@ function renderHistory() {
 
   const clearing = state.confirmForget === "all";
   const clear = clearing
-    ? `<div class="row-confirm history-clear"><p>Clear all watch history? Every watched mark and resume point on this Mac is removed, and Continue watching empties.</p><div><button class="secondary small danger" data-clear-history-confirm>Clear everything</button><button class="secondary small" data-forget-cancel>Keep it</button></div></div>`
+    ? `<div class="row-confirm history-clear"><p>Clear all watch history? Every watched mark and resume point on ${DEVICE} is removed, and Continue watching empties.</p><div><button class="secondary small danger" data-clear-history-confirm>Clear everything</button><button class="secondary small" data-forget-cancel>Keep it</button></div></div>`
     : '<div class="load-more"><button class="secondary" id="clear-history">Clear watch history</button></div>';
 
   $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>History</h1></div><span>${escapeHtml(summary)}</span></div>${all.length ? `<div class="chips history-filters">${filters}</div>${body}${clear}` : '<div class="empty"><div><h2>Nothing watched yet</h2><p>Films, episodes and channels you play show up here, grouped by show.</p></div></div>'}</section>`;
@@ -1275,7 +1281,7 @@ function renderSettings() {
         ${confirming ? "" : `<button class="icon-btn danger" data-remove="${escapeHtml(source.id)}" title="Remove source">${icon("close")}</button>`}
       </div>
       <p class="row-status" data-status-for="${escapeHtml(source.id)}"></p>
-      ${confirming ? `<div class="row-confirm"><p>Remove <b>${escapeHtml(source.name)}</b>? Its cached library of ${(source.count || 0).toLocaleString()} item${source.count === 1 ? "" : "s"} and any artwork are deleted from this Mac. Your account with the provider is untouched.</p><div><button class="secondary small danger" data-remove-confirm="${escapeHtml(source.id)}">Remove it</button><button class="secondary small" data-remove-cancel>Keep it</button></div></div>` : ""}
+      ${confirming ? `<div class="row-confirm"><p>Remove <b>${escapeHtml(source.name)}</b>? Its cached library of ${(source.count || 0).toLocaleString()} item${source.count === 1 ? "" : "s"} and any artwork are deleted from ${DEVICE}. Your account with the provider is untouched.</p><div><button class="secondary small danger" data-remove-confirm="${escapeHtml(source.id)}">Remove it</button><button class="secondary small" data-remove-cancel>Keep it</button></div></div>` : ""}
     </div>`;
   }).join("");
 
@@ -1292,19 +1298,19 @@ function renderSettings() {
     </section>
 
     <section class="panel">
-      <header><h2>Appearance</h2><p>Auto follows macOS.</p></header>
+      <header><h2>Appearance</h2><p>Auto follows ${IOS ? "iOS" : "macOS"}.</p></header>
       <div class="theme-switch wide">
         ${["system", "light", "dark"].map((value) => `<button data-theme-choice="${value}" class="${choice === value ? "active" : ""}">${value === "system" ? "Auto" : value[0].toUpperCase() + value.slice(1)}</button>`).join("")}
       </div>
     </section>
 
     <section class="panel">
-      <header><h2>Artwork and ratings</h2><p>Posters, backdrops, cast and trailers come from TMDB. IMDb and Rotten Tomatoes scores need an OMDb key as well. Both are free, and both stay on this Mac.</p></header>
+      <header><h2>Artwork and ratings</h2><p>Posters, backdrops, cast and trailers come from TMDB. IMDb and Rotten Tomatoes scores need an OMDb key as well. Both are free, and both stay on ${DEVICE}.</p></header>
       <form id="keys-form" class="keys">
         <label>TMDB API key<span class="field"><input id="tmdb-key" type="password" value="${escapeHtml(keys.tmdb || "")}" spellcheck="false" autocomplete="off" placeholder="Required for artwork" /><button type="button" class="icon-btn" data-reveal="tmdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.tmdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.tmdb))}</small>` : ""}</label>
         <label>OMDb API key<span class="field"><input id="omdb-key" type="password" value="${escapeHtml(keys.omdb || "")}" spellcheck="false" autocomplete="off" placeholder="Optional — IMDb and Rotten Tomatoes" /><button type="button" class="icon-btn" data-reveal="omdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.omdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.omdb))}</small>` : ""}</label>
         <button class="primary small" type="submit">Save keys</button>
-        <small class="keys-note">Stored in this Mac's keychain, not in the app you downloaded.</small>
+        <small class="keys-note">${IOS ? "Stored in this app's storage on your iPhone, not in the app you downloaded." : "Stored in this Mac's keychain, not in the app you downloaded."}</small>
       </form>
     </section>
 
@@ -1312,7 +1318,7 @@ function renderSettings() {
       <header><h2>About</h2></header>
       <div class="about">
         <span class="version">Aurora <b id="app-version">${escapeHtml(state.appVersion || "")}</b></span>
-        ${window.aurora ? `<button class="secondary small" id="check-updates"><i id="update-check-icon">${icon("refresh")}</i><span id="update-check-label">Check for updates</span></button>` : ""}
+        ${window.aurora && !IOS ? `<button class="secondary small" id="check-updates"><i id="update-check-icon">${icon("refresh")}</i><span id="update-check-label">Check for updates</span></button>` : ""}
         <a class="secondary small" href="https://github.com/callsavvys/aurora-iptv" target="_blank" rel="noreferrer">Source on GitHub</a>
       </div>
     </section>
@@ -1801,7 +1807,9 @@ function startPlayback({ url, title, subtitle = "", isLive = false, resumeAt = 0
   video.removeAttribute("src"); video.load();
   video.playbackRate = Number($("#playback-rate").value) || 1; // survives into the next episode
   startPlayback.resumeAt = resumeAt;
-  if (isLive && Hls.isSupported()) {
+  // iOS plays HLS natively and fetching segments through the HTTP bridge would
+  // be far slower, so hls.js is a desktop-only path
+  if (isLive && !IOS && Hls.isSupported()) {
     state.hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 30 });
     state.hls.loadSource(source); state.hls.attachMedia(video);
     state.hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}); refreshTrackMenus() });
@@ -2453,6 +2461,8 @@ $("#subtitle-file").addEventListener("change", async (event) => {
 $("#player-mute").addEventListener("click", () => { video.muted = !video.muted });
 $("#volume").addEventListener("input", (event) => { video.volume = Number(event.target.value); video.muted = video.volume === 0 });
 $("#player-full").addEventListener("click", () => {
+  // iPhone Safari cannot put an element full screen, only a video, in its own player
+  if (IOS && video.webkitEnterFullscreen) { try { video.webkitEnterFullscreen() } catch { showToast("Full screen is not available here") } return }
   if (document.fullscreenElement) document.exitFullscreen();
   else shell.requestFullscreen().catch(() => showToast("Full screen is not available here"));
 });

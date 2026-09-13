@@ -1,0 +1,143 @@
+/* Phone layout for the iPhone build only. The desktop stylesheet stays the
+   source of truth; this file moves the sidebar to a bottom tab bar, clears the
+   notch and home indicator, and sizes things for a thumb. */
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+html, body { height: 100%; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+body { background: var(--bg, #070b0f); }
+button, a { touch-action: manipulation; }
+/* under 16px iOS zooms the page when a field is focused */
+input, select, textarea { font-size: 16px !important; }
+
+.app {
+  height: 100dvh;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "main" "tabs";
+}
+.workspace { grid-area: main; min-height: 0; }
+
+/* ---- bottom tab bar ---- */
+.app > aside {
+  grid-area: tabs;
+  flex-direction: row;
+  align-items: stretch;
+  padding: 4px calc(4px + var(--safe-right)) calc(4px + var(--safe-bottom)) calc(4px + var(--safe-left));
+  border-right: 0;
+  border-top: 1px solid var(--line);
+  overflow: visible;
+  -webkit-app-region: no-drag;
+}
+.app > aside .brand, .app > aside .nav-label, .app > aside .source-pill { display: none !important; }
+.app > aside nav { display: contents; }
+.app > aside nav button {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 52px;
+  padding: 4px 0 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  border-radius: 10px;
+  position: relative;
+  white-space: nowrap;
+}
+.app > aside nav button i { margin: 0; }
+.app > aside nav button .icon { width: 22px; height: 22px; }
+.app > aside nav button.active { background: transparent; box-shadow: none; }
+.app > aside nav button em { position: absolute; top: 2px; left: calc(50% + 6px); margin: 0; transform: scale(.85); }
+.app.rail > aside { width: auto; }
+
+/* ---- top bar ---- */
+.workspace > header {
+  height: auto;
+  flex: 0 0 auto;
+  padding: calc(var(--safe-top) + 6px) calc(12px + var(--safe-right)) 10px calc(12px + var(--safe-left));
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+#go-forward, #add-source { display: none !important; }
+.nav-steps button:disabled { visibility: hidden; }
+.search { width: auto; flex: 1; height: 42px; }
+
+/* ---- pages ---- */
+.page { padding: 18px 16px 28px; }
+.page-title { flex-direction: column; align-items: flex-start; gap: 6px; }
+.page-title h1 { font-size: 28px; }
+
+.hero { height: auto; min-height: 420px; margin: 12px 12px 0; border-radius: 18px; }
+.hero-copy { width: 100%; padding: 150px 20px 22px; justify-content: flex-end; background: linear-gradient(0deg, rgba(4, 7, 10, .92) 35%, rgba(4, 7, 10, 0)); }
+.hero h1 { font-size: 34px; }
+.hero p { font-size: 14px; line-height: 1.5; margin: 10px 0 16px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.actions { flex-wrap: wrap; }
+.actions button { height: 42px; }
+
+.shelf { margin-top: 26px; padding-left: 16px; }
+.shelf-head { padding-right: 16px; }
+.shelf-row { grid-auto-columns: 128px; gap: 10px; }
+.shelf-row.wide { grid-auto-columns: 232px; }
+.rail-nav { display: none !important; }
+
+/* the virtual grid reads its column count back from this computed style, so
+   the row maths follows whatever the phone layout says */
+.grid, .vgrid-inner { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 10px; }
+.vgrid-inner.wide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.card-copy h3 { font-size: 12px; }
+.card-copy p { font-size: 10px; }
+.card .play-bubble { display: none; }
+
+/* ---- detail, history, settings ---- */
+.detail-page { padding-bottom: 24px; }
+.history-item { grid-template-columns: 96px minmax(0, 1fr) auto; gap: 12px; }
+.history-art { width: 96px; }
+.history-item > time { display: none; }
+.history-episodes { margin-left: 0; }
+.history-episode { grid-template-columns: minmax(0, 1fr) auto 28px; }
+.history-episode time { display: none; }
+.history-episode .icon-btn { opacity: 1; }
+
+.settings { max-width: none; }
+
+.modal { padding: calc(var(--safe-top) + 12px) 12px calc(var(--safe-bottom) + 12px); align-items: end; }
+.source-modal-card { padding: 22px 18px; border-radius: 18px; }
+
+.guide { max-height: none; }
+
+/* ---- player ---- */
+.player-shell:not(:fullscreen) .chrome-top { padding-top: calc(var(--safe-top) + 8px); -webkit-app-region: no-drag; }
+.chrome-top { padding-left: calc(10px + var(--safe-left)); padding-right: calc(10px + var(--safe-right)); }
+.chrome-bottom { padding: 30px calc(10px + var(--safe-right)) calc(10px + var(--safe-bottom)) calc(10px + var(--safe-left)); }
+.transport { gap: 0; flex-wrap: nowrap; }
+.transport .ghost { width: 40px; height: 40px; }
+/* the iPhone has hardware volume and its own picture-in-picture and help makes
+   no sense without a keyboard */
+#player-help, .volume, #player-pip, #player-prev, #audio-wrap .icon, #subtitle-wrap .icon, #rate-wrap .icon { display: none !important; }
+.track-select select { max-width: 64px; padding-left: 6px; padding-right: 16px; }
+.clock { font-size: 11px; margin: 0 4px; }
+.player-shell.idle { cursor: auto; }
+
+.episodes-panel { width: 100%; bottom: calc(96px + var(--safe-bottom)); border-radius: 0 0 16px 16px; padding-top: var(--safe-top) !important; }
+.panel-episode { grid-template-columns: 120px 1fr; }
+
+.up-next { right: calc(12px + var(--safe-right)); bottom: calc(100px + var(--safe-bottom)); }
+.shortcuts { display: none !important; }
+
+@media (orientation: landscape) {
+  .app > aside nav button { height: 44px; font-size: 0; gap: 0; }
+  .hero { min-height: 300px; }
+  .hero-copy { padding-top: 60px; width: 70%; background: linear-gradient(90deg, rgba(4, 7, 10, .9) 40%, rgba(4, 7, 10, 0)); }
+  .grid, .vgrid-inner { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .vgrid-inner.wide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #player-prev { display: grid !important; }
+  .episodes-panel { width: min(430px, 60vw); border-radius: 0 0 0 16px; }
+}
