@@ -88,7 +88,7 @@ const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
   favorites: new Set(readPref("favorites", [])),
   progress: new Map(Object.entries(readPref("progress", {}))),
-  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, trending: null, searchScope: "all", liveMode: "guide", detailId: null, history: [], historyAt: -1,
+  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, historyFilter: "all", historyOpen: new Set(), confirmForget: null, trending: null, searchScope: "all", liveMode: "guide", detailId: null, history: [], historyAt: -1,
   seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
 const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings", detail: "Detail" };
@@ -835,22 +835,98 @@ const upNext = (list, at = Date.now()) => (list || []).find((entry) => entry.sta
 
 /* ---------- watch progress ---------- */
 
+/* History is what you watched, so it has to outlast a binge. 400 records was
+   two long shows' worth of episodes before older films fell off the end. Over
+   the cap, live channels go first — they carry no position or watched mark —
+   and only then the oldest of everything else. */
+const HISTORY_CAP = 3000;
+
 function persistProgress() {
-  const entries = [...state.progress.entries()].sort((a, b) => b[1].updatedAt - a[1].updatedAt).slice(0, 400);
-  state.progress = new Map(entries);
-  writePref("progress", Object.fromEntries(entries));
+  if (state.progress.size > HISTORY_CAP) {
+    const keep = [...state.progress.entries()]
+      .sort(([, a], [, b]) => (a.type === "live") - (b.type === "live") || b.updatedAt - a.updatedAt)
+      .slice(0, HISTORY_CAP);
+    state.progress = new Map(keep);
+  }
+  writePref("progress", Object.fromEntries(state.progress));
 }
 
 function saveProgress(patch) {
   if (!patch?.key) return;
   const merged = { ...(state.progress.get(patch.key) || {}), ...patch, updatedAt: Date.now() };
+  delete merged.hidden; // watching something again brings it back to Continue watching
   state.progress.set(patch.key, merged); persistProgress();
+}
+
+/* Removing a card from Continue watching used to delete the record outright,
+   and with it the watched mark and the history entry. It only hides it now. */
+function hideFromContinue(keys) {
+  for (const key of keys) {
+    const record = state.progress.get(key);
+    if (record) state.progress.set(key, { ...record, hidden: true });
+  }
+  persistProgress();
 }
 
 const progressOf = (key) => state.progress.get(key) || null;
 const finished = (record) => Boolean(record && record.duration > 0 && record.position >= record.duration * 0.95);
 const percent = (record) => (record && record.duration > 0 ? Math.min(100, (record.position / record.duration) * 100) : 0);
-const continueWatching = () => [...state.progress.values()].filter((r) => r.type !== "live" && r.position > 20 && !finished(r)).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 20);
+const underway = (record) => record.position > 20 && !finished(record);
+
+/* A record only knows its own episode, so when one is played the episode after
+   it is written down with it. That is what lets a show move on to "next
+   episode" after a finished one, offline, without refetching the series. */
+function nextHint(queue) {
+  const target = episodeAt(queue, 1);
+  if (!target) return null;
+  const episode = target.episodes[target.index];
+  return { season: String(target.season), episodeId: episode.id, number: String(episodeNumber(episode, target.index)), title: episodeTitle(episode, target.index), container: episode.container_extension || "mp4" };
+}
+
+function recordFromHint(latest) {
+  const next = latest.next;
+  return { key: `episode-${next.episodeId}`, id: latest.id, type: "episode", title: latest.title, subtitle: `S${next.season} E${next.number} \u2022 ${next.title}`, poster: latest.poster, seriesId: latest.seriesId, season: next.season, episodeId: next.episodeId, container: next.container, position: 0, duration: 0 };
+}
+
+// what "continue" means for a show: the episode in progress, or the unstarted
+// one after the last episode finished; nothing once it is caught up
+function upNextFor(latest) {
+  if (!finished(latest)) return underway(latest) ? { record: latest, fresh: false } : null;
+  if (!latest.next) return null;
+  const existing = progressOf(`episode-${latest.next.episodeId}`);
+  if (finished(existing)) return null;
+  return existing && underway(existing) ? { record: existing, fresh: false } : { record: recordFromHint(latest), fresh: true };
+}
+
+function historyShows() {
+  const shows = new Map();
+  for (const record of state.progress.values()) {
+    if (record.type !== "episode") continue;
+    const show = shows.get(record.id) || { id: record.id, episodes: [], latest: record };
+    show.episodes.push(record);
+    if (record.updatedAt > show.latest.updatedAt) show.latest = record;
+    shows.set(record.id, show);
+  }
+  for (const show of shows.values()) {
+    show.episodes.sort((a, b) => b.updatedAt - a.updatedAt);
+    show.title = show.latest.title;
+    show.poster = show.episodes.find((record) => record.poster)?.poster || "";
+    show.updatedAt = show.latest.updatedAt;
+    show.watched = show.episodes.filter(finished).length;
+    show.upNext = upNextFor(show.latest);
+  }
+  return [...shows.values()];
+}
+
+function continueWatching() {
+  const films = [...state.progress.values()]
+    .filter((record) => record.type === "movie" && !record.hidden && underway(record))
+    .map((record) => ({ kind: "movie", record, updatedAt: record.updatedAt }));
+  const shows = historyShows()
+    .filter((show) => show.upNext && !show.latest.hidden)
+    .map((show) => ({ kind: "series", show, record: show.upNext.record, fresh: show.upNext.fresh, updatedAt: show.updatedAt }));
+  return [...films, ...shows].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 20);
+}
 const watchHistory = () => [...state.progress.values()].sort((a, b) => b.updatedAt - a.updatedAt);
 
 /* ---------- library ---------- */
@@ -957,9 +1033,12 @@ function card(item, wide = false, rank = 0) {
   return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""}" data-id="${escapeHtml(item.id)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
-function resumeCard(record) {
-  const bar = percent(record), left = record.duration > record.position ? `${clock(record.duration - record.position)} left` : "Ready";
-  return `<article class="card wide" data-resume="${escapeHtml(record.key)}"><div class="art play-resume">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div><span class="play-bubble">${icon("play")}</span><span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span></div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" • "))}</p></div><button class="forget" title="Remove from Continue watching">${icon("close")}</button></div></article>`;
+function resumeCard(entry) {
+  const { record, fresh } = entry;
+  const bar = fresh ? 0 : percent(record);
+  const left = fresh ? "Next episode" : record.duration > record.position ? `${clock(record.duration - record.position)} left` : "Ready";
+  const target = entry.kind === "series" ? `data-show-play="${escapeHtml(entry.show.id)}"` : `data-resume="${escapeHtml(record.key)}"`;
+  return `<article class="card wide" ${target}><div class="art play-resume">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div><span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" \u2022 "))}</p></div><button class="forget" title="Remove from Continue watching">${icon("close")}</button></div></article>`;
 }
 
 function rail(scroller) {
@@ -1035,15 +1114,6 @@ function becauseYouWatched() {
   return shelf(`More ${seed.category}`, picks, false, `Because you watched ${metaCache.get(seed.id)?.title || seed.name}`);
 }
 
-function unfinishedSeries() {
-  const ids = new Set();
-  for (const record of [...state.progress.values()].sort((a, b) => b.updatedAt - a.updatedAt)) {
-    if (record.type === "episode" && !finished(record)) ids.add(record.id);
-  }
-  const picks = [...ids].map((id) => state.items.find((entry) => entry.id === id)).filter(Boolean).slice(0, 20);
-  return shelf("Carry on with", picks, false, "Series you started");
-}
-
 function heroPick() {
   const cache = (index().cache ||= {});
   if (cache.hero !== undefined) return cache.hero;
@@ -1061,7 +1131,7 @@ function renderHome() {
   const image = artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo;
   const score = meta?.ratings?.imdb || meta?.score || featured.rating;
   const missing = state.trending && !state.trending.movie.length && !state.trending.series.length && state.trending.of > 0;
-  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "Most watched worldwide, that you have")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${unfinishedSeries()}${becauseYouWatched()}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
+  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "Most watched worldwide, that you have")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${becauseYouWatched()}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
   hydrateHero(featured);
 }
 
@@ -1069,15 +1139,122 @@ function renderWelcome() {
   $("#content").innerHTML = `<section class="welcome"><div class="welcome-card"><div class="welcome-mark">${icon("play")}</div><h1>Your TV. Your Mac.</h1><p>Connect your Xtream account to browse live channels, movies and series directly through your own internet connection.</p><button class="primary open-source">＋ Connect source</button></div></section>`;
 }
 
+/* ---------- history ----------
+   Grouped the way people remember what they watched: by show, not by episode,
+   and by when. A flat list put eight rows of the same series between you and
+   the film you watched last Tuesday. */
+
+function recencyGroup(time, now = new Date()) {
+  const day = (value) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const days = Math.round((day(now) - day(new Date(time))) / 86400000);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return "Past week";
+  if (days < 30) return "Past month";
+  return "Earlier";
+}
+
+function whenLabel(time, now = new Date()) {
+  const date = new Date(time), group = recencyGroup(time, now);
+  const clockText = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  if (group === "Today") return clockText;
+  if (group === "Yesterday") return `Yesterday, ${clockText}`;
+  return date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }) });
+}
+
+function historyEntries() {
+  const entries = historyShows().map((show) => ({ kind: "series", id: show.id, updatedAt: show.updatedAt, show }));
+  for (const record of state.progress.values()) {
+    if (record.type === "movie" || record.type === "live") entries.push({ kind: record.type, id: record.key, updatedAt: record.updatedAt, record });
+  }
+  return entries.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+function historyArt(poster, title, playAttr, label) {
+  return `<button class="history-art" ${playAttr} aria-label="${escapeHtml(label)}">${poster ? `<img loading="lazy" src="${escapeHtml(poster)}" alt="" onerror="this.remove()">` : ""}<span class="fallback">${escapeHtml(initials(title))}</span><span class="history-play">${icon("play")}</span></button>`;
+}
+
+function episodeStatus(record) {
+  if (finished(record)) return "Watched";
+  if (record.duration > 0 && record.position > 20) return `${clock(record.duration - record.position)} left`;
+  return "Started";
+}
+
+function showRow(show) {
+  const open = state.historyOpen.has(show.id), confirming = state.confirmForget === `show:${show.id}`;
+  const latest = show.latest, next = show.upNext;
+  const inLibrary = state.items.some((item) => item.id === show.id);
+  const progress = next && !next.fresh ? percent(next.record) : 0;
+  const status = [
+    `${show.episodes.length} episode${show.episodes.length === 1 ? "" : "s"}${show.watched && show.watched !== show.episodes.length ? `, ${show.watched} finished` : ""}`,
+    next ? (next.fresh ? `Up next ${next.record.subtitle.split(" \u2022 ")[0]}` : `${episodeStatus(next.record)} in ${next.record.subtitle.split(" \u2022 ")[0]}`) : "Caught up",
+  ].join(" \u2022 ");
+  const episodes = show.episodes.map((record) => `<div class="history-episode" data-resume="${escapeHtml(record.key)}"><span class="history-episode-title">${escapeHtml(record.subtitle || "")}</span><span class="history-episode-status ${finished(record) ? "done" : ""}">${escapeHtml(episodeStatus(record))}</span><time>${escapeHtml(whenLabel(record.updatedAt))}</time><button class="icon-btn forget-record" data-forget-key="${escapeHtml(record.key)}" title="Remove this episode from history">${icon("close")}</button></div>`).join("");
+  return `<article class="history-item" data-kind="series">
+    ${historyArt(show.poster, show.title, `data-show-play="${escapeHtml(show.id)}"`, next ? `Play ${show.title}` : `Open ${show.title}`)}
+    <div class="history-copy" ${inLibrary ? `data-history-detail="${escapeHtml(show.id)}"` : ""}>
+      <strong>${escapeHtml(show.title)}</strong>
+      <small>Last watched ${escapeHtml(latest.subtitle || "")}</small>
+      <span class="history-status">${escapeHtml(status)}</span>
+      ${progress > 1 ? `<span class="history-bar"><i style="width:${progress.toFixed(1)}%"></i></span>` : ""}
+    </div>
+    <time>${escapeHtml(whenLabel(show.updatedAt))}</time>
+    <div class="history-actions">
+      <button class="icon-btn history-toggle ${open ? "open" : ""}" data-show-toggle="${escapeHtml(show.id)}" aria-expanded="${open}" title="${open ? "Hide" : "Show"} episodes">${icon("chev-right")}</button>
+      ${confirming ? "" : `<button class="icon-btn danger" data-forget-show="${escapeHtml(show.id)}" title="Remove this show from history">${icon("close")}</button>`}
+    </div>
+    ${confirming ? `<div class="row-confirm"><p>Remove <b>${escapeHtml(show.title)}</b> from history? Its ${show.episodes.length} episode${show.episodes.length === 1 ? "" : "s"} lose their watched marks and resume points.</p><div><button class="secondary small danger" data-forget-show-confirm="${escapeHtml(show.id)}">Remove it</button><button class="secondary small" data-forget-cancel>Keep it</button></div></div>` : ""}
+    ${open ? `<div class="history-episodes">${episodes}</div>` : ""}
+  </article>`;
+}
+
+function recordRow(record) {
+  const live = record.type === "live", bar = live ? 0 : percent(record);
+  const inLibrary = !live && state.items.some((item) => item.id === record.id);
+  const status = live ? "Live channel" : finished(record) ? "Finished \u2022 watch again" : `${clock(Math.max(0, record.duration - record.position))} left`;
+  return `<article class="history-item" data-kind="${escapeHtml(record.type)}">
+    ${historyArt(record.poster, record.title, `data-resume="${escapeHtml(record.key)}"`, `Play ${record.title}`)}
+    <div class="history-copy" ${inLibrary ? `data-history-detail="${escapeHtml(record.id)}"` : `data-resume="${escapeHtml(record.key)}"`}>
+      <strong>${escapeHtml(record.title)}</strong>
+      <small>${escapeHtml(live ? record.subtitle || "Channel" : record.subtitle || "Film")}</small>
+      <span class="history-status ${finished(record) ? "done" : ""}">${escapeHtml(status)}</span>
+      ${bar > 1 && !finished(record) ? `<span class="history-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}
+    </div>
+    <time>${escapeHtml(whenLabel(record.updatedAt))}</time>
+    <div class="history-actions"><button class="icon-btn danger" data-forget-key="${escapeHtml(record.key)}" title="Remove from history">${icon("close")}</button></div>
+  </article>`;
+}
+
 function renderHistory() {
-  const records = watchHistory();
-  const rows = records.map((record) => {
-    const bar = percent(record);
-    const when = new Date(record.updatedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-    const status = record.type === "live" ? "Live channel" : finished(record) ? "Finished" : `${clock(record.position)} watched`;
-    return `<article class="history-row" data-resume="${escapeHtml(record.key)}"><div class="history-art">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.style.display='none'">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div></div><div class="history-copy"><strong>${escapeHtml(record.title)}</strong><small>${escapeHtml([record.subtitle, status, when].filter(Boolean).join(" • "))}</small>${bar > 1 ? `<span class="history-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><button class="forget" title="Remove from history">${icon("close")}</button></article>`;
-  }).join("");
-  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>History</h1></div><span>${records.length.toLocaleString()} entries</span></div>${records.length ? `<div class="history-list">${rows}</div><div class="load-more"><button class="secondary" id="clear-history">Clear watch history</button></div>` : '<div class="empty"><div><h2>Nothing watched yet</h2><p>Everything you play shows up here.</p></div></div>'}</section>`;
+  const all = historyEntries();
+  const counts = { series: 0, movie: 0, live: 0 };
+  for (const entry of all) counts[entry.kind] += 1;
+  if (state.historyFilter !== "all" && !counts[state.historyFilter]) state.historyFilter = "all";
+  const entries = state.historyFilter === "all" ? all : all.filter((entry) => entry.kind === state.historyFilter);
+  const episodeCount = [...state.progress.values()].filter((record) => record.type === "episode").length;
+  const summary = [
+    counts.series && `${counts.series} series (${episodeCount} episode${episodeCount === 1 ? "" : "s"})`,
+    counts.movie && `${counts.movie} film${counts.movie === 1 ? "" : "s"}`,
+    counts.live && `${counts.live} channel${counts.live === 1 ? "" : "s"}`,
+  ].filter(Boolean).join(" \u00b7 ");
+  const filters = [["all", "All", all.length], ["series", "Series", counts.series], ["movie", "Films", counts.movie], ["live", "Live", counts.live]]
+    .filter(([key, , count]) => key === "all" || count)
+    .map(([key, label, count]) => `<button class="chip ${state.historyFilter === key ? "active" : ""}" data-history-filter="${key}">${label} <span>${count}</span></button>`).join("");
+
+  let body = "", group = "";
+  for (const entry of entries) {
+    const heading = recencyGroup(entry.updatedAt);
+    if (heading !== group) { body += `${group ? "</div>" : ""}<h2 class="history-group">${heading}</h2><div class="history-list">`; group = heading }
+    body += entry.kind === "series" ? showRow(entry.show) : recordRow(entry.record);
+  }
+  if (group) body += "</div>";
+
+  const clearing = state.confirmForget === "all";
+  const clear = clearing
+    ? `<div class="row-confirm history-clear"><p>Clear all watch history? Every watched mark and resume point on this Mac is removed, and Continue watching empties.</p><div><button class="secondary small danger" data-clear-history-confirm>Clear everything</button><button class="secondary small" data-forget-cancel>Keep it</button></div></div>`
+    : '<div class="load-more"><button class="secondary" id="clear-history">Clear watch history</button></div>';
+
+  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>History</h1></div><span>${escapeHtml(summary)}</span></div>${all.length ? `<div class="chips history-filters">${filters}</div>${body}${clear}` : '<div class="empty"><div><h2>Nothing watched yet</h2><p>Films, episodes and channels you play show up here, grouped by show.</p></div></div>'}</section>`;
 }
 
 function renderSettings() {
@@ -1394,9 +1571,9 @@ function playSomething() {
   if (!state.items.length) return showToast("Add a source first");
   const unfinished = continueWatching();
   if (unfinished.length && Math.random() < 0.35) {
-    const record = unfinished[Math.floor(Math.random() * Math.min(5, unfinished.length))];
-    showToast(`Picking up ${record.title}`);
-    return resumeRecord(record.key);
+    const entry = unfinished[Math.floor(Math.random() * Math.min(5, unfinished.length))];
+    showToast(`Picking up ${entry.record.title}`);
+    return playRecord(entry.record);
   }
   const watched = new Set([...state.progress.values()].map((record) => record.id));
   const genres = watchedCategories().slice(0, 3);
@@ -1679,7 +1856,7 @@ function playEpisode(item, season, episodes, index, { startOver = false } = {}) 
     url: `${server}/series/${user}/${pass}/${episode.id}.${episode.container_extension || "mp4"}`,
     title: `${item.name} • S${season} E${number}`, subtitle: title,
     resumeAt: saved && !finished(saved) ? saved.position : 0,
-    record: { key, id: item.id, type: "episode", title: item.name, subtitle: `S${season} E${number} • ${title}`, poster: item.logo, seriesId: item.streamId, season: String(season), episodeId: episode.id, container: episode.container_extension || "mp4" },
+    record: { key, id: item.id, type: "episode", title: item.name, subtitle: `S${season} E${number} • ${title}`, poster: item.logo, seriesId: item.streamId, season: String(season), episodeId: episode.id, container: episode.container_extension || "mp4", next: nextHint(state.queue) },
   });
 }
 
@@ -1689,8 +1866,9 @@ function playSeriesEpisode(index) {
   playEpisode(item, state.selectedSeason, episodes, index);
 }
 
-function resumeRecord(key) {
-  const record = progressOf(key);
+const resumeRecord = (key) => playRecord(progressOf(key));
+
+function playRecord(record) {
   if (!record || !state.provider) return;
   if (record.type === "movie" || record.type === "live") {
     const item = state.items.find((entry) => entry.id === record.id);
@@ -1703,7 +1881,7 @@ function resumeRecord(key) {
   startPlayback({
     url: `${server}/series/${user}/${pass}/${record.episodeId}.${record.container || "mp4"}`,
     title: record.title, subtitle: record.subtitle,
-    resumeAt: finished(record) ? 0 : record.position,
+    resumeAt: finished(record) ? 0 : record.position || 0,
     record: { ...record },
   });
   loadQueueForEpisode(item, record);
@@ -1721,6 +1899,7 @@ async function loadQueueForEpisode(item, record) {
     const index = episodes.findIndex((episode) => String(episode.id) === String(record.episodeId));
     if (index < 0) return;
     state.queue = { item, season: String(record.season), episodes, index, seasons };
+    state.playing.next = nextHint(state.queue);
     updatePlayerNav();
   } catch { /* next-episode navigation stays hidden */ }
 }
@@ -1947,7 +2126,38 @@ document.addEventListener("click", (event) => {
   if (target.closest("#clear-search")) return navigate({ query: "" });
   const chip = target.closest(".chip"); if (chip && chip.dataset.category) return navigate({ category: chip.dataset.category, limit: 120 }, { replace: true });
   if (target.closest("#load-more")) return navigate({ limit: state.limit + (state.view === "live" && state.liveMode !== "grid" ? GUIDE_CHANNELS : 120) }, { replace: true });
-  if (target.closest("#clear-history")) { state.progress.clear(); persistProgress(); render(); return }
+  if (target.closest("#clear-history")) { state.confirmForget = "all"; renderHistory(); return }
+  if (target.closest("[data-clear-history-confirm]")) { state.progress.clear(); state.confirmForget = null; state.historyOpen.clear(); persistProgress(); render(); showToast("Watch history cleared"); return }
+  if (target.closest("[data-forget-cancel]")) { state.confirmForget = null; renderHistory(); return }
+  const historyFilter = target.closest("[data-history-filter]");
+  if (historyFilter) { state.historyFilter = historyFilter.dataset.historyFilter; state.confirmForget = null; renderHistory(); return }
+  const showToggle = target.closest("[data-show-toggle]");
+  if (showToggle) {
+    const id = showToggle.dataset.showToggle;
+    if (state.historyOpen.has(id)) state.historyOpen.delete(id); else state.historyOpen.add(id);
+    renderHistory(); return;
+  }
+  const forgetShow = target.closest("[data-forget-show]");
+  if (forgetShow) { state.confirmForget = `show:${forgetShow.dataset.forgetShow}`; renderHistory(); return }
+  const forgetShowConfirm = target.closest("[data-forget-show-confirm]");
+  if (forgetShowConfirm) {
+    const id = forgetShowConfirm.dataset.forgetShowConfirm;
+    for (const [key, record] of state.progress) if (record.type === "episode" && record.id === id) state.progress.delete(key);
+    state.confirmForget = null; state.historyOpen.delete(id); persistProgress(); render(); return;
+  }
+  const forgetKey = target.closest("[data-forget-key]");
+  if (forgetKey) { state.progress.delete(forgetKey.dataset.forgetKey); persistProgress(); render(); return }
+  const historyDetail = target.closest("[data-history-detail]");
+  if (historyDetail) return openDetail(state.items.find((item) => item.id === historyDetail.dataset.historyDetail));
+  const showPlay = target.closest("[data-show-play]");
+  if (showPlay) {
+    const show = historyShows().find((entry) => entry.id === showPlay.dataset.showPlay);
+    if (!show) return;
+    if (target.closest(".forget")) { hideFromContinue(show.episodes.map((record) => record.key)); render(); return }
+    if (show.upNext) return playRecord(show.upNext.record);
+    const item = state.items.find((entry) => entry.id === show.id);
+    return item ? openDetail(item) : showToast("That show is no longer in your library — refresh the source");
+  }
   const featuredPlay = target.closest(".play-featured"); if (featuredPlay) return openDetail(state.items.find((item) => item.id === featuredPlay.dataset.id));
   const featuredFavorite = target.closest(".favorite-featured"); if (featuredFavorite) return toggleFavorite(state.items.find((item) => item.id === featuredFavorite.dataset.id));
   const season = target.closest(".season-tab"); if (season) { state.selectedSeason = season.dataset.season; renderDetail(); return }
@@ -1970,7 +2180,7 @@ document.addEventListener("click", (event) => {
   if (target.closest("#player-pip")) return video.requestPictureInPicture?.().catch(() => showToast("Picture in Picture is not available for this stream"));
   const resume = target.closest("[data-resume]");
   if (resume) {
-    if (target.closest(".forget")) { state.progress.delete(resume.dataset.resume); persistProgress(); render(); return }
+    if (target.closest(".forget")) { hideFromContinue([resume.dataset.resume]); render(); return }
     return resumeRecord(resume.dataset.resume);
   }
   const media = target.closest(".card[data-id]");
