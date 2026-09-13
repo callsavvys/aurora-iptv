@@ -123,6 +123,10 @@ input, select, textarea { font-size: 16px !important; }
 .history-episode .icon-btn { opacity: 1; }
 
 .settings { max-width: none; }
+/* name and address get the full width; the buttons drop to their own row, which
+   had squeezed the source name down to two letters */
+.source-row { grid-template-columns: 34px minmax(0, 1fr); }
+.source-row .row-actions { grid-column: 1 / -1; justify-content: flex-end; flex-wrap: wrap; }
 
 .modal { padding: calc(var(--safe-top) + 12px) 12px calc(var(--safe-bottom) + 12px); align-items: end; }
 /* a grid track sizes to its content's widest unbreakable line, which pushed the

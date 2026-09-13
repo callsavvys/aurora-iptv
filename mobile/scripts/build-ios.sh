@@ -34,11 +34,14 @@ done
 
 PLIST=ios/App/App/Info.plist
 set_plist() { /usr/libexec/PlistBuddy -c "Delete :$1" "$PLIST" >/dev/null 2>&1 || true; /usr/libexec/PlistBuddy -c "Add :$1 $2 $3" "$PLIST"; }
-# Xtream providers are plain http almost without exception
+# Xtream providers are plain http almost without exception. ONLY
+# NSAllowsArbitraryLoads: when NSAllowsArbitraryLoadsForMedia or
+# ...InWebContent is also present, iOS ignores NSAllowsArbitraryLoads entirely,
+# which blocked every request to a provider with a domain name ("Load failed")
+# while numeric addresses, which ATS never applies to, kept working.
 set_plist NSAppTransportSecurity dict ""
 /usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoads bool true" "$PLIST"
-/usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoadsForMedia bool true" "$PLIST"
-/usr/libexec/PlistBuddy -c "Add :NSAppTransportSecurity:NSAllowsArbitraryLoadsInWebContent bool true" "$PLIST"
+/usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity" "$PLIST" | grep -q "ForMedia\|InWebContent\|LocalNetworking" && { echo "ATS has a key that cancels NSAllowsArbitraryLoads"; exit 1; }
 set_plist CFBundleShortVersionString string "$VERSION"
 set_plist CFBundleDisplayName string "Aurora"
 set_plist UIBackgroundModes array ""
