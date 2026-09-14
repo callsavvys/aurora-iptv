@@ -1,12 +1,14 @@
 {
   "name": "aurora-iptv-mac",
-  "version": "0.26.1",
+  "version": "0.27.0",
   "description": "Local-first IPTV player for macOS",
   "main": "main.cjs",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "package:mac": "bash scripts/build-mac.sh"
+    "package:mac": "bash scripts/build-mac.sh",
+    "test": "electron tests/local-sync.cjs",
+    "test:sync": "bash tests/two-devices.sh"
   },
   "dependencies": {
     "hls.js": "^1.6.13"

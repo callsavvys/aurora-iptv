@@ -172,8 +172,12 @@ async function migrateSources() {
 function upsertSource(source) {
   const list = readSources();
   const index = list.findIndex((entry) => entry.id === source.id);
-  if (index === -1) list.push(source); else list[index] = { ...list[index], ...source };
+  // a new library count is this device's business; a name or login is the account's
+  const synced = ["name", "server", "username", "password"].some((field) => field in source);
+  const patch = synced ? { ...source, updatedAt: Date.now() } : source;
+  if (index === -1) list.push(patch); else list[index] = { ...list[index], ...patch };
   writeSources(list);
+  if (synced) scheduleSync();
 }
 
 async function useSource(id) {
@@ -211,6 +215,9 @@ async function testSource(id) {
 }
 
 async function removeSource(id) {
+  const gone = readSources().find((entry) => entry.id === id);
+  // remembered, so another device that still has it doesn't put it back
+  if (gone) { writePref("sourcesRemoved", { ...readPref("sourcesRemoved", {}), [sourceKey(gone)]: Date.now() }); scheduleSync() }
   const list = readSources().filter((entry) => entry.id !== id);
   writeSources(list);
   await idbPut("library", libraryKey(id), []).catch(() => {});
@@ -862,6 +869,7 @@ function saveProgress(patch) {
   const merged = { ...(state.progress.get(patch.key) || {}), ...patch, updatedAt: Date.now() };
   delete merged.hidden; // watching something again brings it back to Continue watching
   state.progress.set(patch.key, merged); persistProgress();
+  markDirty("progress", patch.key);
 }
 
 /* Removing a card from Continue watching used to delete the record outright,
@@ -869,7 +877,7 @@ function saveProgress(patch) {
 function hideFromContinue(keys) {
   for (const key of keys) {
     const record = state.progress.get(key);
-    if (record) state.progress.set(key, { ...record, hidden: true });
+    if (record) { state.progress.set(key, { ...record, hidden: true, updatedAt: Date.now() }); markDirty("progress", key) }
   }
   persistProgress();
 }
@@ -1257,7 +1265,7 @@ function renderHistory() {
 
   const clearing = state.confirmForget === "all";
   const clear = clearing
-    ? `<div class="row-confirm history-clear"><p>Clear all watch history? Every watched mark and resume point on ${DEVICE} is removed, and Continue watching empties.</p><div><button class="secondary small danger" data-clear-history-confirm>Clear everything</button><button class="secondary small" data-forget-cancel>Keep it</button></div></div>`
+    ? `<div class="row-confirm history-clear"><p>Clear all watch history? Every watched mark and resume point ${account.user ? "on every device signed in to your account" : `on ${DEVICE}`} is removed, and Continue watching empties.</p><div><button class="secondary small danger" data-clear-history-confirm>Clear everything</button><button class="secondary small" data-forget-cancel>Keep it</button></div></div>`
     : '<div class="load-more"><button class="secondary" id="clear-history">Clear watch history</button></div>';
 
   $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>History</h1></div><span>${escapeHtml(summary)}</span></div>${all.length ? `<div class="chips history-filters">${filters}</div>${body}${clear}` : '<div class="empty"><div><h2>Nothing watched yet</h2><p>Films, episodes and channels you play show up here, grouped by show.</p></div></div>'}</section>`;
@@ -1287,6 +1295,8 @@ function renderSettings() {
 
   $("#content").innerHTML = `<section class="page settings">
     <div class="page-title"><div><span class="eyebrow">Aurora</span><h1>Settings</h1></div></div>
+
+    ${accountPanel()}
 
     <section class="panel">
       <header><h2>Sources</h2><p>Xtream accounts. The one in use supplies the library you browse; the others keep their own cached copy.</p></header>
@@ -1596,6 +1606,7 @@ function toggleFavorite(item) {
   if (!item) return;
   if (state.favorites.has(item.id)) state.favorites.delete(item.id); else state.favorites.add(item.id);
   writePref("favorites", [...state.favorites]);
+  noteFavorite(item.id, state.favorites.has(item.id));
   if (state.view === "detail") renderDetail(); else render();
   updatePlayerFavorite();
   updateSource();
@@ -2159,7 +2170,7 @@ document.addEventListener("click", (event) => {
   const chip = target.closest(".chip"); if (chip && chip.dataset.category) return navigate({ category: chip.dataset.category, limit: 120 }, { replace: true });
   if (target.closest("#load-more")) return navigate({ limit: state.limit + (state.view === "live" && state.liveMode !== "grid" ? GUIDE_CHANNELS : 120) }, { replace: true });
   if (target.closest("#clear-history")) { state.confirmForget = "all"; renderHistory(); return }
-  if (target.closest("[data-clear-history-confirm]")) { state.progress.clear(); state.confirmForget = null; state.historyOpen.clear(); persistProgress(); render(); showToast("Watch history cleared"); return }
+  if (target.closest("[data-clear-history-confirm]")) { forgetProgress([...state.progress.keys()]); state.confirmForget = null; state.historyOpen.clear(); persistProgress(); render(); showToast("Watch history cleared"); return }
   if (target.closest("[data-forget-cancel]")) { state.confirmForget = null; renderHistory(); return }
   const historyFilter = target.closest("[data-history-filter]");
   if (historyFilter) { state.historyFilter = historyFilter.dataset.historyFilter; state.confirmForget = null; renderHistory(); return }
@@ -2174,11 +2185,11 @@ document.addEventListener("click", (event) => {
   const forgetShowConfirm = target.closest("[data-forget-show-confirm]");
   if (forgetShowConfirm) {
     const id = forgetShowConfirm.dataset.forgetShowConfirm;
-    for (const [key, record] of state.progress) if (record.type === "episode" && record.id === id) state.progress.delete(key);
+    forgetProgress([...state.progress].filter(([, record]) => record.type === "episode" && record.id === id).map(([key]) => key));
     state.confirmForget = null; state.historyOpen.delete(id); persistProgress(); render(); return;
   }
   const forgetKey = target.closest("[data-forget-key]");
-  if (forgetKey) { state.progress.delete(forgetKey.dataset.forgetKey); persistProgress(); render(); return }
+  if (forgetKey) { forgetProgress([forgetKey.dataset.forgetKey]); render(); return }
   const historyDetail = target.closest("[data-history-detail]");
   if (historyDetail) return openDetail(state.items.find((item) => item.id === historyDetail.dataset.historyDetail));
   const showPlay = target.closest("[data-show-play]");
@@ -2546,6 +2557,8 @@ document.addEventListener("submit", async (event) => {
   if (event.target.id !== "keys-form") return;
   event.preventDefault();
   await saveSecrets({ ...(secrets || {}), tmdb: $("#tmdb-key").value.trim(), omdb: $("#omdb-key").value.trim() });
+  writePref("keysUpdatedAt", Date.now());
+  scheduleSync();
   showToast(hasTmdb() ? "Saved — posters and ratings will fill in as you browse" : "Keys cleared");
   render();
 });
@@ -2575,6 +2588,423 @@ $("#subtitle-track").addEventListener("change", (event) => {
   }
 });
 window.addEventListener("beforeunload", () => recordPosition(true));
+
+/* ---------- account and sync ----------
+   An Aurora account carries favourites, watch history and saved sources between
+   devices. Favourites and history go up as rows the server can read, because it
+   needs to merge them. Provider logins and API keys never do: they are sealed on
+   the device with AES-GCM under a key derived from the account password, so the
+   server only ever stores ciphertext it cannot open. The cost is honest and
+   stated in the UI — a reset password cannot unlock what the old one sealed. */
+
+const SUPABASE_URL = "https://dslcmbkdzukyvuzggjjc.supabase.co";
+// publishable by design: it names the project. Row level security, not the
+// secrecy of this string, is what keeps one account's rows from another
+const SUPABASE_KEY = "sb_publishable_5Bftg7AySqFvxRfzWbHZnw_vZdhndy7";
+const KDF_ITERATIONS = 600000;
+const SYNC_DEBOUNCE = 12000;
+const SYNC_INTERVAL = 5 * 60 * 1000;
+const PAGE = 1000;
+
+const account = { client: null, user: null, key: null, busy: false, syncing: false, lastSync: 0, error: "", mode: "signin", notice: "", confirmDelete: false };
+let syncTimer = null;
+
+const iso = (ms) => new Date(ms).toISOString();
+const toBase64 = (bytes) => { let text = ""; for (const byte of new Uint8Array(bytes)) text += String.fromCharCode(byte); return btoa(text) };
+const fromBase64 = (text) => Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
+const sourceKey = (source) => `${cleanServer(String(source.server || "")).toLowerCase()}|${source.username || ""}`;
+
+// session tokens sit beside the provider logins: the keychain on a Mac, app storage on an iPhone
+const authStorage = {
+  getItem: (key) => secrets?.auth?.[key] ?? null,
+  setItem: (key, value) => saveSecrets({ ...(secrets || {}), auth: { ...(secrets?.auth || {}), [key]: value } }, { quiet: true }),
+  removeItem: (key) => { const auth = { ...(secrets?.auth || {}) }; delete auth[key]; return saveSecrets({ ...(secrets || {}), auth }, { quiet: true }) },
+};
+
+function accountClient() {
+  if (account.client || !window.supabase?.createClient) return account.client;
+  account.client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { storage: authStorage, storageKey: "aurora-auth", persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  });
+  account.client.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT" && account.user) { account.user = null; account.key = null; if (state.view === "settings") renderSettings() }
+    if (session?.user) account.user = session.user;
+  });
+  return account.client;
+}
+
+/* ---- the sealed vault ---- */
+
+async function deriveVaultKey(password, salt, iterations = KDF_ITERATIONS) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+}
+
+async function rememberVaultKey(key, salt) {
+  account.key = key;
+  const raw = toBase64(await crypto.subtle.exportKey("raw", key));
+  await saveSecrets({ ...(secrets || {}), vault: { key: raw, salt } }, { quiet: true });
+}
+
+async function restoreVaultKey() {
+  if (account.key || !secrets?.vault?.key) return account.key;
+  account.key = await crypto.subtle.importKey("raw", fromBase64(secrets.vault.key), { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
+  return account.key;
+}
+
+function vaultPayload() {
+  const removed = readPref("sourcesRemoved", {});
+  return {
+    v: 1,
+    sources: readSources().map(({ id, name, server, username, password, updatedAt }) => ({ id, name, server, username, password, updatedAt: updatedAt || 0 })),
+    removed,
+    tmdb: secrets?.tmdb || "", tmdbAt: readPref("keysUpdatedAt", 0),
+    omdb: secrets?.omdb || "",
+  };
+}
+
+async function pushVault() {
+  if (!account.user || !(await restoreVaultKey())) return;
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const sealed = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, account.key, new TextEncoder().encode(JSON.stringify(vaultPayload())));
+  const { error } = await accountClient().from("vault").upsert({
+    user_id: account.user.id, kdf_salt: secrets.vault.salt, kdf_iterations: KDF_ITERATIONS,
+    iv: toBase64(iv), ciphertext: toBase64(sealed), updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+async function openVault(row) {
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64(row.iv) }, account.key, fromBase64(row.ciphertext));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+/* Sources merge per provider login, newest change wins, and a removal is
+   remembered — otherwise a device that still had the source would put it back
+   on the next sync. Returns how many sources this device gained. */
+async function mergeVault(remote) {
+  const local = readSources();
+  const removed = { ...readPref("sourcesRemoved", {}), };
+  for (const [key, at] of Object.entries(remote.removed || {})) if (!removed[key] || removed[key] < at) removed[key] = at;
+  const byKey = new Map(local.map((source) => [sourceKey(source), source]));
+  let gained = 0, changed = false;
+  for (const source of remote.sources || []) {
+    const key = sourceKey(source), mine = byKey.get(key);
+    if (removed[key] && removed[key] >= (source.updatedAt || 0)) continue;
+    if (!mine) { byKey.set(key, { ...source, id: source.id || newSourceId(), count: 0 }); gained += 1; changed = true }
+    else if ((source.updatedAt || 0) > (mine.updatedAt || 0)) { byKey.set(key, { ...mine, name: source.name, password: source.password, updatedAt: source.updatedAt }); changed = true }
+  }
+  for (const [key, at] of Object.entries(removed)) {
+    const mine = byKey.get(key);
+    if (mine && at > (mine.updatedAt || 0)) { byKey.delete(key); changed = true }
+  }
+  writePref("sourcesRemoved", removed);
+  if (changed) writeSources([...byKey.values()]);
+  const keysChanged = (remote.tmdbAt || 0) > readPref("keysUpdatedAt", 0) && (remote.tmdb !== secrets?.tmdb || remote.omdb !== secrets?.omdb);
+  if (keysChanged) {
+    await saveSecrets({ ...(secrets || {}), tmdb: remote.tmdb || "", omdb: remote.omdb || "" }, { quiet: true });
+    writePref("keysUpdatedAt", remote.tmdbAt);
+  }
+  return gained;
+}
+
+async function syncVault() {
+  if (!account.user || !(await restoreVaultKey())) return 0;
+  const { data, error } = await accountClient().from("vault").select("*").maybeSingle();
+  if (error) throw error;
+  if (!data) { await pushVault(); return 0 }
+  if (data.kdf_salt !== secrets.vault.salt) { account.notice = "Your saved sources were sealed on another device after a password change. Sign out and back in here to unlock them."; return 0 }
+  const gained = await mergeVault(await openVault(data));
+  await pushVault();
+  return gained;
+}
+
+/* ---- favourites and history ---- */
+
+function scheduleSync() {
+  if (!account.user) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => syncNow({ quiet: true }), SYNC_DEBOUNCE);
+}
+
+function markDirty(kind, id) {
+  const dirty = readPref("syncDirty", { favorites: {}, progress: {} });
+  dirty[kind] = { ...(dirty[kind] || {}), [id]: Date.now() };
+  writePref("syncDirty", dirty);
+  scheduleSync();
+}
+
+function noteFavorite(id, saved) {
+  writePref("favoriteTimes", { ...readPref("favoriteTimes", {}), [id]: { saved, at: Date.now() } });
+  markDirty("favorites", id);
+}
+
+function forgetProgress(keys) {
+  const gone = { ...readPref("progressGone", {}) };
+  for (const key of keys) {
+    if (!state.progress.has(key)) continue;
+    state.progress.delete(key);
+    gone[key] = Date.now();
+    markDirty("progress", key);
+  }
+  writePref("progressGone", gone);
+  persistProgress();
+}
+
+// the first time this device meets this account, everything it holds goes up
+function markEverythingDirty() {
+  const now = Date.now(), times = readPref("favoriteTimes", {});
+  const favorites = {}, progress = {};
+  for (const id of state.favorites) { favorites[id] = now; if (!times[id]) times[id] = { saved: true, at: now } }
+  for (const [id, entry] of Object.entries(times)) if (!entry.saved) favorites[id] = now;
+  for (const key of state.progress.keys()) progress[key] = now;
+  for (const key of Object.keys(readPref("progressGone", {}))) progress[key] = now;
+  writePref("favoriteTimes", times);
+  writePref("syncDirty", { favorites, progress });
+}
+
+async function pushChanges() {
+  const client = accountClient(), dirty = readPref("syncDirty", { favorites: {}, progress: {} });
+  const times = readPref("favoriteTimes", {}), gone = readPref("progressGone", {});
+  const favoriteRows = Object.keys(dirty.favorites || {}).map((id) => ({ item_id: id, saved: state.favorites.has(id), updated_at: iso(times[id]?.at || Date.now()) }));
+  const progressRows = Object.keys(dirty.progress || {}).map((key) => {
+    const record = state.progress.get(key);
+    return record ? { key, record, deleted: false, updated_at: iso(record.updatedAt || Date.now()) } : { key, deleted: true, updated_at: iso(gone[key] || Date.now()) };
+  });
+  for (let at = 0; at < favoriteRows.length; at += 500) {
+    const { error } = await client.rpc("push_favorites", { items: favoriteRows.slice(at, at + 500) });
+    if (error) throw error;
+  }
+  for (let at = 0; at < progressRows.length; at += 500) {
+    const { error } = await client.rpc("push_progress", { items: progressRows.slice(at, at + 500) });
+    if (error) throw error;
+  }
+  // only clear what went up unchanged: anything touched during the push stays dirty
+  const after = readPref("syncDirty", { favorites: {}, progress: {} });
+  for (const kind of ["favorites", "progress"]) {
+    for (const [id, at] of Object.entries(dirty[kind] || {})) if (after[kind]?.[id] === at) delete after[kind][id];
+  }
+  writePref("syncDirty", after);
+}
+
+async function pullTable(table, apply) {
+  const cursor = readPref("syncCursor", {});
+  const since = cursor[table] || "1970-01-01T00:00:00Z";
+  let newest = since, from = 0;
+  for (;;) {
+    const { data, error } = await accountClient().from(table).select("*").gt("synced_at", since)
+      .order("synced_at", { ascending: true }).order(table === "favorites" ? "item_id" : "key", { ascending: true }).range(from, from + PAGE - 1);
+    if (error) throw error;
+    for (const row of data) { apply(row); if (row.synced_at > newest) newest = row.synced_at }
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  writePref("syncCursor", { ...readPref("syncCursor", {}), [table]: newest });
+}
+
+async function pullChanges() {
+  let changed = false;
+  const times = { ...readPref("favoriteTimes", {}) }, gone = { ...readPref("progressGone", {}) };
+  await pullTable("favorites", (row) => {
+    const at = Date.parse(row.updated_at);
+    if ((times[row.item_id]?.at || 0) >= at) return;
+    times[row.item_id] = { saved: row.saved, at };
+    if (row.saved) state.favorites.add(row.item_id); else state.favorites.delete(row.item_id);
+    changed = true;
+  });
+  await pullTable("progress", (row) => {
+    const at = Date.parse(row.updated_at), mine = state.progress.get(row.key);
+    if (Math.max(mine?.updatedAt || 0, gone[row.key] || 0) >= at) return;
+    if (row.deleted) { state.progress.delete(row.key); gone[row.key] = at }
+    else { state.progress.set(row.key, { ...row.record, updatedAt: at }); delete gone[row.key] }
+    changed = true;
+  });
+  writePref("favoriteTimes", times);
+  writePref("progressGone", gone);
+  if (changed) { writePref("favorites", [...state.favorites]); persistProgress() }
+  return changed;
+}
+
+async function syncNow({ quiet = false } = {}) {
+  if (!account.user || account.syncing) return;
+  account.syncing = true; account.error = "";
+  if (state.view === "settings") renderSettings();
+  try {
+    const cursor = readPref("syncCursor", {});
+    if (cursor.user !== account.user.id) { writePref("syncCursor", { user: account.user.id }); markEverythingDirty() }
+    const gained = await syncVault();
+    await pushChanges();
+    const changed = await pullChanges();
+    account.lastSync = Date.now();
+    if (gained && !state.provider) {
+      const first = readSources()[0];
+      if (first) { await useSource(first.id); refreshLibrary(false, first.id) }
+    }
+    if (changed || gained) {
+      updateSource();
+      if (["home", "history", "favorites", "settings"].includes(state.view)) render();
+    }
+    if (!quiet && gained) showToast(`${gained} source${gained === 1 ? "" : "s"} arrived from your account`);
+  } catch (error) {
+    account.error = /fetch|network|load failed/i.test(error?.message || "") ? "Could not reach the sync server — it will try again" : error?.message || "Sync failed";
+    if (!quiet) showToast(account.error);
+  } finally {
+    account.syncing = false;
+    if (state.view === "settings") renderSettings();
+  }
+}
+
+/* ---- signing in and out ---- */
+
+const AUTH_ERRORS = [
+  [/invalid login credentials/i, "That email and password don't match an account."],
+  [/email not confirmed/i, "Confirm your email first — the link is in your inbox — then sign in."],
+  [/already registered|already been registered/i, "There's already an account with that email. Sign in instead."],
+  [/rate limit|too many/i, "Too many attempts. Wait a minute and try again."],
+  [/password should be|weak password/i, "Choose a longer password."],
+  [/fetch|network|load failed/i, "Could not reach the account server. Check your connection."],
+];
+const authMessage = (error) => AUTH_ERRORS.find(([pattern]) => pattern.test(error?.message || ""))?.[1] || error?.message || "Something went wrong.";
+
+async function unlockAfterSignIn(user, password) {
+  account.user = user;
+  const { data, error } = await accountClient().from("vault").select("kdf_salt, kdf_iterations, iv, ciphertext").maybeSingle();
+  if (error) throw error;
+  if (data) {
+    const key = await deriveVaultKey(password, fromBase64(data.kdf_salt), data.kdf_iterations);
+    try {
+      account.key = key;
+      await openVault(data);
+      await rememberVaultKey(key, data.kdf_salt);
+      return;
+    } catch {
+      // sealed under a password this account no longer has: nobody can open it,
+      // so this device's sources take its place under the current password
+      account.notice = "Sources saved under your old password couldn't be unlocked, so this device's sources replaced them. Favourites and history are unaffected.";
+    }
+  }
+  const salt = toBase64(crypto.getRandomValues(new Uint8Array(16)));
+  await rememberVaultKey(await deriveVaultKey(password, fromBase64(salt)), salt);
+  await pushVault();
+}
+
+async function submitAccount(form) {
+  const email = form.querySelector("#account-email").value.trim();
+  const password = form.querySelector("#account-password").value;
+  if (!crypto?.subtle) { account.error = "This device can't encrypt your sources, so sync isn't available here."; return renderSettings() }
+  if (password.length < 8) { account.error = "Use at least 8 characters — this password also seals your saved sources."; return renderSettings() }
+  account.busy = true; account.error = ""; account.notice = "";
+  renderSettings();
+  try {
+    const client = accountClient();
+    if (account.mode === "signup") {
+      const { data, error } = await client.auth.signUp({ email, password });
+      if (error) throw error;
+      if (!data.session) { account.mode = "signin"; account.notice = `Check ${email} for a confirmation link, then sign in here.`; return }
+      await unlockAfterSignIn(data.user, password);
+    } else {
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      await unlockAfterSignIn(data.user, password);
+    }
+    showToast(`Signed in as ${email}`);
+    await syncNow({ quiet: false });
+  } catch (error) {
+    account.error = authMessage(error);
+  } finally {
+    account.busy = false;
+    renderSettings();
+  }
+}
+
+async function signOut() {
+  clearTimeout(syncTimer);
+  try { await pushChanges() } catch { /* whatever didn't go up stays on this device */ }
+  await accountClient()?.auth.signOut({ scope: "local" }).catch(() => {});
+  const next = { ...(secrets || {}) };
+  delete next.auth; delete next.vault;
+  await saveSecrets(next, { quiet: true });
+  account.user = null; account.key = null; account.confirmDelete = false; account.notice = ""; account.error = "";
+  writePref("syncCursor", undefined); writePref("syncDirty", undefined);
+  showToast("Signed out — everything stays on this device");
+  renderSettings();
+}
+
+async function deleteAccount() {
+  account.busy = true; renderSettings();
+  try {
+    const { error } = await accountClient().rpc("delete_my_account");
+    if (error) throw error;
+    await signOut();
+    showToast("Your account and everything synced to it have been deleted");
+  } catch (error) {
+    account.error = authMessage(error);
+  } finally { account.busy = false; account.confirmDelete = false; renderSettings() }
+}
+
+function accountPanel() {
+  if (!window.supabase) return "";
+  if (account.user) {
+    const synced = account.syncing ? "Syncing…" : account.lastSync ? `Synced ${whenLabel(account.lastSync)}` : "Not synced yet";
+    return `<section class="panel account-panel">
+      <header><h2>Account</h2><p>Favourites, history and your saved sources follow you to every device you sign in on. Provider logins are encrypted on ${DEVICE} before they are uploaded.</p></header>
+      <div class="account-row"><span class="account-avatar">${escapeHtml((account.user.email || "?")[0].toUpperCase())}</span><div><strong>${escapeHtml(account.user.email || "")}</strong><small>${escapeHtml(synced)}</small></div></div>
+      ${account.error ? `<p class="form-error">${escapeHtml(account.error)}</p>` : ""}${account.notice ? `<p class="account-notice">${escapeHtml(account.notice)}</p>` : ""}
+      <div class="panel-foot account-actions">
+        <button class="secondary small" data-account="sync" ${account.syncing ? "disabled" : ""}>${icon("refresh")}Sync now</button>
+        <button class="secondary small" data-account="signout">Sign out</button>
+        ${account.confirmDelete ? "" : '<button class="secondary small danger" data-account="delete">Delete account</button>'}
+      </div>
+      ${account.confirmDelete ? `<div class="row-confirm"><p>Delete your Aurora account? Everything synced to it — favourites, history and sealed sources — is erased from the server. What's on ${DEVICE} stays.</p><div><button class="secondary small danger" data-account="delete-confirm" ${account.busy ? "disabled" : ""}>Delete it</button><button class="secondary small" data-account="delete-cancel">Keep it</button></div></div>` : ""}
+    </section>`;
+  }
+  const signup = account.mode === "signup";
+  return `<section class="panel account-panel">
+    <header><h2>Account</h2><p>Sign in to keep favourites, history and your saved sources on every device. Provider logins are encrypted on ${DEVICE} with your password before they leave it.</p></header>
+    <form id="account-form" class="keys">
+      <label>Email<input id="account-email" type="email" autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false" required /></label>
+      <label>Password<input id="account-password" type="password" autocomplete="${signup ? "new-password" : "current-password"}" autocapitalize="off" autocorrect="off" minlength="8" required /></label>
+      ${account.error ? `<p class="form-error">${escapeHtml(account.error)}</p>` : ""}${account.notice ? `<p class="account-notice">${escapeHtml(account.notice)}</p>` : ""}
+      <div class="account-actions">
+        <button class="primary small" type="submit" ${account.busy ? "disabled" : ""}>${account.busy ? "Working…" : signup ? "Create account" : "Sign in"}</button>
+        <button class="secondary small" type="button" data-account="${signup ? "mode-signin" : "mode-signup"}">${signup ? "I have an account" : "Create an account"}</button>
+      </div>
+      ${signup ? '<small class="keys-note">Your password seals your saved sources. If you ever reset it, they can\'t be unlocked and you add them again — favourites and history are unaffected.</small>' : ""}
+    </form>
+  </section>`;
+}
+
+async function startAccount() {
+  const client = accountClient();
+  if (!client) return;
+  const { data } = await client.auth.getSession().catch(() => ({ data: {} }));
+  if (!data?.session?.user) return;
+  account.user = data.session.user;
+  await restoreVaultKey().catch(() => {});
+  syncNow({ quiet: true });
+  setInterval(() => syncNow({ quiet: true }), SYNC_INTERVAL);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") syncNow({ quiet: true });
+    else if (account.user) pushChanges().catch(() => {});
+  });
+}
+
+document.addEventListener("submit", (event) => {
+  if (event.target.id !== "account-form") return;
+  event.preventDefault();
+  submitAccount(event.target);
+});
+
+document.addEventListener("click", (event) => {
+  const action = event.target.closest?.("[data-account]")?.dataset.account;
+  if (!action) return;
+  if (action === "mode-signup" || action === "mode-signin") { account.mode = action === "mode-signup" ? "signup" : "signin"; account.error = ""; account.notice = ""; return renderSettings() }
+  if (action === "sync") return syncNow();
+  if (action === "signout") return signOut();
+  if (action === "delete") { account.confirmDelete = true; return renderSettings() }
+  if (action === "delete-cancel") { account.confirmDelete = false; return renderSettings() }
+  if (action === "delete-confirm") return deleteAccount();
+});
 
 /* ---------- updates ---------- */
 
@@ -2630,6 +3060,7 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
   try {
     await loadSecrets();
     await migrateSources();
+    startAccount().catch(() => {}); // never let the account server hold up opening the library
     const source = activeSource();
     if (source) {
       setLoading(true, "Opening Aurora", "Loading your saved library…");
