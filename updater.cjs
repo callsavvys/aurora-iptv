@@ -1,5 +1,9 @@
 const { app, ipcMain } = require("electron");
-const fs = require("node:fs");
+/* original-fs, not node:fs. Inside Electron, node:fs treats every .asar file as
+   a directory, so clearing a previous download of Aurora — which contains
+   Contents/Resources/app.asar — failed with ENOTDIR and blocked the update.
+   Nothing here needs to look inside an archive; it only moves whole files. */
+const fs = require("original-fs");
 const path = require("node:path");
 const { execFile, spawn } = require("node:child_process");
 
