@@ -88,7 +88,7 @@ const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
   favorites: new Set(readPref("favorites", [])),
   progress: new Map(Object.entries(readPref("progress", {}))),
-  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, historyFilter: "all", historyOpen: new Set(), confirmForget: null, trending: null, searchScope: "all", liveMode: "guide", detailId: null, history: [], historyAt: -1,
+  playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, revealSource: null, historyFilter: "all", historyOpen: new Set(), confirmForget: null, trending: null, searchScope: "all", liveMode: "guide", detailId: null, history: [], historyAt: -1,
   seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
 const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings", detail: "Detail" };
@@ -1276,6 +1276,9 @@ function renderSettings() {
   const rows = list.map((source) => {
     const current = source.id === active;
     const confirming = state.confirmRemove === source.id;
+    // the login has to be readable somewhere: it is needed to set the same
+    // provider up on another device, and nothing else in Aurora ever shows it
+    const shown = state.revealSource === source.id;
     return `<div class="source-row ${current ? "current" : ""}">
       <span class="source-icon">${icon("source")}</span>
       <div class="source-meta">
@@ -1285,9 +1288,11 @@ function renderSettings() {
       <div class="row-actions">
         ${current ? '<span class="tag">In use</span>' : `<button class="secondary small" data-use="${escapeHtml(source.id)}">Use</button>`}
         <button class="secondary small" data-test="${escapeHtml(source.id)}">Test</button>
+        <button class="icon-btn" data-show-login="${escapeHtml(source.id)}" aria-pressed="${shown}" title="${shown ? "Hide login" : "Show login"}">${icon(shown ? "eye-off" : "eye")}</button>
         <button class="icon-btn" data-refresh="${escapeHtml(source.id)}" title="Reload this library">${icon("refresh")}</button>
         ${confirming ? "" : `<button class="icon-btn danger" data-remove="${escapeHtml(source.id)}" title="Remove source">${icon("close")}</button>`}
       </div>
+      ${shown ? `<div class="row-login"><div><small>Server</small><code>${escapeHtml(source.server || "")}</code></div><div><small>Username</small><code>${escapeHtml(source.username || "")}</code></div><div><small>Password</small><code>${escapeHtml(source.password || "")}</code></div><p>Use these to add the same provider on another device. They are stored encrypted on ${DEVICE} and shown only here.</p></div>` : ""}
       <p class="row-status" data-status-for="${escapeHtml(source.id)}"></p>
       ${confirming ? `<div class="row-confirm"><p>Remove <b>${escapeHtml(source.name)}</b>? Its cached library of ${(source.count || 0).toLocaleString()} item${source.count === 1 ? "" : "s"} and any artwork are deleted from ${DEVICE}. Your account with the provider is untouched.</p><div><button class="secondary small danger" data-remove-confirm="${escapeHtml(source.id)}">Remove it</button><button class="secondary small" data-remove-cancel>Keep it</button></div></div>` : ""}
     </div>`;
@@ -2142,6 +2147,8 @@ document.addEventListener("click", (event) => {
   if (nav) return navigate({ view: nav.dataset.view, query: "" });
   const use = target.closest("[data-use]"); if (use) return useSource(use.dataset.use);
   const reload = target.closest("[data-refresh]"); if (reload) return refreshLibrary(false, reload.dataset.refresh);
+  const showLogin = target.closest("[data-show-login]");
+  if (showLogin) { state.revealSource = state.revealSource === showLogin.dataset.showLogin ? null : showLogin.dataset.showLogin; renderSettings(); return }
   const remove = target.closest("[data-remove]"); if (remove) { state.confirmRemove = remove.dataset.remove; renderSettings(); return }
   if (target.closest("[data-remove-cancel]")) { state.confirmRemove = null; renderSettings(); return }
   const confirmRemove = target.closest("[data-remove-confirm]");

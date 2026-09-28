@@ -36,12 +36,19 @@ const { openAurora } = require("./harness.cjs");
   check("hiding from Continue watching keeps history", await js(`[state.progress.has("movie-9"), state.progress.get("movie-9").hidden]`), [true, true]);
 
   console.log("\n— sources —");
-  await js(`upsertSource({ id: "s1", name: "One", server: "http://a.example", username: "u", password: "p" }); true`);
+  await js(`upsertSource({ id: "s1", name: "One", server: "http://a.example", username: "u", password: "p-for-source" }); true`);
   const stamped = await js(`readSources()[0].updatedAt`);
   check("a real edit is stamped", typeof stamped, "number");
   await new Promise((r) => setTimeout(r, 20));
   await js(`upsertSource({ id: "s1", count: 500 }); true`);
   check("a new library count is not an account change", await js(`readSources()[0].updatedAt`), stamped);
+  await js(`navigate({ view: "settings" }); renderSettings(); true`);
+  check("the login is hidden until asked for", await js(`[!!document.querySelector(".row-login"), document.body.textContent.includes("p-for-source")]`), [false, false]);
+  await js(`document.querySelector('[data-show-login="s1"]').click(); true`);
+  check("showing it reveals server, username and password", await js(`[...document.querySelectorAll(".row-login code")].map((c) => c.textContent)`), ["http://a.example", "u", "p-for-source"]);
+  await js(`document.querySelector('[data-show-login="s1"]').click(); true`);
+  check("and it hides again", await js(`!!document.querySelector(".row-login")`), false);
+
   await js(`removeSource("s1").then(() => true)`);
   check("a removed source is remembered by its login", await js(`Object.keys(readPref("sourcesRemoved", {}))`), ["http://a.example|u"]);
 

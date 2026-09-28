@@ -16,19 +16,19 @@
       "tintColor": "#55E5CF",
       "category": "entertainment",
       "screenshotURLs": [],
-      "version": "0.27.2",
-      "versionDate": "2026-09-28T01:44:04Z",
-      "versionDescription": "Aurora 0.27.2",
-      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/v0.27.2/Aurora-0.27.2.ipa",
-      "size": 1200112,
+      "version": "0.27.3",
+      "versionDate": "2026-09-28T02:16:26Z",
+      "versionDescription": "Aurora 0.27.3",
+      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/v0.27.3/Aurora-0.27.3.ipa",
+      "size": 1200493,
       "minOSVersion": "15.0",
       "versions": [
         {
-          "version": "0.27.2",
-          "date": "2026-09-28T01:44:04Z",
-          "localizedDescription": "Aurora 0.27.2",
-          "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/v0.27.2/Aurora-0.27.2.ipa",
-          "size": 1200112,
+          "version": "0.27.3",
+          "date": "2026-09-28T02:16:26Z",
+          "localizedDescription": "Aurora 0.27.3",
+          "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/v0.27.3/Aurora-0.27.3.ipa",
+          "size": 1200493,
           "minOSVersion": "15.0"
         }
       ]
