@@ -44,6 +44,7 @@ set_plist NSAppTransportSecurity dict ""
 /usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity" "$PLIST" | grep -q "ForMedia\|InWebContent\|LocalNetworking" && { echo "ATS has a key that cancels NSAllowsArbitraryLoads"; exit 1; }
 set_plist CFBundleShortVersionString string "$VERSION"
 set_plist CFBundleDisplayName string "Aurora"
+set_plist CFBundleIconName string "AppIcon"
 set_plist UIBackgroundModes array ""
 /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PLIST"
 
@@ -63,6 +64,17 @@ xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
 
 APP="$DERIVED/Build/Products/Release-iphoneos/App.app"
 [ -d "$APP" ] || { echo "no App.app produced"; exit 1; }
+
+# Ad-hoc sign every nested framework and then the bundle. The build is
+# deliberately unsigned (a sideloading signer re-signs it), but a signer that
+# only touches the outer bundle leaves unsigned frameworks behind, and the
+# install then fails on device with no error worth the name.
+for framework in "$APP"/Frameworks/*.framework; do
+  [ -d "$framework" ] || continue
+  codesign --force --sign - --timestamp=none "$framework"
+done
+codesign --force --sign - --timestamp=none "$APP"
+codesign --verify "$APP" || { echo "ad-hoc signature did not verify"; exit 1; }
 rm -rf dist/Payload && mkdir -p dist/Payload
 cp -R "$APP" dist/Payload/Aurora.app
 ( cd dist && rm -f "Aurora-$VERSION.ipa" && zip -qry "Aurora-$VERSION.ipa" Payload && rm -rf Payload )
