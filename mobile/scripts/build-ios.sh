@@ -78,4 +78,50 @@ codesign --verify "$APP" || { echo "ad-hoc signature did not verify"; exit 1; }
 rm -rf dist/Payload && mkdir -p dist/Payload
 cp -R "$APP" dist/Payload/Aurora.app
 ( cd dist && rm -f "Aurora-$VERSION.ipa" && zip -qry "Aurora-$VERSION.ipa" Payload && rm -rf Payload )
+# Feather (and AltStore) install and update from a repository JSON, so it is
+# regenerated here with the size and date of the IPA just built. The download
+# URL points at the GitHub release for this version, which must carry the IPA.
+SIZE="$(/usr/bin/stat -f%z "dist/Aurora-$VERSION.ipa")"
+cat > repo.json <<JSON
+{
+  "name": "Aurora",
+  "subtitle": "IPTV player for iPhone and Mac",
+  "description": "Aurora plays your own Xtream IPTV account: live channels, films and series, with artwork, a guide, history and account sync.",
+  "iconURL": "https://raw.githubusercontent.com/callsavvys/aurora-iptv/main/mobile/platform/icon/AppIcon-1024.png",
+  "website": "https://github.com/callsavvys/aurora-iptv",
+  "tintColor": "#55E5CF",
+  "apps": [
+    {
+      "name": "Aurora",
+      "bundleIdentifier": "com.callsavvys.aurora",
+      "developerName": "callsavvys",
+      "subtitle": "Your IPTV account, properly presented",
+      "localizedDescription": "Aurora plays your own Xtream IPTV account: live channels, films and series, with artwork and ratings, an episodes panel, watch history and sync between iPhone and Mac.",
+      "iconURL": "https://raw.githubusercontent.com/callsavvys/aurora-iptv/main/mobile/platform/icon/AppIcon-1024.png",
+      "tintColor": "#55E5CF",
+      "category": "entertainment",
+      "screenshotURLs": [],
+      "version": "$VERSION",
+      "versionDate": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+      "versionDescription": "Aurora $VERSION",
+      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/v$VERSION/Aurora-$VERSION.ipa",
+      "size": $SIZE,
+      "minOSVersion": "15.0",
+      "versions": [
+        {
+          "version": "$VERSION",
+          "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "localizedDescription": "Aurora $VERSION",
+          "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/v$VERSION/Aurora-$VERSION.ipa",
+          "size": $SIZE,
+          "minOSVersion": "15.0"
+        }
+      ]
+    }
+  ],
+  "news": []
+}
+JSON
+python3 -c "import json,sys; json.load(open('repo.json'))" || { echo "repo.json is not valid JSON"; exit 1; }
+echo "Wrote mobile/repo.json for $VERSION"
 echo "Built mobile/dist/Aurora-$VERSION.ipa ($(du -h "dist/Aurora-$VERSION.ipa" | cut -f1))"

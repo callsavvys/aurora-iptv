@@ -1,0 +1,38 @@
+{
+  "name": "Aurora",
+  "subtitle": "IPTV player for iPhone and Mac",
+  "description": "Aurora plays your own Xtream IPTV account: live channels, films and series, with artwork, a guide, history and account sync.",
+  "iconURL": "https://raw.githubusercontent.com/callsavvys/aurora-iptv/main/mobile/platform/icon/AppIcon-1024.png",
+  "website": "https://github.com/callsavvys/aurora-iptv",
+  "tintColor": "#55E5CF",
+  "apps": [
+    {
+      "name": "Aurora",
+      "bundleIdentifier": "com.callsavvys.aurora",
+      "developerName": "callsavvys",
+      "subtitle": "Your IPTV account, properly presented",
+      "localizedDescription": "Aurora plays your own Xtream IPTV account: live channels, films and series, with artwork and ratings, an episodes panel, watch history and sync between iPhone and Mac.",
+      "iconURL": "https://raw.githubusercontent.com/callsavvys/aurora-iptv/main/mobile/platform/icon/AppIcon-1024.png",
+      "tintColor": "#55E5CF",
+      "category": "entertainment",
+      "screenshotURLs": [],
+      "version": "0.27.2",
+      "versionDate": "2026-09-28T01:44:04Z",
+      "versionDescription": "Aurora 0.27.2",
+      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/v0.27.2/Aurora-0.27.2.ipa",
+      "size": 1200112,
+      "minOSVersion": "15.0",
+      "versions": [
+        {
+          "version": "0.27.2",
+          "date": "2026-09-28T01:44:04Z",
+          "localizedDescription": "Aurora 0.27.2",
+          "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/v0.27.2/Aurora-0.27.2.ipa",
+          "size": 1200112,
+          "minOSVersion": "15.0"
+        }
+      ]
+    }
+  ],
+  "news": []
+}
