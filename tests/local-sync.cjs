@@ -49,6 +49,31 @@ const { openAurora } = require("./harness.cjs");
   await js(`document.querySelector('[data-show-login="s1"]').click(); true`);
   check("and it hides again", await js(`!!document.querySelector(".row-login")`), false);
 
+  console.log("\n— keys and freshness —");
+  // shape only: the keys themselves belong in the build, not in the test output
+  check("this build ships its own keys", await js(`[apiKeys().tmdb.length, apiKeys().omdb.length]`), [32, 8]);
+  check("a built-in key is used when nothing is saved", await js(`(async () => {
+    const was = BUILT_IN.tmdb;
+    BUILT_IN.tmdb = "built-in-key";
+    const used = apiKeys().tmdb;
+    await saveSecrets({ ...(secrets || {}), tmdb: "my-own-key" }, { quiet: true });
+    const mine = apiKeys().tmdb;
+    navigate({ view: "settings" }); renderSettings();
+    const label = document.querySelector("#keys-form small")?.textContent || "";
+    await saveSecrets({ ...(secrets || {}), tmdb: "" }, { quiet: true });
+    renderSettings();
+    const builtInLabel = document.querySelector("#keys-form small")?.textContent || "";
+    BUILT_IN.tmdb = was;
+    return [used, mine, /Saved as/.test(label), /Built into this build/.test(builtInLabel)];
+  })()`), ["built-in-key", "my-own-key", true, true]);
+  check("a library that just loaded is not stale", await js(`(async () => {
+    await saveLibrary([{ id: "a" }], "s1");
+    const fresh = libraryStale(readSources().find((s) => s.id === "s1"));
+    const old = libraryStale({ id: "s1", loadedAt: Date.now() - 25 * 60 * 60 * 1000 });
+    return [fresh, old, libraryStale({ id: "s1" }), typeof readSources().find((s) => s.id === "s1").loadedAt];
+  })()`), [false, true, true, "number"]);
+  check("and loading one is still not an account change", await js(`readSources().find((s) => s.id === "s1").updatedAt`), stamped);
+
   await js(`removeSource("s1").then(() => true)`);
   check("a removed source is remembered by its login", await js(`Object.keys(readPref("sourcesRemoved", {}))`), ["http://a.example|u"]);
 

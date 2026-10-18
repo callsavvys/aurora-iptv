@@ -84,6 +84,11 @@ function applySidebar(rail) {
 applySidebar(sidebarHidden());
 matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (themeChoice() === "system") applyTheme("system") });
 const LIBRARY_SCHEMA = 2;
+/* A provider adds films every day. Opening the cached library is instant and
+   right, but never looking again means Aurora is quietly a week out of date, so
+   anything older than a day is refreshed in the background on the next launch. */
+const LIBRARY_STALE = 24 * 60 * 60 * 1000;
+const libraryStale = (source) => Boolean(source) && Date.now() - Number(source.loadedAt || 0) > LIBRARY_STALE;
 const state = {
   provider: null, items: [], view: "home", query: "", category: "All", limit: 120,
   favorites: new Set(readPref("favorites", [])),
@@ -180,17 +185,25 @@ function upsertSource(source) {
   if (synced) scheduleSync();
 }
 
-async function useSource(id) {
+async function useSource(id, { auto = false } = {}) {
   const source = readSources().find((entry) => entry.id === id);
   if (!source) return;
   writePref("activeSource", id);
   state.provider = source;
   state.items = await loadLibrary(id);
   libraryIndex = null; state.trending = null;
-  state.view = state.items.length ? "home" : "settings";
+  // an empty cache normally means "go and press refresh", but not when Aurora
+  // picked the source itself: ensureLibrary is about to fetch it
+  state.view = state.items.length || auto ? "home" : "settings";
   state.category = "All"; state.limit = 120; state.query = "";
   render();
-  if (!state.items.length) showToast(`${source.name} has no cached library yet — refresh it to load`);
+  // nothing cached is not a dead end: fetch it rather than tell someone to go
+  // and press a button. ensureLibrary does this for the source it adopts, so it
+  // only has to be done here for a source the user picked themselves
+  if (!state.items.length && !auto) {
+    showToast(`Loading ${source.name}'s library…`);
+    refreshLibrary(true, id);
+  }
 }
 
 async function testSource(id) {
@@ -284,7 +297,7 @@ async function idbPut(store, key, value) {
 
 async function saveLibrary(items, id = activeSourceId()) {
   await idbPut("library", libraryKey(id), items);
-  upsertSource({ id, count: items.length });
+  upsertSource({ id, count: items.length, loadedAt: Date.now() });
   writePref("librarySchema", LIBRARY_SCHEMA);
 }
 
@@ -319,14 +332,31 @@ function categoryMap(categories) {
 
 const TMDB = "https://api.themoviedb.org/3";
 const artUrl = (path, size) => (path ? `https://image.tmdb.org/t/p/${size}${path}` : "");
-let secrets = null;
+let secrets = null, secretsLocked = false;
 
-const apiKeys = () => secrets || {};
+/* Keys built into this build, so a fresh install has artwork and ratings
+   without being asked for anything. They ship inside the app bundle and inside
+   this repository, so they are public the moment either is shared — treat them
+   as disposable and rotate them if that ever matters. Anything saved in
+   Settings, or synced from the account, wins over these. */
+const BUILT_IN = { tmdb: "f494f7209a254b1db82fa70f10332086", omdb: "85f37d73" };
+
+const apiKeys = () => ({ ...(secrets || {}), tmdb: secrets?.tmdb || BUILT_IN.tmdb, omdb: secrets?.omdb || BUILT_IN.omdb });
 
 const readJson = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) ?? "null") ?? fallback } catch { return fallback } };
 
 async function loadSecrets() {
-  secrets = (await window.aurora?.getSecrets?.()) || {};
+  let stored = await window.aurora?.getSecrets?.();
+  // a keychain that is not awake yet says so and keeps the file: wait for it
+  for (let attempt = 1; attempt <= 3 && stored?.unreadable && stored?.retryable; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+    stored = await window.aurora?.getSecrets?.();
+  }
+  secretsLocked = Boolean(stored?.unreadable && stored?.retryable);
+  secrets = stored?.unreadable ? {} : stored || {};
+  if (secretsLocked) showToast(`Your saved sources and keys could not be unlocked on ${DEVICE} yet, so nothing will be saved over them — restart Aurora to try again`);
+  else if (stored?.unreadable) showToast(`Your saved sources and keys on ${DEVICE} could not be unlocked — sign in to your account to bring them back`);
+  if (secretsLocked) return secrets; // no migration either: that writes
   // Pull anything still sitting in localStorage into the keychain. The old copy
   // is only removed once the encrypted write has actually confirmed success —
   // losing a provider password because a keychain write failed is unacceptable.
@@ -348,8 +378,14 @@ async function loadSecrets() {
   return secrets;
 }
 
-async function saveSecrets(next, { quiet = false } = {}) {
+async function saveSecrets(next, { quiet = false, force = false } = {}) {
   secrets = next;
+  // kept in memory for this run, but never written: the file on disk is the only
+  // copy of someone's sources and it may well be readable on the next launch
+  if (secretsLocked && !force) {
+    if (!quiet) showToast(`Not saved — your encrypted store on ${DEVICE} could not be unlocked. Restart Aurora and try again`);
+    return { saved: false, locked: true };
+  }
   const result = await window.aurora?.setSecrets?.(next);
   if (result && !result.saved) showToast(`Could not save to ${DEVICE}`);
   // the iPhone build keeps these in app storage by design; the warning is for a Mac without a keychain
@@ -945,8 +981,9 @@ const watchHistory = () => [...state.progress.values()].sort((a, b) => b.updated
 
 /* ---------- library ---------- */
 
-async function loadEverything() {
-  setLoading(true, "Loading live TV", "Downloading channels and categories…");
+async function loadEverything(quiet = false) {
+  const say = (title, detail) => { if (!quiet) setLoading(true, title, detail) };
+  say("Loading live TV", "Downloading channels and categories…");
   const [liveCategories, live] = await Promise.all([fetchJson(apiUrl("get_live_categories")), fetchJson(apiUrl("get_live_streams"))]);
   const liveMap = categoryMap(liveCategories);
   const items = live.map((x) => ({ id: `live-${x.stream_id}`, type: "live", streamId: Number(x.stream_id), name: x.name, category: liveMap.get(String(x.category_id)) || "Uncategorized", logo: x.stream_icon || "", ext: "m3u8", added: Number(x.added) || 0 }));
@@ -998,7 +1035,7 @@ async function refreshLibrary(quiet = false, id = activeSourceId()) {
   state.provider = source;
   try {
     if (!quiet) setLoading(true, "Refreshing library", `Asking ${source.name} for the latest content…`);
-    const items = await loadEverything();
+    const items = await loadEverything(quiet);
     await saveLibrary(items, source.id);
     libraryIndex = null; state.trending = null;
     if (activeSourceId() === source.id) { state.items = items } else { state.provider = previous }
@@ -1006,6 +1043,30 @@ async function refreshLibrary(quiet = false, id = activeSourceId()) {
     showToast(`Library refreshed • ${items.length.toLocaleString()} items`);
   } catch (error) { state.provider = previous; showToast(error.message || "Could not refresh the library") }
   finally { refreshLibrary.busy = false; setLoading(false) }
+}
+
+/* Signing in carries your sources across, but a source is only a login: the
+   library behind it still has to be fetched on this device. Do that as soon as
+   there is a source with nothing cached, instead of leaving someone on an empty
+   Home — or on Settings — wondering why signing in brought no content. */
+function ensureLibrary() {
+  return (ensureLibrary.running = ensureLibrary.running || run().finally(() => { ensureLibrary.running = null }));
+
+  async function run() {
+    if (ensureLibrary.done || refreshLibrary.busy) return;
+    const sources = readSources();
+    if (!sources.length) return;
+    if (!state.provider) await useSource(activeSource()?.id || sources[0].id, { auto: true });
+    if (!state.provider) return;
+    if (state.items.length) { ensureLibrary.done = true; return }
+    const waiting = state.view === "settings" || state.view === "home";
+    // quietly: this is Aurora's own idea, and a blocking overlay over whatever
+    // the user is doing is not what signing in asked for
+    await refreshLibrary(true, state.provider.id);
+    if (!state.items.length) return; // still empty: stay armed and try again next sync
+    ensureLibrary.done = true;
+    if (waiting && (state.view === "settings" || state.view === "home")) navigate({ view: "home" });
+  }
 }
 
 function updateSource() {
@@ -1322,8 +1383,8 @@ function renderSettings() {
     <section class="panel">
       <header><h2>Artwork and ratings</h2><p>Posters, backdrops, cast and trailers come from TMDB. IMDb and Rotten Tomatoes scores need an OMDb key as well. Both are free, and both stay on ${DEVICE}.</p></header>
       <form id="keys-form" class="keys">
-        <label>TMDB API key<span class="field"><input id="tmdb-key" type="password" value="${escapeHtml(keys.tmdb || "")}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Required for artwork" /><button type="button" class="icon-btn" data-reveal="tmdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.tmdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.tmdb))}</small>` : ""}</label>
-        <label>OMDb API key<span class="field"><input id="omdb-key" type="password" value="${escapeHtml(keys.omdb || "")}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Optional — IMDb and Rotten Tomatoes" /><button type="button" class="icon-btn" data-reveal="omdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.omdb ? `<small>Saved as ${escapeHtml(fingerprint(keys.omdb))}</small>` : ""}</label>
+        <label>TMDB API key<span class="field"><input id="tmdb-key" type="password" value="${escapeHtml(keys.tmdb || "")}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Required for artwork" /><button type="button" class="icon-btn" data-reveal="tmdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.tmdb ? `<small>${secrets?.tmdb ? `Saved as ${escapeHtml(fingerprint(keys.tmdb))}` : "Built into this build — save your own to replace it"}</small>` : ""}</label>
+        <label>OMDb API key<span class="field"><input id="omdb-key" type="password" value="${escapeHtml(keys.omdb || "")}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Optional — IMDb and Rotten Tomatoes" /><button type="button" class="icon-btn" data-reveal="omdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.omdb ? `<small>${secrets?.omdb ? `Saved as ${escapeHtml(fingerprint(keys.omdb))}` : "Built into this build — save your own to replace it"}</small>` : ""}</label>
         <button class="primary small" type="submit">Save keys</button>
         <small class="keys-note">${IOS ? "Stored in this app's storage on your iPhone, not in the app you downloaded." : "Stored in this Mac's keychain, not in the app you downloaded."}</small>
       </form>
@@ -2613,7 +2674,7 @@ const SYNC_DEBOUNCE = 12000;
 const SYNC_INTERVAL = 5 * 60 * 1000;
 const PAGE = 1000;
 
-const account = { client: null, user: null, key: null, busy: false, syncing: false, lastSync: 0, error: "", mode: "signin", notice: "", confirmDelete: false };
+const account = { client: null, user: null, key: null, busy: false, syncing: false, lastSync: 0, error: "", mode: "signin", notice: "", confirmDelete: false, offline: false };
 let syncTimer = null;
 
 const iso = (ms) => new Date(ms).toISOString();
@@ -2635,7 +2696,10 @@ function accountClient() {
   });
   account.client.auth.onAuthStateChange((event, session) => {
     if (event === "SIGNED_OUT" && account.user) { account.user = null; account.key = null; if (state.view === "settings") renderSettings() }
-    if (session?.user) account.user = session.user;
+    // a token that only refreshes later still has to start sync — but a sign-in
+    // in flight syncs itself once it holds the vault key, and starting one here
+    // would take the lock and make that merge a no-op
+    if (session?.user) setTimeout(() => startSync(session.user, { sync: !account.busy }), 0);
   });
   return account.client;
 }
@@ -2833,20 +2897,23 @@ async function pullChanges() {
 }
 
 async function syncNow({ quiet = false } = {}) {
-  if (!account.user || account.syncing) return;
+  if (!account.user) return;
+  // dropping this would silently skip whatever the caller had just changed —
+  // which is how a sign-in could finish without its sources ever merging
+  if (account.syncing) { syncNow.again = { quiet: quiet && (syncNow.again?.quiet ?? true) }; return }
   account.syncing = true; account.error = "";
   if (state.view === "settings") renderSettings();
+  let gained = 0;
   try {
     const cursor = readPref("syncCursor", {});
     if (cursor.user !== account.user.id) { writePref("syncCursor", { user: account.user.id }); markEverythingDirty() }
-    const gained = await syncVault();
+    // favourites and history can sync without it; sources and keys cannot, and
+    // saying nothing would leave someone assuming they had
+    if (!(await restoreVaultKey())) account.notice = "Favourites and history are syncing, but your saved sources aren't — sign in again on this device to unlock them.";
+    gained = await syncVault();
     await pushChanges();
     const changed = await pullChanges();
     account.lastSync = Date.now();
-    if (gained && !state.provider) {
-      const first = readSources()[0];
-      if (first) { await useSource(first.id); refreshLibrary(false, first.id) }
-    }
     if (changed || gained) {
       updateSource();
       if (["home", "history", "favorites", "settings"].includes(state.view)) render();
@@ -2858,6 +2925,11 @@ async function syncNow({ quiet = false } = {}) {
   } finally {
     account.syncing = false;
     if (state.view === "settings") renderSettings();
+    // outside the try: a source that arrived is worth loading even if pushing
+    // or pulling the rest of the sync then failed
+    if (gained) ensureLibrary.done = false;
+    if (syncNow.again) { const next = syncNow.again; syncNow.again = null; await syncNow(next) }
+    else if (account.user) ensureLibrary().catch(() => {});
   }
 }
 
@@ -2915,9 +2987,13 @@ async function submitAccount(form) {
       await unlockAfterSignIn(data.user, password);
     }
     showToast(`Signed in as ${email}`);
+    startSync(account.user); // signing in mid-session must also start the timers
     await syncNow({ quiet: false });
   } catch (error) {
     account.error = authMessage(error);
+    // signed in with supabase but the vault never opened: favourites would sync
+    // and sources silently would not, which reads as success. It is not.
+    if (!account.key) { account.user = null; account.offline = false }
   } finally {
     account.busy = false;
     renderSettings();
@@ -2931,8 +3007,9 @@ async function signOut() {
   const next = { ...(secrets || {}) };
   delete next.auth; delete next.vault;
   await saveSecrets(next, { quiet: true });
-  account.user = null; account.key = null; account.confirmDelete = false; account.notice = ""; account.error = "";
-  writePref("syncCursor", undefined); writePref("syncDirty", undefined);
+  account.user = null; account.key = null; account.confirmDelete = false; account.notice = ""; account.error = ""; account.offline = false;
+  ensureLibrary.done = false;
+  writePref("syncCursor", undefined); writePref("syncDirty", undefined); writePref("accountEmail", undefined);
   showToast("Signed out — everything stays on this device");
   renderSettings();
 }
@@ -2965,6 +3042,18 @@ function accountPanel() {
       ${account.confirmDelete ? `<div class="row-confirm"><p>Delete your Aurora account? Everything synced to it — favourites, history and sealed sources — is erased from the server. What's on ${DEVICE} stays.</p><div><button class="secondary small danger" data-account="delete-confirm" ${account.busy ? "disabled" : ""}>Delete it</button><button class="secondary small" data-account="delete-cancel">Keep it</button></div></div>` : ""}
     </section>`;
   }
+  if (account.offline) {
+    const last = String(secrets?.accountEmail || "");
+    return `<section class="panel account-panel">
+    <header><h2>Account</h2><p>You are still signed in on ${DEVICE}. Aurora could not reach the account server just now and keeps trying — favourites and history are safe here meanwhile.</p></header>
+    <div class="account-row"><span class="account-avatar">${escapeHtml((last || "?")[0].toUpperCase())}</span><div><strong>${escapeHtml(last || "Signed in")}</strong><small>Reconnecting… nothing syncs until it does, and nothing is lost</small></div></div>
+    ${account.error ? `<p class="form-error">${escapeHtml(account.error)}</p>` : ""}${account.notice ? `<p class="account-notice">${escapeHtml(account.notice)}</p>` : ""}
+    <div class="panel-foot account-actions">
+      <button class="secondary small" data-account="retry">${icon("refresh")}Try now</button>
+      <button class="secondary small" data-account="signout">Sign out</button>
+    </div>
+  </section>`;
+  }
   const signup = account.mode === "signup";
   return `<section class="panel account-panel">
     <header><h2>Account</h2><p>Sign in to keep favourites, history and your saved sources on every device. Provider logins are encrypted on ${DEVICE} with your password before they leave it.</p></header>
@@ -2981,19 +3070,67 @@ function accountPanel() {
   </section>`;
 }
 
+/* Everything that has to happen once Aurora knows who is signed in. It runs
+   after a launch, after a sign-in, and again if a token only comes back later —
+   so a session that was slow to open does not leave the app looking signed out
+   with syncing switched off until the next relaunch. */
+let syncWired = false;
+function startSync(user, { sync = true } = {}) {
+  if (!user) return;
+  const first = !account.user, wasOffline = account.offline;
+  account.user = user;
+  account.offline = false;
+  if (first || wasOffline) account.notice = ""; // whatever it said about being disconnected is over
+  // so the reconnecting state can still say who, without putting the address in
+  // plain prefs: it belongs with the rest of the account's details
+  if (user.email && secrets?.accountEmail !== user.email) saveSecrets({ ...(secrets || {}), accountEmail: user.email }, { quiet: true });
+  if (!syncWired) {
+    syncWired = true;
+    setInterval(() => syncNow({ quiet: true }), SYNC_INTERVAL);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") syncNow({ quiet: true });
+      else if (account.user) pushChanges().catch(() => {});
+    });
+  }
+  // tokens refresh hourly and on every focus; rebuilding Settings each time
+  // would wipe a half-typed source name or API key out from under the user
+  if ((first || wasOffline) && state.view === "settings") renderSettings();
+  if (first && sync) restoreVaultKey().catch(() => {}).then(() => syncNow({ quiet: true }));
+}
+
+const SESSION_RETRY = 6000;
+
 async function startAccount() {
+  if (startAccount.running) return;
+  startAccount.running = true;
+  try { await openSession() } finally { startAccount.running = false }
+}
+
+async function openSession() {
   const client = accountClient();
   if (!client) return;
   const { data } = await client.auth.getSession().catch(() => ({ data: {} }));
-  if (!data?.session?.user) return;
-  account.user = data.session.user;
-  await restoreVaultKey().catch(() => {});
-  syncNow({ quiet: true });
-  setInterval(() => syncNow({ quiet: true }), SYNC_INTERVAL);
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") syncNow({ quiet: true });
-    else if (account.user) pushChanges().catch(() => {});
-  });
+  if (data?.session?.user) return startSync(data.session.user);
+  if (!secrets?.auth?.["aurora-auth"]) return;
+  /* There is a session here, it just would not open: almost always the network
+     not being up yet — a Mac still logging in, an iPhone waking. Showing the
+     sign-in form to someone who never signed out is the wrong answer, so say
+     Aurora is reconnecting and keep asking. */
+  account.offline = true;
+  if (state.view === "settings") renderSettings();
+  for (let attempt = 1; attempt <= 6 && !account.user; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, SESSION_RETRY * attempt));
+    // supabase clears the stored session itself when a refresh is refused
+    // outright rather than unreachable: that is a real sign-out, so stop
+    if (!secrets?.auth?.["aurora-auth"]) break;
+    const { data: retry } = await client.auth.getSession().catch(() => ({ data: {} }));
+    if (retry?.session?.user) return startSync(retry.session.user);
+  }
+  // signing out during those two minutes is a decision, not a failure to report
+  if (account.user || !account.offline) return;
+  account.offline = false;
+  account.notice = "Your session ended, so sync is paused. Sign in again to carry on — nothing on this device was touched.";
+  if (state.view === "settings") renderSettings();
 }
 
 document.addEventListener("submit", (event) => {
@@ -3007,6 +3144,7 @@ document.addEventListener("click", (event) => {
   if (!action) return;
   if (action === "mode-signup" || action === "mode-signin") { account.mode = action === "mode-signup" ? "signup" : "signin"; account.error = ""; account.notice = ""; return renderSettings() }
   if (action === "sync") return syncNow();
+  if (action === "retry") return startAccount();
   if (action === "signout") return signOut();
   if (action === "delete") { account.confirmDelete = true; return renderSettings() }
   if (action === "delete-cancel") { account.confirmDelete = false; return renderSettings() }
@@ -3080,8 +3218,8 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
     setLoading(false);
     if (state.history.length) render(); else navigate({ view: "home" });
     if (!state.provider) setTimeout(() => $("#source-modal").classList.remove("hidden"), 250);
-    else if (Number(readPref("librarySchema", 0)) < LIBRARY_SCHEMA) {
-      showToast("Updating your library in the background…");
+    else if (!state.items.length || Number(readPref("librarySchema", 0)) < LIBRARY_SCHEMA || libraryStale(state.provider)) {
+      showToast(state.items.length ? "Updating your library in the background…" : "Loading your library…");
       refreshLibrary(true);
     }
   }

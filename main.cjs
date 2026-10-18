@@ -53,13 +53,34 @@ ipcMain.handle("prefs:set", (_event, value) => {
   } catch (error) { return { saved: false, message: error.message } }
 });
 
+/* A failed read is not an empty store. If the keychain refuses this build — and
+   a new signature after an update is enough — then returning null would tell the
+   renderer nothing was ever saved, and its next write would erase the only copy
+   of the sources, the API keys and the signed-in session.
+
+   The two failures are not the same, and treating them alike loses data either
+   way. A blob that cannot be decrypted is gone for good, so it is set aside and
+   the renderer may start a new store. A keychain that is merely not up yet — a
+   Mac still logging in — will work in a moment, so that file is left exactly
+   where it is and the renderer is told to hold off rather than replace it. */
 ipcMain.handle("secrets:get", () => {
-  try {
-    if (!fs.existsSync(secretsFile())) return null;
-    const blob = fs.readFileSync(secretsFile());
-    if (!safeStorage.isEncryptionAvailable()) return JSON.parse(blob.toString("utf8"));
-    return JSON.parse(safeStorage.decryptString(blob));
-  } catch { return null }
+  if (!fs.existsSync(secretsFile())) return null;
+  let blob;
+  try { blob = fs.readFileSync(secretsFile()) }
+  catch (error) { return { unreadable: error.message || "could not be read", retryable: true } }
+  if (!safeStorage.isEncryptionAvailable()) {
+    // either written on a Mac with no keychain, or encrypted and the keychain is
+    // not awake yet — only the first is safe to hand over
+    try { return JSON.parse(blob.toString("utf8")) } catch { /* encrypted: wait for the keychain */ }
+    return { unreadable: "the keychain is not available yet", retryable: true };
+  }
+  try { return JSON.parse(safeStorage.decryptString(blob)) }
+  catch (error) {
+    // one copy, under a fixed name: enough to recover by hand, never a growing
+    // pile of files holding provider passwords
+    try { fs.renameSync(secretsFile(), `${secretsFile()}.locked`) } catch { /* then it stays and the next write replaces it */ }
+    return { unreadable: error.message || "could not be unlocked" };
+  }
 });
 
 ipcMain.handle("secrets:set", (_event, value) => {

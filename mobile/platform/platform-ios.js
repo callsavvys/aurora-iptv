@@ -7,11 +7,19 @@
   document.documentElement.classList.add("platform-ios");
   const store = window.Capacitor?.Plugins?.Preferences;
 
+  /* Same rule as the Mac keychain: a value that is there but cannot be read is
+     not the same as nothing ever being saved, because the next write would
+     replace the only copy of the sources and keys. */
   async function read(key) {
-    try {
-      const { value } = await store.get({ key });
-      return value ? JSON.parse(value) : null;
-    } catch { return null }
+    let value = null;
+    try { ({ value } = await store.get({ key })) }
+    catch (error) { return { unreadable: error.message || "could not be read", retryable: true } }
+    if (!value) return null;
+    try { return JSON.parse(value) }
+    catch (error) {
+      try { await store.set({ key: `${key}.locked`, value }) } catch { /* then the next write replaces it */ }
+      return { unreadable: error.message || "could not be read" };
+    }
   }
 
   async function write(key, value) {
@@ -19,17 +27,20 @@
     catch { return false }
   }
 
-  let secrets = await read("secrets");
-  const prefs = (await read("prefs")) || {};
+  const storedSecrets = await read("secrets");
+  let secretsLock = storedSecrets?.unreadable ? storedSecrets : null;
+  let secrets = secretsLock ? null : storedSecrets;
+  const storedPrefs = await read("prefs");
+  const prefs = !storedPrefs || storedPrefs.unreadable ? {} : storedPrefs;
   const unsupported = { state: "unsupported" };
 
   window.aurora = {
     platform: "ios",
     prefs,
     setPrefs: async (value) => ({ saved: await write("prefs", value) }),
-    getSecrets: async () => secrets,
+    getSecrets: async () => secretsLock || secrets,
     setSecrets: async (value) => {
-      secrets = value;
+      secrets = value; secretsLock = null;
       const saved = await write("secrets", value);
       return { saved, encrypted: false };
     },
