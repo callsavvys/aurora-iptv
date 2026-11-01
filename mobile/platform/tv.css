@@ -1,0 +1,157 @@
+/* Ten-foot layout for the Android TV build only. The desktop stylesheet stays
+   the source of truth; this file sizes it for a living room — bigger type, more
+   air, a focus ring you can see from the sofa — and pulls the whole app inside
+   the overscan area so a TV's bezel cannot clip it. Everything is scoped under
+   .platform-tv, which only the TV shim sets, so the Mac and iPhone builds are
+   untouched. */
+
+/* ---- overscan ----
+   Televisions still crop the edges of the picture. 2.5% a side is the usual
+   safe margin, and because box-sizing is border-box throughout, padding on the
+   app grid takes it out of the layout rather than off the screen. */
+.platform-tv .app {
+  padding: 2.5vh 2.5vw;
+  grid-template-columns: 300px minmax(0, 1fr);
+}
+
+/* ---- type and air ---- */
+.platform-tv body { font-size: 18px; }
+
+.platform-tv aside {
+  /* no window chrome on a TV, so nothing has to clear the traffic lights */
+  padding: 20px 18px 18px;
+  border-radius: 20px 0 0 20px;
+}
+.platform-tv .brand { font-size: 30px; padding: 0 12px 28px; }
+.platform-tv .brand > span { width: 44px; height: 44px; border-radius: 13px; font-size: 17px; }
+.platform-tv .nav-label { font-size: 13px; padding: 0 14px 10px; }
+.platform-tv aside nav button { height: 58px; font-size: 19px; border-radius: 14px; }
+.platform-tv aside nav button .icon { width: 26px; height: 26px; }
+.platform-tv .source-pill { padding: 14px; font-size: 16px; }
+
+.platform-tv .workspace > header { height: 96px; flex: 0 0 96px; padding: 0 36px; }
+.platform-tv .search { height: 58px; border-radius: 16px; width: min(640px, 55%); }
+.platform-tv .search input { font-size: 20px; }
+.platform-tv .compact { height: 56px; padding: 0 24px; font-size: 18px; }
+.platform-tv .nav-steps button { min-width: 52px; height: 52px; }
+
+.platform-tv .page { padding: 40px 42px 64px; }
+.platform-tv .page-title h1 { font-size: 46px; }
+.platform-tv .page-title > span { font-size: 15px; }
+.platform-tv .shelf-head h2 { font-size: 28px; }
+.platform-tv .chip { height: 48px; padding: 0 20px; font-size: 17px; border-radius: 14px; }
+
+/* Fewer, larger posters: six columns of a 1080p line are smaller on a TV than
+   six columns of a Mac window are at arm's length. */
+.platform-tv .grid,
+.platform-tv .vgrid-inner { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 40px 22px; }
+.platform-tv .vgrid-inner.wide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.platform-tv .card-copy h3 { font-size: 17px; }
+.platform-tv .card-copy p { font-size: 14px; }
+.platform-tv .fallback { font-size: 40px; }
+.platform-tv .empty h2 { font-size: 28px; }
+.platform-tv .empty p { font-size: 19px; }
+
+/* ---- focus ----
+   Remote focus is set in code, so :focus-visible never fires for it; the ring
+   has to hang off plain :focus. It is deliberately loud: a 3px desktop outline
+   is invisible across a room. */
+.platform-tv :focus { outline: none; }
+.platform-tv button:focus,
+.platform-tv a:focus,
+.platform-tv input:focus,
+.platform-tv select:focus,
+.platform-tv [tabindex]:focus {
+  outline: 4px solid var(--accent);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 12px var(--accent-glow);
+}
+
+.platform-tv .card { position: relative; transition: transform .14s ease; }
+.platform-tv .card:focus {
+  outline: none;
+  box-shadow: none;
+  /* lifting the focused poster is the cue that reads first from a distance,
+     well before the colour of a border does */
+  transform: scale(1.05);
+  z-index: 3;
+}
+.platform-tv .card:focus .art {
+  outline: 5px solid var(--accent);
+  outline-offset: 5px;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 14px var(--accent-glow), var(--shadow-hero);
+}
+/* what hover used to reveal, focus now reveals */
+.platform-tv .card:focus .play-bubble { opacity: 1; transform: translate(-50%, -50%); }
+.platform-tv .card:focus .score-more { max-width: 150px; opacity: 1; }
+.platform-tv .play-bubble { width: 64px; height: 64px; }
+.platform-tv .play-bubble .icon { width: 26px; height: 26px; }
+
+/* ---- nothing responds to a pointer that is not there ----
+   Hover states on a TV either never fire or, worse, stick where a stray cursor
+   was left, so the ones that move or reveal something are turned off. */
+.platform-tv .art:hover { transform: none; border-color: var(--line); }
+.platform-tv .art:hover .play-bubble { opacity: 0; transform: translate(-50%, -40%); }
+.platform-tv .card:hover .score-more { max-width: 0; opacity: 0; }
+.platform-tv .primary:hover { filter: none; }
+.platform-tv .rail-nav:hover { color: var(--text); }
+.platform-tv .ghost:hover { background: transparent; }
+.platform-tv .history-art:hover .history-play { opacity: 0; }
+.platform-tv .history-episode:hover .icon-btn { opacity: 0; }
+.platform-tv .panel-episode:hover { background: transparent; }
+.platform-tv .volume:hover input { width: 180px; opacity: 1; }
+/* the rail arrows are a mouse affordance; the D-pad scrolls a shelf by moving
+   focus along it, so they only take focus away from the posters */
+.platform-tv .rail.scrollable .rail-nav { display: none; }
+
+/* ---- player ----
+   Big enough to read from the sofa and to land on with four arrows. */
+.platform-tv .chrome-top { padding: 28px 40px 56px; }
+.platform-tv .chrome-bottom { padding: 64px 40px 32px; gap: 14px; }
+.platform-tv .now strong { font-size: 26px; }
+.platform-tv .now small { font-size: 16px; }
+.platform-tv .ghost { min-width: 64px; height: 64px; padding: 0 14px; border-radius: 14px; }
+.platform-tv .ghost .icon { width: 32px; height: 32px; }
+.platform-tv .transport { gap: 10px; }
+.platform-tv .clock { font-size: 18px; }
+.platform-tv .live-pill { font-size: 15px; padding: 5px 12px; }
+.platform-tv .timeline { padding: 18px 0; }
+.platform-tv .timeline .track { height: 10px; border-radius: 5px; }
+/* the knob and the volume slider only appeared on hover; with a remote they
+   have to be there all the time */
+.platform-tv .timeline .knob { width: 26px; height: 26px; margin: -13px 0 0 -13px; transform: scale(1); }
+.platform-tv .volume input { width: 180px; opacity: 1; margin-left: 8px; }
+.platform-tv .track-select select { font-size: 17px; height: 56px; }
+.platform-tv .bubble { font-size: 16px; bottom: 42px; padding: 7px 12px; }
+.platform-tv .episodes-panel { width: min(520px, 42vw); }
+.platform-tv .panel-episode { padding: 16px 18px; font-size: 18px; }
+.platform-tv .up-next { padding: 24px 28px; font-size: 19px; }
+.platform-tv .shortcuts { font-size: 18px; }
+
+/* ---- modals and toasts ---- */
+.platform-tv .modal-card { font-size: 18px; }
+.platform-tv .modal-card h2 { font-size: 30px; }
+.platform-tv .modal-card input { height: 56px; font-size: 19px; }
+.platform-tv .toast { font-size: 19px; padding: 16px 24px; }
+
+/* ---- 720p ----
+   Same layout, dialled back: at 1280x720 the figures above eat the screen. */
+@media (max-width: 1500px) {
+  .platform-tv .app { grid-template-columns: 248px minmax(0, 1fr); }
+  .platform-tv body { font-size: 16px; }
+  .platform-tv .brand { font-size: 25px; }
+  .platform-tv aside nav button { height: 50px; font-size: 17px; }
+  .platform-tv .workspace > header { height: 82px; flex: 0 0 82px; padding: 0 28px; }
+  .platform-tv .page { padding: 30px 30px 48px; }
+  .platform-tv .page-title h1 { font-size: 36px; }
+  .platform-tv .grid,
+  .platform-tv .vgrid-inner { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 18px; }
+  .platform-tv .ghost { min-width: 56px; height: 56px; }
+  .platform-tv .ghost .icon { width: 28px; height: 28px; }
+  .platform-tv .chrome-bottom { padding: 48px 28px 24px; }
+  .platform-tv .now strong { font-size: 22px; }
+}
+
+/* A shelf that jumps as focus walks along it reads badly across a room. */
+.platform-tv .rail-scroller { scroll-behavior: smooth; }
