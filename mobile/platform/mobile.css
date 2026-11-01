@@ -58,13 +58,19 @@ input, select, textarea { font-size: 16px !important; }
 .app.rail > aside { width: auto; }
 
 /* ---- top bar ---- */
+/* the bar's height here depends on the notch, so it keeps its place in the
+   flow rather than floating over the billboard on a guessed offset */
 .workspace > header {
+  position: static;
   height: auto;
   flex: 0 0 auto;
   padding: calc(var(--safe-top) + 6px) calc(12px + var(--safe-right)) 10px calc(12px + var(--safe-left));
   gap: 8px;
+  background: var(--header-bg);
+  backdrop-filter: blur(16px);
   -webkit-app-region: no-drag;
 }
+.scroll { padding-top: 0; }
 #go-forward, #add-source { display: none !important; }
 /* nothing to go back to: give the space to search instead of an empty slot */
 .nav-steps:has(#go-back:disabled) { display: none; }
@@ -75,20 +81,31 @@ input, select, textarea { font-size: 16px !important; }
 .page-title { flex-direction: column; align-items: flex-start; gap: 6px; }
 .page-title h1 { font-size: 28px; }
 
-.hero { height: auto; min-height: 420px; margin: 12px 12px 0; border-radius: 18px; }
-.hero-copy { width: 100%; padding: 150px 20px 22px; justify-content: flex-end; }
+/* the billboard runs to the edges of the phone too; an inset card with rounded
+   corners reads as a widget, not as the top of the app */
+/* an explicit height, so the copy can sit on the floor of the billboard;
+   with height:auto the bottom alignment has nothing to align against */
+.hero { height: 62vh; min-height: 430px; max-height: 620px; margin: 0; border-radius: 0; }
+.hero-copy { width: 100%; padding: 0 20px 26px; justify-content: flex-end; }
+
+/* the buttons wrap onto two lines at this width, so the row below cannot climb
+   into the billboard the way it does on a wide screen */
+.hero + .shelf, .hero + * > .shelf:first-child { margin-top: 24px; }
 /* the desktop veil runs left to right for a wide window; on a phone the copy
    sits at the bottom, so the same theme-aware veil runs bottom to top. A fixed
    dark veil left light-mode text dark on dark. */
 .hero:after { background: linear-gradient(0deg, var(--hero-veil-a) 34%, var(--hero-veil-b) 62%, var(--hero-veil-c)); }
 .hero h1 { font-size: 34px; }
 .hero p { font-size: 14px; line-height: 1.5; margin: 10px 0 16px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.actions { flex-wrap: wrap; }
-.actions button { height: 42px; }
+.actions { flex-wrap: wrap; gap: 8px; }
+.actions button { height: 44px; padding: 0 18px; font-size: 13px; }
 
 .shelf { margin-top: 26px; padding-left: 16px; }
 .shelf-head { padding-right: 16px; }
-.shelf-row { grid-auto-columns: 128px; gap: 10px; }
+.shelf-row { grid-auto-columns: 132px; gap: 8px; }
+/* two lines rather than "Dune: P…" — the phone has the height to spare */
+.card-copy h3 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
+.card-copy .heart { opacity: 1; }
 .shelf-row.wide { grid-auto-columns: 232px; }
 .rail-nav { display: none !important; }
 

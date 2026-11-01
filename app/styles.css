@@ -68,6 +68,14 @@
   --hero-veil-b: rgba(6, 12, 18, .82);
   --hero-veil-c: rgba(6, 12, 18, .08);
   --hero-veil-d: rgba(5, 9, 14, .45);
+  /* the billboard: artwork brighter than a backdrop, held down by a scrim
+     that runs in from the left and fades into the page at the floor */
+  --billboard-art: .72;
+  --bill-side: rgba(5, 9, 14, .92);
+  --bill-side-mid: rgba(5, 9, 14, .58);
+  --bill-foot: rgba(8, 13, 20, .72);
+  --rank-fill: #0a1119;
+  --rank-edge: rgba(255, 255, 255, .26);
   --room-glow: rgba(41, 104, 106, .2);
   --art-opacity: .42;
   --avatar-a: #264c52;
@@ -153,6 +161,12 @@
     --hero-veil-b: rgba(246, 249, 249, .8);
     --hero-veil-c: rgba(246, 249, 249, .05);
     --hero-veil-d: rgba(246, 249, 249, .35);
+    --billboard-art: .9;
+    --bill-side: rgba(246, 249, 249, .94);
+    --bill-side-mid: rgba(246, 249, 249, .62);
+    --bill-foot: rgba(246, 249, 249, .76);
+    --rank-fill: #e8eef0;
+    --rank-edge: rgba(10, 20, 28, .26);
     --room-glow: rgba(10, 115, 96, .09);
     --art-opacity: .82;
     --avatar-a: #cae3e0;
@@ -222,6 +236,12 @@
   --hero-veil-b: rgba(246, 249, 249, .8);
   --hero-veil-c: rgba(246, 249, 249, .05);
   --hero-veil-d: rgba(246, 249, 249, .35);
+  --billboard-art: .9;
+  --bill-side: rgba(246, 249, 249, .94);
+  --bill-side-mid: rgba(246, 249, 249, .62);
+  --bill-foot: rgba(246, 249, 249, .76);
+  --rank-fill: #e8eef0;
+  --rank-edge: rgba(10, 20, 28, .26);
   --room-glow: rgba(10, 115, 96, .09);
   --art-opacity: .82;
   --avatar-a: #cae3e0;
@@ -386,6 +406,7 @@ nav em {
 /* ---------- workspace ---------- */
 
 .workspace {
+  position: relative;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -402,11 +423,21 @@ nav em {
   display: flex;
   align-items: center;
   padding: 0 30px;
-  border-bottom: 1px solid var(--line-soft);
-  background: var(--header-bg);
-  backdrop-filter: blur(16px);
   z-index: 5;
   -webkit-app-region: drag;
+  /* the billboard runs underneath, so the bar carries only a fade of its own
+     until the page is scrolled and there is artwork behind it to sit on */
+  position: absolute;
+  inset: 0 0 auto;
+  border-bottom: 1px solid transparent;
+  background: linear-gradient(180deg, var(--scrim) 0%, transparent 100%);
+  transition: background .25s ease, border-color .25s ease;
+}
+
+.workspace.scrolled > header {
+  background: var(--header-bg);
+  backdrop-filter: blur(16px);
+  border-bottom-color: var(--line-soft);
 }
 
 .workspace > header .search,
@@ -456,6 +487,9 @@ nav em {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  /* the bar is lifted out of the flow and floats, so everything below it keeps
+     its own clearance — except the billboard, which deliberately runs under */
+  padding-top: 72px;
   padding-bottom: 48px;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar) transparent;
@@ -486,50 +520,86 @@ nav em {
 /* ---------- hero ---------- */
 
 .hero {
-  height: 390px;
-  margin: 24px 28px 0;
+  height: clamp(420px, 62vh, 660px);
+  margin: -72px 0 0;
   position: relative;
   overflow: hidden;
-  border-radius: 22px;
+  border-radius: 0;
   background: linear-gradient(120deg, var(--hero-a), var(--hero-b) 58%, var(--hero-c));
-  box-shadow: inset 0 0 0 1px var(--line), var(--shadow-hero);
 }
 
-.hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: var(--art-opacity); filter: saturate(.75); }
+/* the artwork is the point of a billboard, so it is no longer dimmed to a
+   suggestion of itself; the scrim below does the work of keeping text legible */
+.hero > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 28%;
+  opacity: var(--billboard-art);
+}
 
 .hero:after {
   content: "";
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, var(--hero-veil-a), var(--hero-veil-b) 43%, var(--hero-veil-c) 80%),
-    linear-gradient(0deg, var(--hero-veil-d), transparent);
+    linear-gradient(90deg, var(--bill-side) 0%, var(--bill-side-mid) 38%, transparent 72%),
+    linear-gradient(0deg, var(--bg) 2%, var(--bill-foot) 26%, transparent 62%);
 }
 
-.hero-copy { position: relative; z-index: 1; height: 100%; width: 56%; padding: 40px 0 38px 44px; display: flex; flex-direction: column; justify-content: center; }
+/* the copy sits on the floor of the billboard, where the rows meet it */
+.hero-copy {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: min(54%, 640px);
+  padding: 0 0 124px 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
 
 .eyebrow { color: var(--accent); font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
-.hero h1 { font-size: clamp(40px, 5vw, 67px); font-weight: 800; line-height: .95; letter-spacing: -.06em; margin: 15px 0 12px; text-wrap: balance; }
+.hero h1 { font-size: clamp(42px, 5.4vw, 76px); font-weight: 800; line-height: .92; letter-spacing: -.055em; margin: 14px 0 12px; text-wrap: balance; text-shadow: 0 2px 24px rgba(0, 0, 0, .34); }
 .meta { display: flex; gap: 10px; color: var(--text-2); font-family: var(--mono); font-size: 11px; }
-.hero p { font-family: var(--body); max-width: 470px; color: var(--text-2); font-size: 16px; line-height: 1.6; margin: 16px 0 22px; }
+/* three lines is a trailer's worth; past that it is a synopsis nobody reads */
+.hero p {
+  font-family: var(--body);
+  max-width: 500px;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 14px 0 24px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
-.actions { display: flex; gap: 9px; }
-.actions button { height: 39px; padding: 0 17px; border-radius: 11px; font-size: 12px; }
+.actions { display: flex; gap: 10px; }
+.actions button { height: 46px; padding: 0 24px; border-radius: 8px; font-size: 14px; font-weight: 700; }
 
 /* ---------- shelves and rails ---------- */
 
-.shelf { margin-top: 33px; padding-left: 29px; }
-.shelf-head { display: flex; align-items: end; justify-content: space-between; padding-right: 29px; margin-bottom: 13px; }
-.shelf-head h2 { font-size: 18px; font-weight: 700; letter-spacing: -.025em; margin: 0; }
-.shelf-head span { display: block; color: var(--text-4); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 4px; }
+/* the first row climbs into the foot of the billboard the way a filmstrip
+   does on a television, instead of starting a separate region of the page */
+.shelf { margin-top: 30px; padding-left: 29px; }
+.hero + .shelf, .hero + * > .shelf:first-child { margin-top: -62px; position: relative; z-index: 2; }
+.shelf-head { display: flex; align-items: baseline; gap: 12px; justify-content: space-between; padding-right: 29px; margin-bottom: 11px; }
+/* title and note share one baseline instead of stacking into a two-line label */
+.shelf-head > div { display: flex; align-items: baseline; gap: 11px; flex-wrap: wrap; min-width: 0; }
+.shelf-head h2 { font-size: 21px; font-weight: 700; letter-spacing: -.03em; margin: 0; }
+.shelf-head span { color: var(--text-4); font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: 0; margin: 0; }
 .shelf-head button { border: 0; background: transparent; color: var(--text-3); font-size: 11px; cursor: pointer; }
 
 .shelf-row {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: clamp(140px, 13vw, 186px);
+  grid-auto-columns: clamp(132px, 12.4vw, 178px);
   justify-content: start;
-  gap: 13px;
+  gap: 8px;
   overflow-x: auto;
   padding-right: 29px;
   scrollbar-width: none;
@@ -569,17 +639,25 @@ nav em {
   position: relative;
   width: 100%;
   aspect-ratio: 2 / 3;
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  border: 0;
+  border-radius: 7px;
   overflow: hidden;
   background: linear-gradient(145deg, var(--art-a), var(--art-b) 60%, var(--art-c));
   cursor: pointer;
   box-shadow: var(--shadow-card);
-  transition: .2s;
+  transition: transform .22s cubic-bezier(.2, .7, .3, 1), box-shadow .22s ease;
 }
 
 .card.wide .art { aspect-ratio: 16 / 9; }
-.art:hover { transform: translateY(-3px); border-color: var(--accent-edge-strong); }
+
+/* a poster that comes forward rather than one that lifts and leaves a gap */
+.art:hover {
+  transform: scale(1.07);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .55), 0 0 0 2px var(--accent-edge-strong);
+  z-index: 3;
+}
+
+.card:hover { z-index: 3; }
 .art img { width: 100%; height: 100%; object-fit: cover; }
 /* the initials are for a missing poster, not a loaded one; they were being drawn
    over real artwork. A failed image removes itself, so they come back when needed */
@@ -653,9 +731,19 @@ nav em {
 .resume-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--fill-track); }
 .resume-bar > i { display: block; height: 100%; background: var(--accent); }
 
-.card-copy { display: grid; grid-template-columns: minmax(0, 1fr) 24px; gap: 5px; padding: 0 2px; margin-top: 9px; }
-.card-copy h3 { font-size: 12px; font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card-copy p { font-family: var(--mono); font-size: 10px; color: var(--text-3); margin: 4px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Netflix can drop the title because every poster is drawn with one on it.
+   A provider's artwork often has none, and plenty of items have no artwork at
+   all, so the title stays — it just stops shouting. */
+.card-copy { display: grid; grid-template-columns: minmax(0, 1fr) 22px; gap: 4px; padding: 0 1px; margin-top: 8px; }
+.card-copy h3 { font-size: 12px; font-weight: 600; color: var(--text-2); margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .18s ease; }
+.card:hover .card-copy h3 { color: var(--text); }
+.card-copy p { font-family: var(--mono); font-size: 10px; color: var(--text-4); margin: 3px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* the heart is an action, not a label; it waits until the card is under the
+   pointer, and stays put for a remote, which has no pointer to wait for */
+.card-copy .heart { opacity: 0; transition: opacity .18s ease; }
+.card:hover .card-copy .heart, .card-copy .heart.saved, .card-copy .heart:focus-visible { opacity: 1; }
+.platform-tv .card-copy .heart { opacity: 1; }
 
 .heart { border: 0; background: transparent; color: var(--text-4); cursor: pointer; font-size: 17px; }
 .heart.saved { color: var(--accent); }
@@ -1583,24 +1671,42 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 #check-updates.busy i { animation: spin 1s linear infinite; }
 
 /* ---------- ranked rows ---------- */
-.ranked-row { grid-auto-columns: clamp(176px, 16vw, 226px); }
-.card.ranked { position: relative; padding-left: 34px; }
+.ranked-row { grid-auto-columns: clamp(186px, 17vw, 240px); }
+
+/* The numeral used to be positioned against the bottom of the whole card, so
+   the caption underneath pushed it off the row and it was cut in half. It is a
+   column of its own now, with its baseline sitting on the floor of the poster. */
+.card.ranked {
+  position: relative;
+  padding-left: 0;
+  display: grid;
+  grid-template-columns: 0.52fr minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 2px;
+  align-items: end;
+}
 
 .card.ranked .rank {
-  position: absolute;
-  left: 0;
-  bottom: 34px;
-  z-index: 2;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
+  justify-self: end;
+  margin-right: -6px;
   font-family: var(--display);
-  font-size: 62px;
+  font-size: clamp(76px, 7.4vw, 108px);
   font-weight: 800;
-  line-height: .8;
-  letter-spacing: -.06em;
-  color: var(--bg);
-  -webkit-text-stroke: 2px var(--text-4);
+  line-height: .76;
+  letter-spacing: -.07em;
+  color: var(--rank-fill);
+  -webkit-text-stroke: 3px var(--rank-edge);
   pointer-events: none;
   font-variant-numeric: tabular-nums;
+  transition: -webkit-text-stroke-color .2s ease;
 }
+
+.card.ranked .art { grid-column: 2; grid-row: 1; }
+.card.ranked .card-copy { grid-column: 2; grid-row: 2; }
+.card.ranked:hover .rank { -webkit-text-stroke-color: var(--accent-edge-strong); }
 
 .row-note {
   margin: 26px 29px 0;

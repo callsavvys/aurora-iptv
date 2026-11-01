@@ -91,7 +91,7 @@
 /* ---- nothing responds to a pointer that is not there ----
    Hover states on a TV either never fire or, worse, stick where a stray cursor
    was left, so the ones that move or reveal something are turned off. */
-.platform-tv .art:hover { transform: none; border-color: var(--line); }
+.platform-tv .art:hover { transform: none; border-color: var(--line); box-shadow: var(--shadow-card); }
 .platform-tv .art:hover .play-bubble { opacity: 0; transform: translate(-50%, -40%); }
 .platform-tv .card:hover .score-more { max-width: 0; opacity: 0; }
 .platform-tv .primary:hover { filter: none; }
@@ -291,3 +291,18 @@
   .platform-tv .secondary.small,
   .platform-tv .primary.small { min-height: 46px; font-size: 16px; }
 }
+
+/* ---- the billboard on a television ----
+   Read from across a room: the copy sits further in from the edge, the body
+   text is set larger than a desk would need, and the row below keeps its
+   distance so the first poster never crowds the title. */
+.platform-tv .hero { height: clamp(520px, 64vh, 760px); }
+.platform-tv .hero-copy { width: min(52%, 820px); padding: 0 0 150px 56px; }
+.platform-tv .eyebrow { font-size: 14px; letter-spacing: .16em; }
+.platform-tv .hero h1 { font-size: clamp(56px, 5.2vw, 92px); }
+.platform-tv .hero .meta { font-size: 16px; gap: 14px; }
+.platform-tv .hero p { font-size: 21px; line-height: 1.5; max-width: 760px; }
+.platform-tv .actions button { height: 60px; padding: 0 30px; font-size: 19px; border-radius: 10px; }
+.platform-tv .hero + .shelf, .platform-tv .hero + * > .shelf:first-child { margin-top: -48px; }
+.platform-tv .shelf-head span { font-size: 15px; }
+.platform-tv .card.ranked .rank { font-size: clamp(96px, 8vw, 150px); -webkit-text-stroke-width: 4px; }

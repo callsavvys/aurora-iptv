@@ -102,6 +102,19 @@ const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series
    Detail used to be a modal, which meant there was nowhere to go back to. It
    is a view now, and every move through the app is an entry on a stack. */
 
+/* The top bar floats over the billboard so the artwork runs to the top of the
+   window. Once the page has moved past the hero there is no artwork under it
+   any more, so it takes on a background of its own. */
+let syncHeader = () => {};
+
+function watchScroll() {
+  const scroller = $("#content"), workspace = document.querySelector(".workspace");
+  if (!scroller || !workspace) return;
+  syncHeader = () => workspace.classList.toggle("scrolled", scroller.scrollTop > 24);
+  scroller.addEventListener("scroll", syncHeader, { passive: true });
+  syncHeader();
+}
+
 const entryOf = () => ({ view: state.view, query: state.query, category: state.category, scope: state.searchScope, detailId: state.detailId, limit: state.limit });
 const sameEntry = (a, b) => a && b && a.view === b.view && a.query === b.query && a.detailId === b.detailId;
 
@@ -1141,18 +1154,18 @@ function updateRails() {
 
 function rankedShelf(title, items, subtitle) {
   if (!items?.length) return "";
-  return `<section class="shelf"><div class="shelf-head"><div><span>${escapeHtml(subtitle)}</span><h2>${escapeHtml(title)}</h2></div></div>${rail(`<div class="shelf-row rail-scroller ranked-row">${items.map((item, position) => card(item, false, position + 1)).join("")}</div>`)}</section>`;
+  return `<section class="shelf"><div class="shelf-head"><div><h2>${escapeHtml(title)}</h2>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}</div></div>${rail(`<div class="shelf-row rail-scroller ranked-row">${items.map((item, position) => card(item, false, position + 1)).join("")}</div>`)}</section>`;
 }
 
 function shelf(title, items, wide = false, subtitle = "") {
   if (!items.length) return "";
-  return `<section class="shelf"><div class="shelf-head"><div>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}<h2>${escapeHtml(title)}</h2></div></div>${rail(`<div class="shelf-row rail-scroller ${wide ? "wide" : ""}">${items.slice(0, 20).map((item) => card(item, wide)).join("")}</div>`)}</section>`;
+  return `<section class="shelf"><div class="shelf-head"><div><h2>${escapeHtml(title)}</h2>${subtitle ? `<span>${escapeHtml(subtitle)}</span>` : ""}</div></div>${rail(`<div class="shelf-row rail-scroller ${wide ? "wide" : ""}">${items.slice(0, 20).map((item) => card(item, wide)).join("")}</div>`)}</section>`;
 }
 
 function resumeShelf() {
   const records = continueWatching();
   if (!records.length) return "";
-  return `<section class="shelf"><div class="shelf-head"><div><span>Pick up where you left off</span><h2>Continue watching</h2></div></div>${rail(`<div class="shelf-row rail-scroller wide">${records.slice(0, 20).map(resumeCard).join("")}</div>`)}</section>`;
+  return `<section class="shelf"><div class="shelf-head"><div><h2>Continue watching</h2><span>Pick up where you left off</span></div></div>${rail(`<div class="shelf-row rail-scroller wide">${records.slice(0, 20).map(resumeCard).join("")}</div>`)}</section>`;
 }
 
 function recentlyAdded(type, title) {
@@ -1214,7 +1227,7 @@ function renderHome() {
   const image = artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo;
   const score = meta?.ratings?.imdb || meta?.score || featured.rating;
   const missing = state.trending && !state.trending.movie.length && !state.trending.series.length && state.trending.of > 0;
-  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "Most watched worldwide, that you have")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${becauseYouWatched()}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
+  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${becauseYouWatched()}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
   hydrateHero(featured);
 }
 
@@ -1439,7 +1452,7 @@ function renderSearch() {
         .filter((entry) => entry.item.type === type && !(showBest && entry.item.id === best.item.id))
         .slice(0, 12);
       if (!trimmed.length) return "";
-      return `<section class="shelf"><div class="shelf-head"><div><span>${counts[type].toLocaleString()} found</span><h2>${TYPE_LABEL[type]}</h2></div>${counts[type] > trimmed.length ? `<button data-scope="${type}">Show all</button>` : ""}</div>${rail(`<div class="shelf-row rail-scroller ${type === "live" ? "wide" : ""}">${trimmed.map((entry) => card(entry.item, type === "live")).join("")}</div>`)}</section>`;
+      return `<section class="shelf"><div class="shelf-head"><div><h2>${TYPE_LABEL[type]}</h2><span>${counts[type].toLocaleString()} found</span></div>${counts[type] > trimmed.length ? `<button data-scope="${type}">Show all</button>` : ""}</div>${rail(`<div class="shelf-row rail-scroller ${type === "live" ? "wide" : ""}">${trimmed.map((entry) => card(entry.item, type === "live")).join("")}</div>`)}</section>`;
     }).join("");
     body = groups;
   } else {
@@ -1660,6 +1673,7 @@ function render() {
     content.classList.add("enter");
     render.lastView = state.view;
   }
+  syncHeader();
 }
 
 function playSomething() {
@@ -3694,6 +3708,7 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
   finally {
     setLoading(false);
     if (state.history.length) render(); else navigate({ view: "home" });
+    watchScroll();
     if (!state.provider) setTimeout(() => $("#source-modal").classList.remove("hidden"), 250);
     else if (!state.items.length || Number(readPref("librarySchema", 0)) < LIBRARY_SCHEMA || libraryStale(state.provider)) {
       showToast(state.items.length ? "Updating your library in the background…" : "Loading your library…");
