@@ -248,8 +248,15 @@ const cleanServer = (value) => { const clean = value.trim().replace(/\/$/, ""); 
    behalf. The iPhone build has none: its requests go out natively (Capacitor's
    HTTP bridge, so no CORS) and media plays straight from the provider. */
 const IOS = window.aurora?.platform === "ios";
-const relay = (url) => (IOS ? url : `/proxy?src=${encodeURIComponent(url)}`);
-const DEVICE = IOS ? "this iPhone" : "this Mac";
+const ANDROID = window.aurora?.platform === "android";
+// the Capacitor shells reach providers directly; only the Mac build has a local
+// server to proxy through
+const NATIVE = IOS || ANDROID;
+// a TV box and a phone are one platform to Capacitor and two different rooms to
+// the person holding the remote, so the TV build says so for itself
+const TV = document.documentElement.classList.contains("platform-tv");
+const relay = (url) => (NATIVE ? url : `/proxy?src=${encodeURIComponent(url)}`);
+const DEVICE = TV ? "this TV" : IOS ? "this iPhone" : ANDROID ? "this device" : "this Mac";
 const escapeHtml = (value = "") => String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[char]));
 const rating = (value) => { const n = Number(value); return Number.isFinite(n) && n > 0 ? n.toFixed(1) : "" };
 const clock = (value) => {
@@ -373,7 +380,7 @@ async function loadSecrets() {
     if (pending.tmdb || pending.omdb) localStorage.removeItem("aurora-keys");
     if (pending.sources) localStorage.removeItem("aurora-sources");
   } else {
-    showToast(IOS ? "Could not move your saved details into app storage — they stay where they were" : "Could not move your saved details into this Mac's keychain — they stay where they were");
+    showToast(NATIVE ? "Could not move your saved details into app storage — they stay where they were" : "Could not move your saved details into this Mac's keychain — they stay where they were");
   }
   return secrets;
 }
@@ -389,7 +396,7 @@ async function saveSecrets(next, { quiet = false, force = false } = {}) {
   const result = await window.aurora?.setSecrets?.(next);
   if (result && !result.saved) showToast(`Could not save to ${DEVICE}`);
   // the iPhone build keeps these in app storage by design; the warning is for a Mac without a keychain
-  else if (result && !result.encrypted && !quiet && !IOS) showToast("Saved, but this Mac has no keychain available so it is stored unencrypted");
+  else if (result && !result.encrypted && !quiet && !NATIVE) showToast("Saved, but this Mac has no keychain available so it is stored unencrypted");
   return result;
 }
 
@@ -1211,7 +1218,7 @@ function renderHome() {
 }
 
 function renderWelcome() {
-  $("#content").innerHTML = `<section class="welcome"><div class="welcome-card"><div class="welcome-mark">${icon("play")}</div><h1>Your TV. Your Mac.</h1><p>Connect your Xtream account to browse live channels, movies and series directly through your own internet connection.</p><button class="primary open-source">＋ Connect source</button></div></section>`;
+  $("#content").innerHTML = `<section class="welcome"><div class="welcome-card"><div class="welcome-mark">${icon("play")}</div><h1>${TV ? "Your TV. Your channels." : "Your TV. Your Mac."}</h1><p>Connect your Xtream account to browse live channels, movies and series directly through your own internet connection.</p><button class="primary open-source">＋ Connect source</button></div></section>`;
 }
 
 /* ---------- history ----------
@@ -1374,7 +1381,7 @@ function renderSettings() {
     </section>
 
     <section class="panel">
-      <header><h2>Appearance</h2><p>Auto follows ${IOS ? "iOS" : "macOS"}.</p></header>
+      <header><h2>Appearance</h2><p>Auto follows ${IOS ? "iOS" : ANDROID ? "Android" : "macOS"}.</p></header>
       <div class="theme-switch wide">
         ${["system", "light", "dark"].map((value) => `<button data-theme-choice="${value}" class="${choice === value ? "active" : ""}">${value === "system" ? "Auto" : value[0].toUpperCase() + value.slice(1)}</button>`).join("")}
       </div>
@@ -1386,7 +1393,7 @@ function renderSettings() {
         <label>TMDB API key<span class="field"><input id="tmdb-key" type="password" value="${escapeHtml(keys.tmdb || "")}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Required for artwork" /><button type="button" class="icon-btn" data-reveal="tmdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.tmdb ? `<small>${secrets?.tmdb ? `Saved as ${escapeHtml(fingerprint(keys.tmdb))}` : "Built into this build — save your own to replace it"}</small>` : ""}</label>
         <label>OMDb API key<span class="field"><input id="omdb-key" type="password" value="${escapeHtml(keys.omdb || "")}" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="Optional — IMDb and Rotten Tomatoes" /><button type="button" class="icon-btn" data-reveal="omdb-key" aria-pressed="false" title="Show">${icon("eye")}</button></span>${keys.omdb ? `<small>${secrets?.omdb ? `Saved as ${escapeHtml(fingerprint(keys.omdb))}` : "Built into this build — save your own to replace it"}</small>` : ""}</label>
         <button class="primary small" type="submit">Save keys</button>
-        <small class="keys-note">${IOS ? "Stored in this app's storage on your iPhone, not in the app you downloaded." : "Stored in this Mac's keychain, not in the app you downloaded."}</small>
+        <small class="keys-note">${NATIVE ? `Stored in this app's storage on ${DEVICE}, not in the app you downloaded.` : "Stored in this Mac's keychain, not in the app you downloaded."}</small>
       </form>
     </section>
 
@@ -1394,7 +1401,7 @@ function renderSettings() {
       <header><h2>About</h2></header>
       <div class="about">
         <span class="version">Aurora <b id="app-version">${escapeHtml(state.appVersion || "")}</b></span>
-        ${window.aurora && !IOS ? `<button class="secondary small" id="check-updates"><i id="update-check-icon">${icon("refresh")}</i><span id="update-check-label">Check for updates</span></button>` : ""}
+        ${window.aurora && !NATIVE ? `<button class="secondary small" id="check-updates"><i id="update-check-icon">${icon("refresh")}</i><span id="update-check-label">Check for updates</span></button>` : ""}
         <a class="secondary small" href="https://github.com/callsavvys/aurora-iptv" target="_blank" rel="noreferrer">Source on GitHub</a>
       </div>
     </section>
@@ -1571,7 +1578,10 @@ async function paintGuideRow(node) {
    width, which follows the window. */
 
 const GRID_GAP = 24;
-const OVERSCAN = 2;
+/* Rows outside this window are not in the DOM at all. A mouse does not care,
+   but the D-pad aims at geometry and walks row by row, so a television keeps
+   more of the grid alive than it strictly needs to see. */
+const OVERSCAN = TV ? 4 : 2;
 let grid = null;
 
 const gridMarkup = () => '<div class="vgrid" id="vgrid"><div class="vgrid-inner" id="vgrid-inner"></div></div>';
@@ -1886,6 +1896,7 @@ function startPlayback({ url, title, subtitle = "", isLive = false, resumeAt = 0
   startPlayback.resumeAt = resumeAt;
   // iOS plays HLS natively and fetching segments through the HTTP bridge would
   // be far slower, so hls.js is a desktop-only path
+  // iOS plays HLS natively and better; every other WebView, Android's included, needs hls.js
   if (isLive && !IOS && Hls.isSupported()) {
     state.hls = new Hls({ enableWorker: true, lowLatencyMode: true, backBufferLength: 30 });
     state.hls.loadSource(source); state.hls.attachMedia(video);
@@ -2122,6 +2133,24 @@ function closeModal(id) {
   }
 }
 
+/* Escape on a Mac, Back on a TV remote and Android's own back button are the
+   same gesture: shut the frontmost thing. It reports whether it found anything
+   to shut, because the Android shell has to know when back means "leave".
+   The system back walks the whole history; Escape keeps to its old habit of
+   only stepping out of a detail page. */
+function handleBack(fromSystem = false) {
+  if (!$("#shortcuts").classList.contains("hidden")) { $("#shortcuts").classList.add("hidden"); return true }
+  if (!$("#player-modal").classList.contains("hidden") && panelOpen()) { closeEpisodesPanel(); return true }
+  if (!$("#up-next").classList.contains("hidden")) { upNextDismissed = true; $("#up-next").classList.add("hidden"); return true }
+  for (const id of ["player-modal", "source-modal"]) {
+    if (!$("#" + id).classList.contains("hidden")) { closeModal(id); return true }
+  }
+  if ((fromSystem || state.view === "detail") && canGoBack()) { step(-1); return true }
+  return false;
+}
+
+window.aurora?.onBack?.(() => handleBack(true));
+
 function recordPosition(force = false) {
   const video = $("#video");
   if (!state.playing || !Number.isFinite(video.currentTime)) return;
@@ -2161,8 +2190,8 @@ video.addEventListener("error", () => {
   if (state.hls || !state.playing || !video.getAttribute("src")) return; // not ours, or the src was just cleared
   const ext = String(state.playing.container || state.playerItem?.ext || "").toLowerCase();
   const mkv = ext === "mkv" || /\.mkv(\?|$)/i.test(video.currentSrc || "");
-  const text = IOS && mkv
-    ? "This film is an MKV file, and iPhone cannot play MKV. It plays in Aurora on a Mac."
+  const text = NATIVE && mkv
+    ? `This film is an MKV file, which ${DEVICE} cannot play. It plays in Aurora on a Mac.`
     : video.error?.code === 4
       ? "This stream is in a format this device cannot play."
       : state.playing.type === "live"
@@ -2301,6 +2330,9 @@ document.addEventListener("click", (event) => {
     if (target.closest(".play-bubble")) return play(item);
     if (target.closest(".open-detail")) return openDetail(item);
     if (target.closest(".play-item")) return play(item);
+    // a remote presses the card itself, not the artwork inside it: without this
+    // OK on a focused poster does nothing at all
+    if (item) return item.type === "live" ? play(item) : openDetail(item);
   }
 });
 
@@ -2315,16 +2347,7 @@ document.addEventListener("keydown", (event) => {
     }
     return;
   }
-  if (event.key === "Escape") {
-    if (!$("#shortcuts").classList.contains("hidden")) return $("#shortcuts").classList.add("hidden");
-    if (!$("#player-modal").classList.contains("hidden") && panelOpen()) return closeEpisodesPanel();
-    if (!$("#up-next").classList.contains("hidden")) { upNextDismissed = true; return $("#up-next").classList.add("hidden") }
-    for (const id of ["player-modal", "source-modal"]) {
-      if (!$("#" + id).classList.contains("hidden")) return closeModal(id);
-    }
-    if (state.view === "detail" && canGoBack()) return step(-1);
-    return;
-  }
+  if (event.key === "Escape") { handleBack(); return }
   if ($("#player-modal").classList.contains("hidden")) {
     if ((event.metaKey || event.ctrlKey) && event.key === "[") { event.preventDefault(); return step(-1) }
     if ((event.metaKey || event.ctrlKey) && event.key === "]") { event.preventDefault(); return step(1) }
@@ -2339,12 +2362,24 @@ document.addEventListener("keydown", (event) => {
   // navigation function for this entire handler and put it in the temporal
   // dead zone, which silently broke Escape, Cmd-[ and Cmd-]
   const seconds = event.shiftKey ? 60 : 10;
+  const louder = (by) => { video.volume = Math.min(1, Math.max(0, video.volume + by)) };
   const keys = {
     " ": () => (video.paused ? video.play() : video.pause()),
-    ArrowRight: () => nudge(1, seconds),
-    ArrowLeft: () => nudge(-1, seconds),
-    ArrowUp: () => { video.volume = Math.min(1, video.volume + 0.1) },
-    ArrowDown: () => { video.volume = Math.max(0, video.volume - 0.1) },
+    // on a television the arrows move focus between the player's own controls,
+    // so skipping and volume live on the keys the remote actually has for them
+    ...(TV ? {} : {
+      ArrowRight: () => nudge(1, seconds),
+      ArrowLeft: () => nudge(-1, seconds),
+      ArrowUp: () => louder(0.1),
+      ArrowDown: () => louder(-0.1),
+    }),
+    MediaFastForward: () => nudge(1, seconds),
+    MediaRewind: () => nudge(-1, seconds),
+    MediaTrackNext: () => stepEpisode(1),
+    MediaTrackPrevious: () => stepEpisode(-1),
+    MediaPlayPause: () => (video.paused ? video.play() : video.pause()),
+    AudioVolumeUp: () => louder(0.1),
+    AudioVolumeDown: () => louder(-0.1),
     f: () => (document.fullscreenElement ? document.exitFullscreen() : $("#player-shell").requestFullscreen()),
     m: () => { video.muted = !video.muted },
     n: () => stepEpisode(1),
@@ -2513,7 +2548,7 @@ video.addEventListener("volumechange", () => {
 
 shell.addEventListener("pointermove", wakeChrome);
 // a finger "leaves" at the end of every tap, which hid the controls it had just shown
-shell.addEventListener("pointerleave", () => { if (!IOS && !video.paused && !panelOpen()) shell.classList.add("idle") });
+shell.addEventListener("pointerleave", () => { if (!NATIVE && !video.paused && !panelOpen()) shell.classList.add("idle") });
 
 $("#player-toggle").addEventListener("click", togglePlay);
 /* Seeking used to happen in silence — the picture jumped and nothing said why.

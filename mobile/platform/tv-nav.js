@@ -248,3 +248,28 @@
 
   window.auroraTv = { focusFirst, refocus };
 })();
+
+/* Android TV throws its on-screen keyboard up the moment a text field takes
+   focus, which covers half the screen for someone who was only passing through
+   on the way to the button beside it. So the field is held shut — focusable,
+   ringed, but not typable — until OK is pressed on it, and it closes again on
+   Back or when focus leaves. */
+(function deliberateTyping() {
+  const field = document.getElementById("search");
+  if (!field) return;
+  const shut = () => { field.setAttribute("readonly", "readonly"); field.setAttribute("inputmode", "none") };
+  const open = () => {
+    field.removeAttribute("readonly");
+    field.setAttribute("inputmode", "text");
+    field.blur();
+    field.focus(); // the keyboard only follows a focus that lands on a typable field
+  };
+  shut();
+  field.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !field.hasAttribute("readonly")) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    open();
+  }, true);
+  field.addEventListener("blur", shut);
+})();
