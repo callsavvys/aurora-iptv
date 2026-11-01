@@ -2249,6 +2249,14 @@ document.addEventListener("click", (event) => {
   if (target.closest("#guide-now")) return scrollGuideToNow();
   const programme = target.closest("[data-play]");
   if (programme) return play(state.items.find((entry) => entry.id === programme.dataset.play));
+  // only the programme blocks were ever clickable, so a channel the provider
+  // publishes no guide for could not be played from the guide at all — and a
+  // remote has nothing else to aim at in that row
+  const guideRow = target.closest(".guide-row[data-guide-for]");
+  if (guideRow) {
+    const channel = state.items.find((entry) => entry.id === guideRow.dataset.guideFor);
+    if (channel) return play(channel);
+  }
   if (target.closest("#go-back")) return step(-1);
   if (target.closest("#go-forward")) return step(1);
   if (target.closest("#play-something")) return playSomething();

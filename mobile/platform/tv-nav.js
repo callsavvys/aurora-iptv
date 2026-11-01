@@ -13,7 +13,9 @@
 (() => {
   if (!document.documentElement.classList.contains("platform-tv")) return;
 
-  const CARD = "article.card";
+  // a guide row is a place the remote must be able to stand: its programme
+  // blocks are buttons, but a channel with no guide has none of them
+  const CARD = "article.card, .guide-row[data-guide-for]";
   const FOCUSABLE = "a[href], button, input, select, textarea, [tabindex]";
   /* The modals the app puts over the page. When one of them is open the remote
      belongs to it alone: the arrows have to stay inside the player chrome
