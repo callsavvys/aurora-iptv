@@ -8,3 +8,6 @@ ios/App/App/config.xml
 xcuserdata/
 *.xcuserstate
 ios/DerivedData/
+android/
+android-release.keystore
+.keystore-pass

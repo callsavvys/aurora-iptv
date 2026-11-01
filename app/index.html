@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http: https: data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http: https: data:; media-src 'self' http: https: blob:; connect-src 'self' http: https:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http: https: data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http: https: data:; media-src 'self' http: https: blob:; connect-src 'self' http: https: ws: wss:;" />
   <title>Aurora IPTV</title>
   <link rel="stylesheet" href="fonts.css" />
   <link rel="stylesheet" href="styles.css" />
@@ -59,6 +59,7 @@
         <button data-view="series"><i><svg class="icon"><use href="#i-series"/></svg></i>Series</button>
         <button data-view="favorites"><i><svg class="icon"><use href="#i-heart"/></svg></i>Favorites <em id="favorite-count"></em></button>
         <button data-view="history"><i><svg class="icon"><use href="#i-history"/></svg></i>History</button>
+        <button data-view="together"><i><svg class="icon"><use href="#i-heart"/></svg></i>Together</button>
       </nav>
       <p class="nav-label nav-label-lower">Source</p>
       <nav class="nav-lower">
@@ -84,6 +85,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <div class="party-invite hidden" id="party-invite"></div>
   <div class="update-banner hidden" id="update-banner">
     <div><strong id="update-title"></strong><small id="update-detail"></small></div>
     <button class="primary" id="update-install" hidden>Restart to update</button>
@@ -114,6 +116,7 @@
     <div class="player-shell" id="player-shell">
       <video id="video" autoplay playsinline></video>
       <div class="video-message hidden" id="video-message"></div>
+      <div class="party-strip hidden" id="party-strip"></div>
       <div class="buffering hidden" id="buffering"><span></span></div>
       <div class="tap-flash" id="tap-flash"><svg class="icon"><use href="#i-play"/></svg></div>
       <div class="seek-flash back" id="seek-back"><svg class="icon"><use href="#i-back10"/></svg><b>10 seconds</b></div>

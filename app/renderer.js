@@ -1047,6 +1047,7 @@ async function refreshLibrary(quiet = false, id = activeSourceId()) {
     libraryIndex = null; state.trending = null;
     if (activeSourceId() === source.id) { state.items = items } else { state.provider = previous }
     render();
+    publishLibraryFilter().catch(() => {}); // what you can play is what a friend can match against
     showToast(`Library refreshed • ${items.length.toLocaleString()} items`);
   } catch (error) { state.provider = previous; showToast(error.message || "Could not refresh the library") }
   finally { refreshLibrary.busy = false; setLoading(false) }
@@ -1636,10 +1637,12 @@ function renderCollection() {
 
 function render() {
   if (state.view === "settings") renderSettings();
+  else if (state.view === "together") renderTogether();
   else if (!state.provider || !state.items.length) renderWelcome();
   else if (state.view === "detail") renderDetailView();
   else if (state.query) renderSearch();
   else if (state.view === "history") renderHistory();
+  else if (state.view === "together") renderTogether();
   else if (state.view === "home") renderHome();
   else renderCollection();
   document.querySelectorAll("nav button").forEach((button) => button.classList.toggle("active", !state.query && button.dataset.view === state.view));
@@ -2128,6 +2131,7 @@ function closeModal(id) {
     state.hls?.destroy(); state.hls = null;
     const video = $("#video"); video.pause(); video.removeAttribute("src"); video.load();
     state.playing = null; state.playerItem = null; state.queue = null;
+    if (party.id) leaveParty();
     closeEpisodesPanel();
     if (state.view === "home" || state.view === "history") render();
   }
@@ -2213,6 +2217,28 @@ video.addEventListener("ended", () => {
 document.addEventListener("click", (event) => {
   const target = event.target;
   const close = target.closest("[data-close]"); if (close) return closeModal(close.dataset.close);
+
+  const joinBtn = target.closest("[data-join-party]");
+  if (joinBtn) { $("#party-invite").classList.add("hidden"); return joinParty(joinBtn.dataset.joinParty) }
+  if (target.closest("[data-dismiss-invite]")) return $("#party-invite").classList.add("hidden");
+  const shift = target.closest("[data-party-nudge]");
+  if (shift) return nudgeParty(Number(shift.dataset.partyNudge));
+  if (target.closest("[data-party-leave]")) return leaveParty();
+  const pick = target.closest("[data-pick-friend]");
+  if (pick) return pickFriend(pick.dataset.pickFriend);
+  const accept = target.closest("[data-accept-friend]");
+  if (accept) return acceptFriend(accept.dataset.acceptFriend).then(renderTogether);
+  const drop = target.closest("[data-remove-friend]");
+  if (drop) return removeFriend(drop.dataset.removeFriend).then(() => { social.picking = null; renderTogether() });
+  const invite = target.closest("[data-invite-item]");
+  if (invite) return startParty(state.items.find((item) => item.id === invite.dataset.inviteItem), invite.dataset.inviteFriend);
+  if (target.closest("[data-rename-me]")) { social.renaming = true; return renderTogether() }
+  const saveName = target.closest("[data-save-name]");
+  if (saveName) {
+    const value = $("#my-name")?.value || "";
+    social.renaming = false;
+    return claimProfile(value).then(renderTogether);
+  }
   if (target.closest("#add-source,.open-source")) return $("#source-modal").classList.remove("hidden");
   if (target.closest("#open-settings-hint")) return navigate({ view: "settings" });
   const reveal = target.closest("[data-reveal]");
@@ -2540,8 +2566,10 @@ video.addEventListener("click", (event) => {
     else wakeChrome();
   }, 260);
 });
-video.addEventListener("play", syncTransport);
-video.addEventListener("pause", syncTransport);
+video.addEventListener("play", () => { syncTransport(); broadcastParty(true) });
+video.addEventListener("pause", () => { syncTransport(); broadcastParty(true) });
+video.addEventListener("seeked", () => broadcastParty(true));
+video.addEventListener("timeupdate", () => broadcastParty());
 video.addEventListener("timeupdate", syncTime);
 video.addEventListener("durationchange", syncTime);
 video.addEventListener("progress", syncTime);
@@ -3069,6 +3097,396 @@ async function deleteAccount() {
   } finally { account.busy = false; account.confirmDelete = false; renderSettings() }
 }
 
+/* ---------- watching together ----------
+
+   The two of you are not on the same provider, so you are not playing the same
+   file: different rips, different intros, different ad breaks. Aurora therefore
+   agrees on *which title* and *roughly where in it* you both are, and leaves
+   each person's own copy alone.
+
+   A title's identity is a fingerprint of its normalised name and year, because
+   that is the only thing two providers reliably share — one calls a film
+   `AMZN | The Runner` and the other `The Runner (2026)`.
+
+   What a friend can learn is deliberately small: your display name, and whether
+   a title they already know about is probably in your library too. The library
+   itself never leaves the device; what goes up is a Bloom filter, which answers
+   "could this be in there?" and cannot be read back as a list. */
+
+const FILTER_BYTES = 1 << 16; // 64 KB covers a six-figure library at a low false-positive rate
+const FILTER_HASHES = 4;
+const PARTY_TICK = 2000;
+const PARTY_SEEK_DRIFT = 2.5; // past this, catch up by seeking rather than by speed
+const PARTY_EASE_DRIFT = 0.4; // under this, leave it alone
+
+const social = { profile: null, friends: [], filters: new Map(), busy: false, error: "", notice: "", picking: null };
+const party = { id: null, hosting: false, channel: null, friend: null, title: "", offset: 0, drift: 0, here: [], last: 0 };
+
+/* Both readings, because a provider that omits the year must still match one
+   that includes it — the year-qualified form is tried first when testing. */
+function fingerprints(item) {
+  const [key] = indexKeys(item.name);
+  if (!key) return [];
+  const year = String(releaseYear(item) || "").slice(0, 4);
+  return year ? [`${key}|${year}`, key] : [key];
+}
+
+const fnv = (text, seed) => {
+  let hash = (2166136261 ^ seed) >>> 0;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash >>> 0;
+};
+
+function filterSet(bits, value) {
+  for (let i = 0; i < FILTER_HASHES; i += 1) {
+    const at = fnv(value, i) % (bits.length * 8);
+    bits[at >> 3] |= 1 << (at & 7);
+  }
+}
+
+function filterHas(bits, value) {
+  for (let i = 0; i < FILTER_HASHES; i += 1) {
+    const at = fnv(value, i) % (bits.length * 8);
+    if (!(bits[at >> 3] & (1 << (at & 7)))) return false;
+  }
+  return true;
+}
+
+const toBits = (text) => Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
+
+function libraryFilter() {
+  const bits = new Uint8Array(FILTER_BYTES);
+  let count = 0;
+  for (const item of state.items) {
+    if (item.type !== "movie" && item.type !== "series") continue;
+    for (const print of fingerprints(item)) filterSet(bits, print);
+    count += 1;
+  }
+  return { bits, count };
+}
+
+/* Published when the library changes, not on a timer: it is a snapshot of what
+   this device can play, and it only moves when that does. */
+async function publishLibraryFilter() {
+  if (!account.user || !state.items.length) return;
+  const { bits, count } = libraryFilter();
+  const stamp = `${count}:${state.provider?.id || ""}`;
+  if (readPref("filterStamp", "") === stamp) return;
+  const { error } = await accountClient().from("library_filter").upsert({
+    user_id: account.user.id, bits: toBase64(bits), items: count, hashes: FILTER_HASHES, updated_at: new Date().toISOString(),
+  });
+  if (!error) writePref("filterStamp", stamp);
+}
+
+async function friendFilter(userId) {
+  if (social.filters.has(userId)) return social.filters.get(userId);
+  const { data } = await accountClient().from("library_filter").select("bits, items, updated_at").eq("user_id", userId).maybeSingle();
+  const filter = data?.bits ? { bits: toBits(data.bits), items: data.items, at: data.updated_at } : null;
+  social.filters.set(userId, filter);
+  return filter;
+}
+
+/* What the two of you could both play. The Bloom filter can say yes when the
+   answer is no — about one title in a hundred — so this is an offer, not a
+   promise, and the invite confirms it for real against the other library. */
+function sharedWith(filter, limit = 120) {
+  if (!filter) return [];
+  const out = [];
+  for (const item of state.items) {
+    if (item.type !== "movie" && item.type !== "series") continue;
+    const prints = fingerprints(item);
+    // the year-qualified print first, then the bare one, because the other
+    // library may not know the year — joinParty matches the same way round
+    if (prints.some((print) => filterHas(filter.bits, print))) out.push(item);
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+/* ---- being someone a friend can find ---- */
+
+async function claimProfile(name = "") {
+  if (!account.user) return null;
+  const { data, error } = await accountClient().rpc("claim_profile", { name: name || social.profile?.display_name || account.user.email?.split("@")[0] || "Someone" });
+  if (error) { social.error = friendlyError(error); return null }
+  social.profile = Array.isArray(data) ? data[0] : data;
+  return social.profile;
+}
+
+async function loadFriends() {
+  if (!account.user) return;
+  const { data, error } = await accountClient().rpc("my_friends");
+  if (error) { social.error = friendlyError(error); return }
+  social.friends = data || [];
+}
+
+async function addFriendByCode(code) {
+  social.error = ""; social.notice = "";
+  const clean = String(code || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  if (clean.length !== 8) { social.error = "A friend code is eight characters."; return }
+  if (clean === social.profile?.friend_code) { social.error = "That is your own code."; return }
+  const { data, error } = await accountClient().rpc("friend_by_code", { code: clean });
+  if (error) { social.error = friendlyError(error); return }
+  const found = Array.isArray(data) ? data[0] : data;
+  if (!found) { social.error = "No one has that code."; return }
+  const { error: asked } = await accountClient().from("friends").insert({ requester: account.user.id, addressee: found.user_id, status: "pending" });
+  if (asked && !/duplicate|unique/i.test(asked.message || "")) { social.error = friendlyError(asked); return }
+  social.notice = `Asked ${found.display_name} to be friends.`;
+  await loadFriends();
+}
+
+async function acceptFriend(userId) {
+  await accountClient().from("friends").update({ status: "accepted" }).eq("requester", userId).eq("addressee", account.user.id);
+  await loadFriends();
+}
+
+async function removeFriend(userId) {
+  await accountClient().from("friends").delete().or(`and(requester.eq.${account.user.id},addressee.eq.${userId}),and(requester.eq.${userId},addressee.eq.${account.user.id})`);
+  social.filters.delete(userId);
+  await loadFriends();
+}
+
+const friendlyError = (error) => (/fetch|network|load failed/i.test(error?.message || "") ? "Could not reach the account server" : error?.message || "That did not work");
+
+/* ---- the party itself ---- */
+
+const partyMember = (id) => social.friends.find((friend) => friend.user_id === id);
+
+async function startParty(item, friendId) {
+  if (!account.user || !item) return;
+  const [print] = fingerprints(item);
+  const { data, error } = await accountClient().from("parties")
+    .insert({ host: account.user.id, fingerprint: print || "", kind: item.type === "series" ? "series" : "movie", title: item.name })
+    .select("id").single();
+  if (error) { showToast(friendlyError(error)); return }
+  // both rows must carry the same keys: a bulk insert whose objects differ is
+  // refused outright, which left a party with nobody in it and no invitation
+  await accountClient().from("party_members").insert([
+    { party_id: data.id, user_id: account.user.id, joined_at: new Date().toISOString() },
+    { party_id: data.id, user_id: friendId, joined_at: null },
+  ]);
+  party.hosting = true;
+  party.friend = partyMember(friendId);
+  party.title = item.name;
+  await openPartyChannel(data.id);
+  // tell them now; the row is there for whenever they next open Aurora
+  accountClient().channel(`aurora-user-${friendId}`).send({
+    type: "broadcast", event: "invite",
+    payload: { party: data.id, from: social.profile?.display_name || "A friend", title: item.name, fingerprint: print },
+  }).catch(() => {});
+  play(item);
+  showToast(`Invited ${party.friend?.display_name || "your friend"} to watch`);
+}
+
+/* The invitee's side: find the title in *their* library, by fingerprint, and
+   play their own copy of it. */
+async function joinParty(partyId) {
+  const { data: row } = await accountClient().from("parties").select("id, host, fingerprint, title, kind, ended_at").eq("id", partyId).maybeSingle();
+  if (!row || row.ended_at) { showToast("That party has ended"); return }
+  const mine = state.items.find((item) => (item.type === "movie" || item.type === "series") && fingerprints(item)[0] === row.fingerprint)
+    || state.items.find((item) => (item.type === "movie" || item.type === "series") && fingerprints(item).includes(row.fingerprint));
+  if (!mine) { showToast(`Your provider does not seem to have ${row.title}`); return }
+  await accountClient().from("party_members").update({ joined_at: new Date().toISOString() }).eq("party_id", partyId).eq("user_id", account.user.id);
+  party.hosting = false;
+  party.friend = partyMember(row.host);
+  party.title = row.title;
+  party.offset = Number(readPref("partyOffsets", {})[row.host] || 0);
+  await openPartyChannel(partyId);
+  play(mine);
+}
+
+async function openPartyChannel(id) {
+  await closePartyChannel();
+  party.id = id;
+  const channel = accountClient().channel(`aurora-party-${id}`, { config: { broadcast: { self: false }, presence: { key: account.user.id } } });
+  channel.on("broadcast", { event: "state" }, ({ payload }) => followHost(payload));
+  channel.on("broadcast", { event: "ended" }, () => { showToast("Your friend ended the party"); leaveParty() });
+  channel.on("presence", { event: "sync" }, () => {
+    party.here = Object.keys(channel.presenceState() || {});
+    updatePartyStrip();
+  });
+  await channel.subscribe((status) => {
+    if (status === "SUBSCRIBED") channel.track({ at: Date.now(), name: social.profile?.display_name || "" });
+  });
+  party.channel = channel;
+  updatePartyStrip();
+}
+
+async function closePartyChannel() {
+  if (!party.channel) return;
+  try { await accountClient().removeChannel(party.channel) } catch { /* it is going away anyway */ }
+  party.channel = null;
+}
+
+/* The host is the clock. Position plus the time it was sent beats sending a
+   position alone, because the message takes however long it takes to arrive. */
+function broadcastParty(force = false) {
+  if (!party.channel || !party.hosting) return;
+  const video = $("#video");
+  if (!force && Date.now() - party.last < PARTY_TICK) return;
+  party.last = Date.now();
+  party.channel.send({
+    type: "broadcast", event: "state",
+    payload: { position: video.currentTime, paused: video.paused, at: Date.now(), title: party.title },
+  }).catch(() => {});
+}
+
+function followHost(message) {
+  if (party.hosting || !message || $("#player-modal").classList.contains("hidden")) return;
+  const video = $("#video");
+  const travelled = message.paused ? 0 : (Date.now() - Number(message.at || Date.now())) / 1000;
+  const target = Number(message.position || 0) + travelled + party.offset;
+  party.drift = video.currentTime - target;
+  if (message.paused && !video.paused) video.pause();
+  if (!message.paused && video.paused) video.play().catch(() => {});
+  const off = Math.abs(party.drift);
+  if (off > PARTY_SEEK_DRIFT) { video.currentTime = target; video.playbackRate = speedChoice() }
+  else if (off > PARTY_EASE_DRIFT) video.playbackRate = speedChoice() * (party.drift > 0 ? 0.95 : 1.05);
+  else video.playbackRate = speedChoice();
+  updatePartyStrip();
+}
+
+/* Two providers' copies of one film do not start at the same moment. This is
+   the fix for that, and it is remembered per friend because the difference
+   belongs to their copy, not to tonight. */
+function nudgeParty(seconds) {
+  party.offset = Math.round((party.offset + seconds) * 10) / 10;
+  if (party.friend) {
+    const offsets = { ...readPref("partyOffsets", {}) };
+    offsets[party.friend.user_id] = party.offset;
+    writePref("partyOffsets", offsets);
+  }
+  showToast(party.offset === 0 ? "Playing level with your friend"
+    : `Holding ${Math.abs(party.offset)}s ${party.offset > 0 ? "ahead of" : "behind"} your friend`);
+  updatePartyStrip();
+}
+
+async function leaveParty() {
+  const id = party.id;
+  if (id && party.hosting) {
+    await accountClient().from("parties").update({ ended_at: new Date().toISOString() }).eq("id", id);
+    party.channel?.send({ type: "broadcast", event: "ended", payload: {} }).catch(() => {});
+  }
+  await closePartyChannel();
+  Object.assign(party, { id: null, hosting: false, friend: null, title: "", offset: 0, drift: 0, here: [], last: 0 });
+  $("#video").playbackRate = speedChoice();
+  updatePartyStrip();
+}
+
+/* Invitations arrive on a channel of your own, and are also sitting in the
+   database for whenever you next open Aurora. */
+function listenForInvites() {
+  if (!account.user || listenForInvites.on) return;
+  listenForInvites.on = true;
+  accountClient().channel(`aurora-user-${account.user.id}`)
+    .on("broadcast", { event: "invite" }, ({ payload }) => offerParty(payload))
+    .subscribe();
+}
+
+async function pendingInvites() {
+  if (!account.user) return [];
+  const { data } = await accountClient().from("party_members")
+    .select("party_id, parties!inner(id, host, title, fingerprint, ended_at, created_at)")
+    .is("joined_at", null).is("parties.ended_at", null);
+  return (data || []).filter((row) => Date.now() - Date.parse(row.parties.created_at) < 6 * 60 * 60 * 1000);
+}
+
+function offerParty(invite) {
+  if (!invite?.party || party.id === invite.party) return;
+  social.notice = "";
+  const banner = $("#party-invite");
+  banner.innerHTML = `<div><strong>${escapeHtml(invite.from || "A friend")}</strong><small>wants to watch ${escapeHtml(invite.title || "something")}</small></div>
+    <div class="party-invite-actions"><button class="primary small" data-join-party="${escapeHtml(invite.party)}">Watch together</button>
+    <button class="secondary small" data-dismiss-invite>Not now</button></div>`;
+  banner.classList.remove("hidden");
+}
+
+function updatePartyStrip() {
+  const strip = $("#party-strip");
+  if (!strip) return;
+  if (!party.id) { strip.classList.add("hidden"); return }
+  const name = party.friend?.display_name || "your friend";
+  const together = party.here.length > 1;
+  const drift = Math.abs(party.drift) < 1 ? "in step" : `${Math.abs(party.drift).toFixed(1)}s ${party.drift > 0 ? "ahead" : "behind"}`;
+  strip.innerHTML = `<span class="party-who">${escapeHtml(party.hosting ? `Watching with ${name}` : `Following ${name}`)}</span>
+    <span class="party-state">${together ? escapeHtml(drift) : "waiting for them to join…"}</span>
+    ${party.hosting ? "" : `<button class="ghost" data-party-nudge="-5" title="Hold me further back">−5s</button><button class="ghost" data-party-nudge="5" title="Push me further on">+5s</button>`}
+    <button class="ghost" data-party-leave>${party.hosting ? "End" : "Leave"}</button>`;
+  strip.classList.remove("hidden");
+}
+
+
+const speedChoice = () => Number($("#playback-rate")?.value) || 1;
+
+async function pickFriend(userId) {
+  social.picking = { userId, loading: true, items: [] };
+  renderTogether();
+  const filter = await friendFilter(userId);
+  const items = sharedWith(filter);
+  social.picking = { userId, loading: false, items, items_count: filter?.items || 0 };
+  renderTogether();
+}
+
+function renderTogether() {
+  if (!window.supabase) return;
+  const me = social.profile;
+  const accepted = social.friends.filter((friend) => friend.status === "accepted");
+  const toAnswer = social.friends.filter((friend) => friend.status === "pending" && !friend.i_asked);
+  const asked = social.friends.filter((friend) => friend.status === "pending" && friend.i_asked);
+  const picked = social.picking && accepted.find((friend) => friend.user_id === social.picking.userId);
+
+  const row = (friend, actions) => `<div class="friend-row">
+      <span class="account-avatar">${escapeHtml((friend.display_name || "?")[0].toUpperCase())}</span>
+      <div><strong>${escapeHtml(friend.display_name || "Someone")}</strong><small>${escapeHtml(friend.friend_code || "")}</small></div>
+      <div class="row-actions">${actions}</div>
+    </div>`;
+
+  $("#content").innerHTML = !account.user
+    ? `<section class="settings"><section class="panel"><header><h2>Watching together</h2>
+        <p>Sign in to your Aurora account first — friends are attached to the account, not to ${DEVICE}.</p></header>
+        <div class="panel-foot"><button class="primary small" data-view="settings">Open Settings</button></div></section></section>`
+    : `<section class="settings">
+      <section class="panel">
+        <header><h2>You</h2><p>Give this code to a friend and they can add you. Nobody can find you any other way.</p></header>
+        <div class="friend-row">
+          <span class="account-avatar">${escapeHtml((me?.display_name || "?")[0].toUpperCase())}</span>
+          <div>${social.renaming
+            ? `<input id="my-name" value="${escapeHtml(me?.display_name || "")}" maxlength="40" autocorrect="off" />`
+            : `<strong>${escapeHtml(me?.display_name || "…")}</strong>`}<small class="friend-code">${escapeHtml(me?.friend_code || "")}</small></div>
+          <div class="row-actions">${social.renaming
+            ? '<button class="primary small" data-save-name>Save</button>'
+            : '<button class="secondary small" data-rename-me>Change name</button>'}</div>
+        </div>
+        <form id="friend-form" class="keys">
+          <label>Add a friend by code<input id="friend-code" placeholder="e.g. 7FK3QX2M" maxlength="9" autocapitalize="characters" autocorrect="off" spellcheck="false" /></label>
+          ${social.error ? `<p class="form-error">${escapeHtml(social.error)}</p>` : ""}${social.notice ? `<p class="account-notice">${escapeHtml(social.notice)}</p>` : ""}
+          <button class="primary small" type="submit" ${social.busy ? "disabled" : ""}>${social.busy ? "Asking…" : "Send request"}</button>
+        </form>
+      </section>
+
+      ${toAnswer.length ? `<section class="panel"><header><h2>Wants to be your friend</h2></header>
+        ${toAnswer.map((friend) => row(friend, `<button class="primary small" data-accept-friend="${friend.user_id}">Accept</button><button class="secondary small" data-remove-friend="${friend.user_id}">Decline</button>`)).join("")}
+      </section>` : ""}
+
+      <section class="panel">
+        <header><h2>Friends</h2><p>Pick someone to see the films and series you both have. Your library never leaves this device — only a check of whether a title you already know about is in theirs.</p></header>
+        ${accepted.length ? accepted.map((friend) => row(friend, `<button class="primary small" data-pick-friend="${friend.user_id}">What we both have</button><button class="secondary small" data-remove-friend="${friend.user_id}">Remove</button>`)).join("") : `<p class="row-note">No friends yet. Send someone your code.</p>`}
+        ${asked.length ? `<p class="row-note">Waiting on ${asked.map((friend) => escapeHtml(friend.display_name)).join(", ")}.</p>` : ""}
+      </section>
+
+      ${picked ? `<section class="panel">
+        <header><h2>You and ${escapeHtml(picked.display_name)}</h2>
+          <p>${social.picking.loading ? "Checking their library…" : social.picking.items.length ? `${social.picking.items.length} you can both play. Pick one and Aurora will ask them to watch it with you — each of you plays your own copy.` : "Nothing in common yet, or they have not opened Aurora since connecting their source."}</p></header>
+        <div class="shared-grid">${social.picking.items.map((item) => `<button class="shared-title" data-invite-item="${escapeHtml(item.id)}" data-invite-friend="${picked.user_id}">
+            <span class="shared-name">${escapeHtml(item.name)}</span><small>${escapeHtml(item.year || "")} ${item.type === "series" ? "· Series" : ""}</small>
+          </button>`).join("")}</div>
+      </section>` : ""}
+    </section>`;
+}
+
 function accountPanel() {
   if (!window.supabase) return "";
   if (account.user) {
@@ -3138,7 +3556,17 @@ function startSync(user, { sync = true } = {}) {
   // tokens refresh hourly and on every focus; rebuilding Settings each time
   // would wipe a half-typed source name or API key out from under the user
   if ((first || wasOffline) && state.view === "settings") renderSettings();
-  if (first && sync) restoreVaultKey().catch(() => {}).then(() => syncNow({ quiet: true }));
+  if (first && sync) {
+    restoreVaultKey().catch(() => {}).then(() => syncNow({ quiet: true }));
+    claimProfile().then(loadFriends).then(() => {
+      listenForInvites();
+      publishLibraryFilter().catch(() => {});
+      return pendingInvites();
+    }).then((waiting) => {
+      const [first] = waiting || [];
+      if (first) offerParty({ party: first.parties.id, title: first.parties.title, from: partyMember(first.parties.host)?.display_name });
+    }).catch(() => {});
+  }
 }
 
 const SESSION_RETRY = 6000;
@@ -3177,6 +3605,12 @@ async function openSession() {
 }
 
 document.addEventListener("submit", (event) => {
+  if (event.target.id === "friend-form") {
+    event.preventDefault();
+    social.busy = true; renderTogether();
+    addFriendByCode($("#friend-code")?.value).finally(() => { social.busy = false; renderTogether() });
+    return;
+  }
   if (event.target.id !== "account-form") return;
   event.preventDefault();
   submitAccount(event.target);

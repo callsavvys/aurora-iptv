@@ -7,6 +7,8 @@
     "build:ios": "bash scripts/build-ios.sh"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.2",
     "@capacitor/core": "8.5.2",
     "@capacitor/ios": "8.5.2",
     "@capacitor/preferences": "8.0.1"

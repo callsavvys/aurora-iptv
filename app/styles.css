@@ -1890,3 +1890,216 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 .row-login small { display: block; color: var(--text-4); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .row-login code { display: block; margin-top: 3px; font-family: var(--mono); font-size: 12px; color: var(--text); word-break: break-all; user-select: all; }
 .row-login p { margin: 2px 0 0; font-family: var(--body); font-size: 12px; color: var(--text-3); }
+
+/* ---------- watching together ---------- */
+
+/* friends: an avatar, a name over a small line, and whatever you can do to them.
+   Rows stack inside a panel and are told apart by a hairline, not a box. */
+.friend-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+.panel > .friend-row + .friend-row { padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.friend-row > div:not(.row-actions) { min-width: 0; }
+.friend-row strong { display: block; font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.friend-row small { display: block; margin-top: 3px; color: var(--text-3); font-family: var(--mono); font-size: 11px; letter-spacing: .12em; }
+.friend-row .row-actions { flex-wrap: wrap; justify-content: flex-end; }
+.friend-row input {
+  width: min(260px, 100%);
+  height: 36px;
+  background: var(--input);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 0 12px;
+  outline: 0;
+  font-family: var(--display);
+  font-size: 14px;
+  font-weight: 650;
+}
+.friend-row input:focus { border-color: var(--accent); }
+
+/* the panel's own note ("Waiting on…") sits flush with the rows, not in a shelf's gutter */
+.panel:has(.friend-row) .row-note { margin: 2px 0 0; }
+
+/* Your own row is the one that matters: the code in it gets read out loud and
+   typed by someone else, so it is set large, in mono, with every character
+   spaced apart and selectable in one click. 0/O and 1/I stay distinguishable
+   in the mono face, which is why it is not the display face. */
+.friend-row:has(.friend-code) { align-items: start; }
+.friend-row:has(.friend-code) .account-avatar { width: 48px; height: 48px; font-size: 20px; }
+.friend-row small.friend-code {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 8px;
+  padding: 8px 16px 8px 18px;
+  border: 1px solid var(--accent-edge);
+  border-radius: 12px;
+  background: var(--accent-wash);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: all;
+  -webkit-user-select: all;
+  cursor: text;
+}
+.friend-row small.friend-code:empty { display: none; }
+
+/* the add-by-code form is a .keys form; only the code field is special */
+#friend-form #friend-code {
+  width: min(17rem, 100%);
+  height: 48px;
+  padding: 0 16px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+#friend-form #friend-code::placeholder { font-size: 13px; font-weight: 400; letter-spacing: .04em; text-transform: none; }
+
+/* the films you both have: text only, so the whole tile is the target */
+.shared-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.shared-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 74px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--fill-1);
+  color: var(--text);
+  font-family: var(--display);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .14s, background .14s, box-shadow .14s, transform .14s;
+}
+.shared-title .shared-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -.01em;
+}
+.shared-title small { color: var(--text-3); font-family: var(--mono); font-size: 11px; }
+.shared-title:hover, .shared-title:focus-visible {
+  border-color: var(--accent-edge-strong);
+  background: var(--accent-wash);
+  box-shadow: inset 3px 0 0 var(--accent);
+  transform: translateY(-1px);
+}
+.shared-title:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+.shared-title:active { transform: translateY(0); background: var(--accent-wash-strong); }
+
+/* The strip lives in the player over whatever frame happens to be playing, so
+   it carries its own dark glass rather than borrowing a theme colour: white
+   type on a near-black scrim, the way the rest of the player chrome does it.
+   It sits under the title block, clear of the top bar's drag region, and fades
+   with the chrome when the player goes idle. */
+.party-strip {
+  position: absolute;
+  top: 96px;
+  left: 16px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  max-width: calc(100% - 32px);
+  padding: 6px 8px 6px 14px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 999px;
+  background: rgba(4, 7, 10, .86);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
+  color: #eef3f4;
+  transition: opacity .22s ease;
+  -webkit-app-region: no-drag;
+}
+.player-shell:not(:fullscreen) .party-strip { top: 102px; }
+.player-shell.idle .party-strip { opacity: 0; pointer-events: none; }
+.party-who { display: inline-flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 650; color: #fff; white-space: nowrap; }
+.party-who::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(125, 247, 220, .22);
+  animation: party-pulse 2.4s ease-in-out infinite;
+}
+.party-state { font-family: var(--mono); font-size: 11px; color: rgba(255, 255, 255, .74); white-space: nowrap; }
+.party-strip .ghost {
+  min-width: 34px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+.party-strip .ghost:hover { background: rgba(255, 255, 255, .2); }
+.party-strip .ghost[data-party-leave] { margin-left: 4px; border-color: rgba(255, 138, 150, .5); color: #ffc3c9; }
+.party-strip .ghost[data-party-leave]:hover { background: rgba(255, 91, 108, .25); }
+@keyframes party-pulse { 50% { box-shadow: 0 0 0 6px rgba(125, 247, 220, 0); } }
+
+/* An invitation is an interruption worth answering, not an error: it is a
+   raised card with the accent on its edge and a pulsing dot, centred at the
+   top so it cannot be mistaken for the corner toast, and above the player. */
+.party-invite {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  z-index: 72;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  width: min(560px, calc(100vw - 32px));
+  padding: 14px 16px 14px 20px;
+  border: 1px solid var(--accent-edge-strong);
+  border-radius: 16px;
+  background: var(--elevated);
+  box-shadow: inset 4px 0 0 var(--accent), 0 0 0 5px var(--accent-glow), var(--shadow-modal);
+  transform: translateX(-50%);
+  animation: party-invite-in .32s cubic-bezier(.2, .9, .3, 1.15) both;
+}
+.party-invite::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-glow);
+  animation: party-pulse 1.8s ease-in-out infinite;
+}
+.party-invite strong { display: block; font-size: 15px; font-weight: 700; letter-spacing: -.01em; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.party-invite small { display: block; margin-top: 3px; font-family: var(--body); font-size: 14px; line-height: 1.35; color: var(--text-2); }
+.party-invite-actions { display: flex; align-items: center; gap: 8px; }
+@keyframes party-invite-in { from { opacity: 0; transform: translate(-50%, -14px) scale(.97); } }
+
+@media (max-width: 760px) {
+  .friend-row { grid-template-columns: auto minmax(0, 1fr); }
+  .friend-row .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .friend-row small.friend-code { font-size: 26px; letter-spacing: .16em; }
+  .party-invite { grid-template-columns: auto minmax(0, 1fr); }
+  .party-invite-actions { grid-column: 1 / -1; }
+  .party-invite-actions > * { flex: 1; }
+  .party-strip { border-radius: 18px; }
+}

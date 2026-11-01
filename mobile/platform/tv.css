@@ -155,3 +155,139 @@
 
 /* A shelf that jumps as focus walks along it reads badly across a room. */
 .platform-tv .rail-scroller { scroll-behavior: smooth; }
+
+/* ---- watching together ----
+   Everything here is read or pressed from a sofa. The friend code above all:
+   a person reads it off the screen to someone on the phone, so it is the
+   largest thing on the page. */
+.platform-tv .settings:has(.friend-row) { max-width: min(1180px, 100%); }
+/* panels are untouched elsewhere in this file; on this page the headings and
+   notes have to be readable from the sofa too */
+.platform-tv .settings:has(.friend-row) .panel { padding: 30px; gap: 20px; border-radius: 20px; }
+.platform-tv .settings:has(.friend-row) .panel h2 { font-size: 28px; }
+.platform-tv .settings:has(.friend-row) .panel header p { font-size: 19px; max-width: 70ch; }
+.platform-tv .settings:has(.friend-row) .row-note { font-size: 19px; }
+.platform-tv .friend-row { gap: 22px; }
+.platform-tv .friend-row .account-avatar,
+.platform-tv .friend-row:has(.friend-code) .account-avatar { width: 64px; height: 64px; font-size: 26px; }
+.platform-tv .friend-row strong { font-size: 24px; }
+.platform-tv .friend-row small { font-size: 17px; margin-top: 5px; }
+.platform-tv .friend-row .row-actions { gap: 12px; }
+.platform-tv .friend-row .small,
+.platform-tv #friend-form .small,
+.platform-tv .settings:has(.friend-row) .panel-foot .small,
+.platform-tv .party-invite .small { height: 60px; padding: 0 28px; border-radius: 14px; font-size: 19px; }
+.platform-tv .friend-row input { height: 60px; width: min(420px, 100%); font-size: 22px; border-radius: 14px; }
+
+/* your own row: avatar and name on top, the code across the full width below,
+   the buttons under that, so nothing competes with the code for the line */
+.platform-tv .friend-row:has(.friend-code) { grid-template-columns: auto minmax(0, 1fr); }
+.platform-tv .friend-row:has(.friend-code) .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
+.platform-tv .friend-row small.friend-code {
+  margin-top: 14px;
+  padding: 14px 32px 14px 36px;
+  border-width: 2px;
+  border-radius: 20px;
+  font-size: 84px;
+  letter-spacing: .26em;
+}
+
+.platform-tv #friend-form #friend-code { height: 72px; width: min(520px, 100%); font-size: 36px; letter-spacing: .24em; border-radius: 16px; padding: 0 22px; }
+.platform-tv #friend-form #friend-code::placeholder { font-size: 20px; }
+.platform-tv .keys label { font-size: 17px; width: min(560px, 100%); }
+.platform-tv .form-error, .platform-tv .account-notice { font-size: 18px; }
+
+/* three across instead of four-plus: a title wraps to two lines at a size you
+   can read, and the focused one is unmistakable */
+.platform-tv .shared-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.platform-tv .shared-title { min-height: 120px; padding: 20px 22px; border-radius: 16px; gap: 14px; transition: transform .14s ease; }
+.platform-tv .shared-title .shared-name { font-size: 23px; line-height: 1.25; }
+.platform-tv .shared-title small { font-size: 16px; }
+.platform-tv .shared-title:hover { transform: none; box-shadow: none; border-color: var(--line); background: var(--fill-1); }
+.platform-tv .shared-title:focus {
+  border-color: var(--accent);
+  background: var(--accent-wash-strong);
+  outline: 4px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 16px;
+  box-shadow: 0 0 0 12px var(--accent-glow);
+  transform: scale(1.04);
+  position: relative;
+  z-index: 3;
+}
+
+/* the strip: further from the edge (overscan), set in sofa-sized type, buttons
+   as big as every other player control */
+.platform-tv .party-strip,
+.platform-tv .player-shell:not(:fullscreen) .party-strip { top: 150px; left: 40px; gap: 6px 22px; padding: 10px 12px 10px 28px; border-width: 2px; }
+.platform-tv .party-who { font-size: 24px; gap: 14px; }
+.platform-tv .party-who::before { width: 13px; height: 13px; box-shadow: 0 0 0 5px rgba(125, 247, 220, .22); }
+.platform-tv .party-state { font-size: 18px; }
+.platform-tv .party-strip .ghost { min-width: 72px; height: 60px; padding: 0 22px; font-size: 20px; border-width: 2px; border-radius: 999px; }
+.platform-tv .party-strip .ghost:hover { background: transparent; }
+.platform-tv .party-strip .ghost:focus { background: rgba(255, 255, 255, .2); }
+.platform-tv .party-strip .ghost[data-party-leave]:hover { background: transparent; }
+
+/* the invitation: wide, low on the screen, above the player controls and out
+   of the strip's way at the top; in front of everything */
+.platform-tv .party-invite {
+  top: auto;
+  bottom: 17vh;
+  width: min(980px, 82vw);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px 26px;
+  padding: 26px 32px 26px 40px;
+  border-radius: 24px;
+  box-shadow: inset 6px 0 0 var(--accent), 0 0 0 8px var(--accent-glow), var(--shadow-modal);
+}
+.platform-tv .party-invite::before { width: 16px; height: 16px; box-shadow: 0 0 0 6px var(--accent-glow); }
+.platform-tv .party-invite strong { font-size: 32px; }
+.platform-tv .party-invite small { font-size: 22px; margin-top: 6px; }
+.platform-tv .party-invite-actions { gap: 14px; }
+
+@media (max-width: 1500px) {
+  .platform-tv .settings:has(.friend-row) .panel h2 { font-size: 24px; }
+  .platform-tv .settings:has(.friend-row) .panel header p,
+  .platform-tv .settings:has(.friend-row) .row-note { font-size: 17px; }
+  .platform-tv .friend-row small.friend-code { font-size: 62px; padding: 10px 24px 10px 28px; }
+  .platform-tv .friend-row strong { font-size: 21px; }
+  .platform-tv .friend-row .small,
+  .platform-tv #friend-form .small,
+  .platform-tv .settings:has(.friend-row) .panel-foot .small,
+  .platform-tv .party-invite .small { height: 52px; font-size: 17px; padding: 0 22px; }
+  .platform-tv #friend-form #friend-code { height: 60px; font-size: 30px; }
+  .platform-tv .shared-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .platform-tv .shared-title { min-height: 100px; }
+  .platform-tv .shared-title .shared-name { font-size: 20px; }
+  .platform-tv .party-strip,
+  .platform-tv .player-shell:not(:fullscreen) .party-strip { top: 120px; left: 28px; }
+  .platform-tv .party-who { font-size: 20px; }
+  .platform-tv .party-state { font-size: 16px; }
+  .platform-tv .party-strip .ghost { height: 52px; min-width: 60px; font-size: 18px; }
+  .platform-tv .party-invite { bottom: 26vh; padding: 20px 26px 20px 34px; }
+  .platform-tv .party-invite strong { font-size: 26px; }
+  .platform-tv .party-invite small { font-size: 19px; }
+}
+
+/* The sidebar gained a seventh item and ran out of room at 720p, where the
+   lower "Source" label started sitting on top of it. Everything below is about
+   giving the nav the height it now needs without shrinking the type a viewer
+   is reading from three metres away. */
+.platform-tv aside { padding-top: 14px; }
+.platform-tv .nav-label { margin: 10px 0 6px; }
+.platform-tv .nav-label-lower { margin-top: 14px; }
+
+/* tv.css had no rule for the app's small buttons, so Settings and the detail
+   page kept desktop-sized controls that a remote cannot comfortably land on */
+.platform-tv .secondary.small,
+.platform-tv .primary.small { min-height: 52px; padding: 0 20px; font-size: 18px; border-radius: 12px; }
+
+@media (max-width: 1500px) {
+  .platform-tv aside nav button { height: 46px; font-size: 16px; }
+  .platform-tv aside nav button .icon { width: 22px; height: 22px; }
+  .platform-tv .nav-label { margin: 8px 0 4px; font-size: 11px; }
+  .platform-tv .nav-label-lower { margin-top: 10px; }
+  .platform-tv .source-pill { padding: 10px; font-size: 14px; }
+  .platform-tv .secondary.small,
+  .platform-tv .primary.small { min-height: 46px; font-size: 16px; }
+}

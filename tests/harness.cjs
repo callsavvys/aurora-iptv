@@ -42,7 +42,7 @@ async function openAurora({ dataDir, port }) {
     console.log(failed ? `\n${failed} failed` : "\nall passed");
     win.destroy(); await server.close(); app.exit(failed ? 1 : 0);
   };
-  return { js, check, waitFor, close };
+  return { js, check, waitFor, close, win, origin: server.origin };
 }
 
 module.exports = { openAurora, ROOT };
