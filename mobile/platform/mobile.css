@@ -85,7 +85,7 @@ input, select, textarea { font-size: 16px !important; }
    corners reads as a widget, not as the top of the app */
 /* an explicit height, so the copy can sit on the floor of the billboard;
    with height:auto the bottom alignment has nothing to align against */
-.hero { height: 62vh; min-height: 430px; max-height: 620px; margin: 0; border-radius: 0; }
+.hero { height: auto; min-height: 62vh; margin: 0; border-radius: 0; }
 .hero-copy { width: 100%; padding: 0 20px 26px; justify-content: flex-end; }
 
 /* the buttons wrap onto two lines at this width, so the row below cannot climb

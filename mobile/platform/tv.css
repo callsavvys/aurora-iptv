@@ -296,8 +296,8 @@
    Read from across a room: the copy sits further in from the edge, the body
    text is set larger than a desk would need, and the row below keeps its
    distance so the first poster never crowds the title. */
-.platform-tv .hero { height: clamp(520px, 64vh, 760px); }
-.platform-tv .hero-copy { width: min(52%, 820px); padding: 0 0 150px 56px; }
+.platform-tv .hero { height: auto; min-height: clamp(520px, 64vh, 760px); }
+.platform-tv .hero-copy { width: min(52%, 820px); padding: 40px 0 150px 56px; }
 .platform-tv .eyebrow { font-size: 14px; letter-spacing: .16em; }
 .platform-tv .hero h1 { font-size: clamp(56px, 5.2vw, 92px); }
 .platform-tv .hero .meta { font-size: 16px; gap: 14px; }
