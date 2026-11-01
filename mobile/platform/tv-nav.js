@@ -102,7 +102,16 @@
       const score = rank(fromRect, node.getBoundingClientRect(), move);
       if (score !== null && score < bestScore) { bestScore = score; best = node }
     }
-    if (best) focus(best);
+    if (best) return focus(best);
+
+    /* The menu is a strip fixed to the top of the window, so as soon as the
+       page scrolls, whatever is nearest the top sits underneath it and no
+       geometry points at the menu any more — it is behind you, not above you.
+       Up from the topmost thing on the page always means the menu. */
+    if (move.axis === "y" && move.back && !current.closest("aside")) {
+      const nav = activeNav();
+      if (nav && reachable(nav)) focus(nav);
+    }
   }
 
   /* ---------- holding on to focus ---------- */
@@ -274,4 +283,106 @@
     open();
   }, true);
   field.addEventListener("blur", shut);
+})();
+
+/* ---------- the spotlight ----------
+   Netflix's TV app has no billboard. The tile the remote is sitting on is the
+   spotlight: it widens into its landscape artwork, wears its title, and its
+   details are written underneath the row it belongs to — so the screen only
+   ever describes one thing, and never the same thing twice.
+
+   A tile with no landscape artwork does not widen. Cropping a portrait poster
+   to 16:9 cuts the face out of it, and a row that jumps without showing
+   anything new is worse than a row that stays still. */
+(() => {
+  const SPOTLIT = "spotlit";
+  const library = () => (typeof state === "undefined" ? [] : state.items || []);
+  const meta = (id) => (typeof metaCache === "undefined" ? null : metaCache.get(id));
+  const byId = (id) => library().find((item) => item.id === id);
+  const text = (value) => {
+    const node = document.createElement("span");
+    node.textContent = value;
+    return node;
+  };
+
+  const detailFor = (shelf) => {
+    let box = shelf.querySelector(":scope > .row-detail");
+    if (!box) {
+      box = document.createElement("div");
+      box.className = "row-detail";
+      shelf.append(box);
+    }
+    return box;
+  };
+
+  const clear = () => {
+    for (const card of document.querySelectorAll("." + SPOTLIT)) {
+      card.classList.remove(SPOTLIT);
+      card.querySelector(".focus-art")?.remove();
+      card.querySelector(".spotlight-title")?.remove();
+    }
+    for (const box of document.querySelectorAll(".row-detail")) box.replaceChildren();
+    // every row keeps its own space, so moving between rows does not shove the
+    // ones below up and down as the detail appears and disappears
+    for (const shelf of document.querySelectorAll(".shelf")) detailFor(shelf);
+  };
+
+  const describe = (item) => {
+    const extra = meta(item.id);
+    const bits = [];
+    if (item.type === "live") bits.push("Live");
+    else if (item.type === "series") bits.push("Series");
+    const score = extra?.ratings?.imdb || extra?.score || item.rating;
+    if (score) bits.push("★ " + score);
+    if (item.year || extra?.year) bits.push(String(item.year || extra.year));
+    if (extra?.runtime) bits.push(extra.runtime);
+    if (item.category) bits.push(item.category);
+    return { bits, overview: extra?.overview || item.description || "" };
+  };
+
+  function spotlight(card) {
+    clear();
+    if (!card || !card.matches("article.card")) return;
+    const item = byId(card.dataset.id);
+    if (!item) return;
+
+    const shelf = card.closest(".shelf");
+    if (shelf) {
+      const { bits, overview } = describe(item);
+      const box = detailFor(shelf);
+      const line = document.createElement("div");
+      line.className = "line";
+      for (const bit of bits) line.append(text(bit));
+      const title = document.createElement("p");
+      title.textContent = overview || item.name;
+      box.replaceChildren(line, title);
+    }
+
+    // the landscape artwork is what lets it widen; without it, it stays put
+    const art = card.querySelector(".art");
+    const wide = item.backdrop || meta(item.id)?.backdrop;
+    if (!art || !wide) return;
+    const img = document.createElement("img");
+    img.className = "focus-art";
+    img.src = wide;
+    img.addEventListener("error", () => {
+      card.classList.remove(SPOTLIT);
+      img.remove();
+      card.querySelector(".spotlight-title")?.remove();
+    });
+    const name = document.createElement("b");
+    name.className = "spotlight-title";
+    name.textContent = item.name;
+    art.append(img, name);
+    card.classList.add(SPOTLIT);
+    // focusin scrolled the tile into view at its old width; it is wider now,
+    // so at the end of a row it would otherwise sit half off the screen
+    card.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+
+  document.addEventListener("focusin", (event) => {
+    const node = event.target;
+    if (!(node instanceof Element)) return;
+    spotlight(node.closest("article.card"));
+  });
 })();

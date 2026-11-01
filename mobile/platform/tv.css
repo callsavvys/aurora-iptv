@@ -306,3 +306,216 @@
 .platform-tv .hero + .shelf, .platform-tv .hero + * > .shelf:first-child { margin-top: -48px; }
 .platform-tv .shelf-head span { font-size: 15px; }
 .platform-tv .card.ranked .rank { font-size: clamp(96px, 8vw, 150px); -webkit-text-stroke-width: 4px; }
+
+/* ======================================================================
+   The television, rebuilt to Netflix's 2025 model
+
+   Their TV app dropped the sidebar that year and does not have a billboard
+   at all: the first row is the spotlight. The focused tile widens into its
+   landscape artwork and its details are written underneath the row it sits
+   in, so one tile at a time carries the screen and nothing is said twice.
+
+   Everything below deliberately overrides the TV rules further up this file.
+   ====================================================================== */
+
+.platform-tv .app { display: block; padding: 0; height: 100vh; }
+.platform-tv .workspace { height: 100vh; border-radius: 0; }
+
+/* ---- a centred strip across the top, in place of the rail ---- */
+
+.platform-tv aside {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 96px;
+  z-index: 7;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 52px;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: linear-gradient(180deg, rgba(2, 5, 9, .92) 0%, rgba(2, 5, 9, .5) 55%, transparent 100%);
+}
+
+.platform-tv .brand { position: absolute; left: 52px; padding: 0; font-size: 26px; }
+.platform-tv .nav-label, .platform-tv .source-pill { display: none; }
+.platform-tv aside nav, .platform-tv .nav-lower { display: flex; flex-direction: row; gap: 4px; margin: 0; }
+
+/* text, not icons, the way their menu reads */
+.platform-tv aside nav button {
+  height: 50px;
+  padding: 0 22px;
+  font-size: 21px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: none;
+  box-shadow: none;
+  color: var(--text-3);
+}
+.platform-tv aside nav button i { display: none; }
+.platform-tv aside nav button.active { color: var(--text); background: none; box-shadow: none; font-weight: 700; }
+
+/* the remote's focus is a filled pill, which reads from a sofa where a
+   coloured border does not */
+.platform-tv aside nav button:focus {
+  outline: none;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: none;
+}
+
+/* ---- search keeps the other end of the strip; the rest is desk furniture ---- */
+
+.platform-tv .workspace > header {
+  position: fixed;
+  top: 0;
+  right: 52px;
+  left: auto;
+  width: auto;
+  height: 96px;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: 0;
+  backdrop-filter: none;
+  z-index: 8;
+}
+.platform-tv .nav-steps, .platform-tv #add-source { display: none !important; }
+.platform-tv .workspace > header .search { width: 300px; }
+
+/* ---- no billboard: the first row is the spotlight ---- */
+
+.platform-tv .hero { display: none !important; }
+.platform-tv .scroll { padding-top: 96px; padding-bottom: 90px; }
+.platform-tv .hero + .shelf,
+.platform-tv .hero + * > .shelf:first-child { margin-top: 0; }
+
+.platform-tv .shelf { margin-top: 30px; padding-left: 52px; }
+.platform-tv .shelf:first-child { margin-top: 8px; }
+.platform-tv .shelf-head { margin-bottom: 12px; padding-right: 52px; }
+.platform-tv .shelf-head h2 { font-size: 23px; font-weight: 600; color: var(--text-2); letter-spacing: -.01em; }
+.platform-tv .shelf-head span { display: none; }
+
+/* a flex row, because one tile in it has to be able to grow */
+.platform-tv .shelf-row, .platform-tv .ranked-row {
+  display: flex;
+  gap: 9px;
+  grid-auto-columns: initial;
+  padding-right: 52px;
+}
+.platform-tv .shelf-row > .card { flex: 0 0 176px; min-width: 0; transition: flex-basis .2s ease; }
+.platform-tv .shelf-row.wide > .card { flex-basis: 300px; }
+.platform-tv .ranked-row > .card { flex: 0 0 240px; }
+
+/* the title under every poster is what the spotlight replaces */
+.platform-tv .card .card-copy { display: none; }
+
+/* ---- the focused tile ---- */
+
+.platform-tv .card:focus { transform: none; }
+.platform-tv .card:focus .art {
+  outline: 4px solid var(--accent);
+  outline-offset: 0;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .6);
+}
+
+/* widened into its landscape artwork, which tv-nav supplies on focus */
+.platform-tv .card.spotlit { flex-basis: 520px; }
+.platform-tv .shelf-row.wide > .card.spotlit { flex-basis: 560px; }
+.platform-tv .ranked-row > .card.spotlit { flex-basis: 580px; }
+.platform-tv .card.spotlit .art { aspect-ratio: 16 / 9; }
+.platform-tv .card.spotlit .focus-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+.platform-tv .card.spotlit .art > .score { z-index: 3; }
+.platform-tv .card.spotlit .play-bubble { z-index: 3; }
+
+/* the title, laid over the artwork the way their logo art sits on it */
+.platform-tv .card.spotlit .spotlight-title {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 18px;
+  z-index: 2;
+  font-family: var(--display);
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.03;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, .8);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.platform-tv .card.spotlit .art:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(0deg, rgba(0, 0, 0, .86) 2%, rgba(0, 0, 0, .25) 42%, transparent 68%);
+}
+
+/* ---- what the spotlight says, written under its own row ---- */
+
+.platform-tv .row-detail {
+  padding: 15px 52px 0 0;
+  max-width: 1080px;
+  min-height: 74px;
+}
+.platform-tv .row-detail:empty { min-height: 74px; }
+.platform-tv .row-detail .line {
+  font-family: var(--mono);
+  font-size: 16px;
+  color: var(--text-3);
+  display: flex;
+  gap: 14px;
+  margin-bottom: 7px;
+}
+.platform-tv .row-detail p {
+  font-family: var(--body);
+  font-size: 19px;
+  line-height: 1.45;
+  color: var(--text-2);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Search is an icon in the strip, the way theirs is, and opens into a field
+   only when the remote lands on it. As a permanent 300px box it ran straight
+   into the end of the menu. */
+.platform-tv .workspace > header .search {
+  width: 58px;
+  height: 58px;
+  padding: 0;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: width .2s ease;
+}
+.platform-tv .workspace > header .search input {
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.platform-tv .workspace > header .search:focus-within {
+  width: 380px;
+  justify-content: flex-start;
+  padding: 0 20px;
+}
+.platform-tv .workspace > header .search:focus-within input { width: 100%; opacity: 1; padding-left: 12px; }
+.platform-tv .workspace > header .search:focus-within { outline: 4px solid var(--accent); }

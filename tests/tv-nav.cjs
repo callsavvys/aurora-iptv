@@ -86,16 +86,52 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
   await press("ArrowUp");
   check("and up returns to the one it came from", await where(), "card 0");
 
-  console.log("\n— crossing between the grid and the sidebar —");
-  await press("ArrowLeft");
-  check("left out of the first column lands on a sidebar button", await js(`(() => {
+  // The menu used to be a column down the left, so the grid was left of it.
+  // It is a strip across the top now, which puts it above the first row.
+  console.log("\n— crossing between the grid and the menu —");
+  await press("ArrowUp");
+  check("up out of the first row leaves the grid for a control", await js(`(() => {
     const node = document.activeElement;
-    return [Boolean(node.closest("aside")), node.localName];
-  })()`), [true, "button"]);
+    return [node.matches("article.card"), node.localName];
+  })()`), [false, "button"]);
   const landed = await where();
-  await press("ArrowRight");
-  check("and right comes straight back to a poster", await js(`document.activeElement.matches("article.card")`), true);
-  check(`it went out to ${landed} and back to the same row`, await where(), "card 0");
+
+  // this view puts its category chips between the grid and the strip, so the
+  // menu is a press or two further up rather than directly above
+  const inMenu = () => js(`Boolean(document.activeElement.closest("aside"))`);
+  let reached = await inMenu();
+  for (let step = 0; step < 4 && !reached; step += 1) {
+    await press("ArrowUp");
+    await settle();
+    reached = await inMenu();
+  }
+  // naming where it actually stopped, so a failure here says what went wrong
+  check("and the menu is reachable by going on up", await js(`(() => {
+    const node = document.activeElement;
+    return node.closest("aside") ? "menu" : node.localName + " " + (node.textContent || "").trim().slice(0, 18);
+  })()`), "menu");
+  check("on one of its buttons", await js(`document.activeElement.localName`), "button");
+
+  let back = false;
+  for (let step = 0; step < 5 && !back; step += 1) {
+    await press("ArrowDown");
+    await settle();
+    back = await js(`document.activeElement.matches("article.card")`);
+  }
+  check(`it went out to ${landed} and back to a poster`, back, true);
+
+  // nothing sits to the left of the first poster any more, so the remote has
+  // to hold still rather than throw focus somewhere unrelated
+  await js(`(() => {
+    const row = document.querySelector("#content .shelf-row, #content .grid");
+    (row ? row.firstElementChild : document.querySelector("article.card")).focus();
+    return true;
+  })()`);
+  await settle();
+  const before = await js(`document.activeElement.dataset.id`);
+  await press("ArrowLeft");
+  await settle();
+  check("left out of the first column stays put", await js(`document.activeElement.dataset.id`), before);
 
   console.log("\n— focus survives a re-render —");
   await press("ArrowRight");
