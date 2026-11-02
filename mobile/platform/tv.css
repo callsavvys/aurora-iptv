@@ -669,3 +669,31 @@
 .platform-tv .chrome-bottom .transport { flex: 0 1 auto; min-width: 0; flex-wrap: nowrap; }
 .platform-tv .chrome-bottom .transport .grow { display: none; }
 .platform-tv .chrome-bottom .timeline { flex: 1 1 40%; min-width: 260px; }
+
+/* ---- the episode list on a television ----
+   A still, the season and episode on it, then the title and what it is about,
+   at a size a room reads. One column the remote walks top to bottom. */
+.platform-tv .episode { grid-template-columns: 420px minmax(0, 1fr); gap: 34px; padding: 18px; border-radius: 16px; }
+.platform-tv .episode-slug { font-size: 18px; padding: 6px 12px; border-radius: 8px; left: 14px; bottom: 12px; }
+.platform-tv .episode-copy strong { font-size: 30px; }
+.platform-tv .episode-copy em { font-size: 21px; -webkit-line-clamp: 3; margin-top: 10px; }
+.platform-tv .episode-copy small { font-size: 17px; margin-top: 14px; }
+.platform-tv .episode-play { width: 80px; height: 80px; }
+.platform-tv .episode:focus { background: var(--fill-2); border-color: var(--accent); outline: 4px solid var(--accent); outline-offset: 2px; }
+.platform-tv .season-tab { min-height: 76px; padding: 12px 28px; border-radius: 14px; }
+.platform-tv .season-tab b { font-size: 24px; }
+.platform-tv .season-tab span { font-size: 17px; }
+.platform-tv .season-tab:focus { outline: none; background: var(--text); color: var(--bg); border-color: var(--text); }
+
+/* The episode header sticks to the top of the scroll container, and on a
+   television that top sits behind the fixed menu strip — so it stuck under the
+   menu and covered the first episode. It stops below the strip instead. */
+.platform-tv .episodes-head { top: 124px; padding-top: 14px; }
+.platform-tv .episodes-pane { padding: 0 88px 40px; }
+.platform-tv .episodes-head h3 { font-size: 26px; margin-bottom: 16px; }
+
+/* Focus scrolls with block: nearest, which knows nothing about the fixed menu
+   strip or a sticky episode header above it — so the row the remote landed on
+   could end up underneath them. This reserves that space for every scroll the
+   page makes, not just the ones I remembered to adjust. */
+.platform-tv .scroll { scroll-padding-top: 230px; scroll-padding-bottom: 80px; }

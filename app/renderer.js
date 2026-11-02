@@ -1859,7 +1859,27 @@ function renderSeriesDetail() {
   const episodeRows = episodes.map((episode, index) => {
     const record = progressOf(`episode-${episode.id}`), bar = percent(record);
     const duration = shortDuration(episode.info) || (episode.duration ? shortDuration({ duration: episode.duration }) : "") || "Ready to play";
-    return `<button class="episode ${finished(record) ? "watched" : ""}" data-episode-index="${index}"><span class="episode-number">E${escapeHtml(episodeNumber(episode, index))}</span><span class="episode-copy"><strong>${escapeHtml(episodeTitle(episode, index))}</strong><small>Season ${escapeHtml(state.selectedSeason)} • ${escapeHtml(duration)}${finished(record) ? " • Watched" : record ? ` • ${clock(record.position)} in` : ""}</small>${bar > 1 && !finished(record) ? `<span class="episode-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="episode-play">${icon("play")}</span></button>`;
+    /* A still, the season and episode written on it, then the title, what it is
+       about, and how long it runs. A provider that sends no still leaves the
+       frame as artwork rather than a hole, and plenty of them send no plot
+       either, so the line under the title is only drawn when there is one. */
+    const number = episodeNumber(episode, index);
+    const still = episode.info?.movie_image || episode.info?.cover_big || episode.info?.cover || "";
+    const plot = (episode.info?.plot || episode.info?.description || "").trim();
+    const seen = finished(record);
+    return `<button class="episode ${seen ? "watched" : ""}" data-episode-index="${index}">
+      <span class="episode-still">
+        ${still ? `<img loading="lazy" src="${escapeHtml(still)}" onerror="this.remove()">` : ""}
+        <span class="episode-slug">S${escapeHtml(state.selectedSeason)}: E${escapeHtml(number)}</span>
+        <span class="episode-play">${icon("play")}</span>
+        ${bar > 1 && !seen ? `<span class="episode-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}
+      </span>
+      <span class="episode-copy">
+        <strong>${escapeHtml(episodeTitle(episode, index))}</strong>
+        ${plot ? `<em>${escapeHtml(plot)}</em>` : ""}
+        <small>${escapeHtml(duration)}${seen ? " \u00b7 Watched" : record ? ` \u00b7 ${clock(record.position)} in` : ""}</small>
+      </span>
+    </button>`;
   }).join("");
   const actions = `${next ? `<button class="primary detail-play-next">${icon("play")}${escapeHtml(next.label)}</button>` : ""}${trailerButton(state.detailMeta)}<button class="secondary series-favorite">${state.favorites.has(item.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button>`;
   const meta = state.detailMeta;
@@ -1870,7 +1890,7 @@ function renderSeriesDetail() {
     meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releaseDate || info.releasedate || item.year || meta?.year || "").slice(0, 4), meta?.details?.genres || info.genre || item.category, `${seasons.length} season${seasons.length === 1 ? "" : "s"}`],
     description: meta?.overview || info.plot || item.description || "Choose a season and episode to start watching.",
     actions,
-  }) + ratingsRow(meta) + creditsBlock(mergedInfo(info, meta)) + `<section class="episodes-pane"><div class="episodes-head"><h3>Episodes</h3>${rail(`<div class="season-tabs rail-scroller">${seasons.map(([number]) => `<button class="season-tab ${number === state.selectedSeason ? "active" : ""}" data-season="${escapeHtml(number)}">Season ${escapeHtml(number)}</button>`).join("")}</div>`)}</div>${episodeRows ? `<div class="episode-list">${episodeRows}</div>` : '<div class="episodes-empty">No episodes were returned for this season.</div>'}</section>`;
+  }) + ratingsRow(meta) + creditsBlock(mergedInfo(info, meta)) + `<section class="episodes-pane"><div class="episodes-head"><h3>Episodes</h3>${rail(`<div class="season-tabs rail-scroller">${seasons.map(([number, list]) => `<button class="season-tab ${number === state.selectedSeason ? "active" : ""}" data-season="${escapeHtml(number)}"><b>Season ${escapeHtml(number)}</b><span>${list.length} episode${list.length === 1 ? "" : "s"}</span></button>`).join("")}</div>`)}</div>${episodeRows ? `<div class="episode-list">${episodeRows}</div>` : '<div class="episodes-empty">No episodes were returned for this season.</div>'}</section>`;
 }
 
 function nextUnwatchedEpisode(seasons) {

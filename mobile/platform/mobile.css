@@ -209,3 +209,9 @@ input, select, textarea { font-size: 16px !important; }
 /* ---- the genre strip on a phone ---- */
 .genre-strip { padding: 0 16px 4px; margin-top: 18px; gap: 8px; }
 .genre-chip { min-width: 118px; height: 50px; font-size: 13px; padding: 0 16px; }
+
+/* ---- the episode list on a phone ---- */
+.episode { grid-template-columns: 130px minmax(0, 1fr); gap: 12px; padding: 8px; }
+.episode-copy strong { font-size: 14px; }
+.episode-copy em { font-size: 12px; -webkit-line-clamp: 2; }
+.episode-play { opacity: 1; width: 34px; height: 34px; }
