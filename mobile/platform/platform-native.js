@@ -119,6 +119,30 @@
     }).catch(() => {});
   }, 4000);
 
+  /* ---- one television pixel is not another television pixel ----
+     tv.css is written against a 1920-wide screen, but an Android TV WebView
+     reports whatever it likes: 960 CSS pixels at double density is common, and
+     there every fixed size in the stylesheet comes out twice as large as it was
+     drawn. That is not a stylesheet bug to be chased rule by rule, it is one
+     scale factor: lay the page out as if it were 1920 wide and let the screen
+     put it back. Set before the renderer loads, so nothing is painted at the
+     wrong size first. */
+  const TV_WIDTH = 1920;
+  const fitToScreen = () => {
+    if (!TV_BUILD) return;
+    const width = window.innerWidth || TV_WIDTH;
+    const height = window.innerHeight || 1080;
+    const scale = width / TV_WIDTH;
+    const root = document.documentElement;
+    root.style.zoom = String(scale);
+    /* vh does not compensate for the scale: on a 540-tall screen scaled by a
+       half, 100vh still measures 540 and the page ends up covering a quarter
+       of the television. The real height has to be handed to the stylesheet. */
+    root.style.setProperty("--tv-height", `${Math.round(height / scale)}px`);
+  };
+  fitToScreen();
+  window.addEventListener("resize", fitToScreen);
+
   const renderer = document.createElement("script");
   renderer.src = "renderer.js";
   // the D-pad layer reads the DOM the renderer builds, so it follows it in

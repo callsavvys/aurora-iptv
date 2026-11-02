@@ -318,8 +318,8 @@
    Everything below deliberately overrides the TV rules further up this file.
    ====================================================================== */
 
-.platform-tv .app { display: block; padding: 0; height: 100vh; }
-.platform-tv .workspace { height: 100vh; border-radius: 0; }
+.platform-tv .app { display: block; padding: 0; height: var(--tv-height, 100vh); }
+.platform-tv .workspace { height: var(--tv-height, 100vh); border-radius: 0; }
 
 /* ---- a centred strip across the top, in place of the rail ---- */
 
@@ -332,14 +332,14 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 52px;
+  padding: 0 88px;
   border: 0;
   border-radius: 0;
   overflow: visible;
   background: linear-gradient(180deg, rgba(2, 5, 9, .92) 0%, rgba(2, 5, 9, .5) 55%, transparent 100%);
 }
 
-.platform-tv .brand { position: absolute; left: 52px; padding: 0; font-size: 26px; }
+.platform-tv .brand { position: absolute; left: 88px; padding: 0; font-size: 26px; }
 .platform-tv .nav-label, .platform-tv .source-pill { display: none; }
 .platform-tv aside nav, .platform-tv .nav-lower { display: flex; flex-direction: row; gap: 4px; margin: 0; }
 
@@ -371,7 +371,7 @@
 .platform-tv .workspace > header {
   position: fixed;
   top: 0;
-  right: 52px;
+  right: 88px;
   left: auto;
   width: auto;
   height: 96px;
@@ -388,13 +388,13 @@
 /* ---- no billboard: the first row is the spotlight ---- */
 
 .platform-tv .hero { display: none !important; }
-.platform-tv .scroll { padding-top: 96px; padding-bottom: 90px; }
+.platform-tv .scroll { padding-top: 124px; padding-bottom: 90px; }
 .platform-tv .hero + .shelf,
 .platform-tv .hero + * > .shelf:first-child { margin-top: 0; }
 
-.platform-tv .shelf { margin-top: 30px; padding-left: 52px; }
+.platform-tv .shelf { margin-top: 30px; padding-left: 88px; }
 .platform-tv .shelf:first-child { margin-top: 8px; }
-.platform-tv .shelf-head { margin-bottom: 12px; padding-right: 52px; }
+.platform-tv .shelf-head { margin-bottom: 12px; padding-right: 88px; }
 .platform-tv .shelf-head h2 { font-size: 23px; font-weight: 600; color: var(--text-2); letter-spacing: -.01em; }
 .platform-tv .shelf-head span { display: none; }
 
@@ -403,7 +403,7 @@
   display: flex;
   gap: 9px;
   grid-auto-columns: initial;
-  padding-right: 52px;
+  padding-right: 88px;
 }
 .platform-tv .shelf-row > .card { flex: 0 0 176px; min-width: 0; transition: flex-basis .2s ease; }
 .platform-tv .shelf-row.wide > .card { flex-basis: 300px; }
@@ -466,7 +466,7 @@
 /* ---- what the spotlight says, written under its own row ---- */
 
 .platform-tv .row-detail {
-  padding: 15px 52px 0 0;
+  padding: 15px 88px 0 0;
   max-width: 1080px;
   min-height: 74px;
 }
