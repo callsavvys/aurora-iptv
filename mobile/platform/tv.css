@@ -697,3 +697,21 @@
    could end up underneath them. This reserves that space for every scroll the
    page makes, not just the ones I remembered to adjust. */
 .platform-tv .scroll { scroll-padding-top: 230px; scroll-padding-bottom: 80px; }
+
+/* ---- the face, and your own page, on a television ---- */
+.platform-tv .who-face { width: 56px; height: 56px; border-radius: 14px; font-size: 21px; }
+.platform-tv .brand b { font-size: 26px; }
+.platform-tv .who-caret { width: 20px; height: 20px; }
+.platform-tv #who:focus { outline: 4px solid var(--accent); outline-offset: 4px; border-radius: 14px; }
+.platform-tv .who-face.big { width: 120px; height: 120px; border-radius: 26px; font-size: 42px; }
+.platform-tv .mine-head h1 { font-size: 52px; }
+.platform-tv .mine-head p { font-size: 21px; }
+.platform-tv .mine-rows { max-width: 1100px; gap: 14px; margin-bottom: 48px; }
+.platform-tv .mine-row { grid-template-columns: 78px minmax(0, 1fr) 30px; padding: 22px 28px; border-radius: 16px; gap: 22px; }
+.platform-tv .mine-glyph { width: 78px; height: 78px; border-radius: 18px; }
+.platform-tv .mine-glyph .icon { width: 32px; height: 32px; }
+.platform-tv .mine-copy strong { font-size: 26px; }
+.platform-tv .mine-copy small { font-size: 17px; margin-top: 6px; }
+.platform-tv .mine-row:focus { background: var(--text); color: var(--bg); border-color: var(--text); }
+.platform-tv .mine-row:focus .mine-glyph { background: var(--bg); }
+.platform-tv .mine-row:focus .mine-copy small, .platform-tv .mine-row:focus .mine-go { color: var(--bg); opacity: .7; }

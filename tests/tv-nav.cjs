@@ -138,6 +138,27 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
      the page was dead. And render() checked "is the library empty" before it
      checked for the chooser, so with no library loaded the chooser never drew
      at all — which is exactly when it is shown. */
+  /* The menu was eight flat items when the thing it is modelled on has five and
+     a face. Favorites, History and Together are not places you browse, they are
+     things already yours, so they live behind one door. */
+  console.log("\n— five ways to go, and a face —");
+  check("the menu offers five", await js(`document.querySelectorAll("aside nav button").length`), 5);
+  check("and they are these", await js(`[...document.querySelectorAll("aside nav button")].map((b) => b.dataset.view).join(",")`),
+    "home,live,movies,series,profile");
+  check("Settings is not one of them", await js(`Boolean(document.querySelector('aside nav button[data-view="settings"]'))`), false);
+  check("the mark at the top left opens your own page", await js(`document.getElementById("who")?.dataset.view`), "profile");
+  check("and wears the source's initials", await js(`(() => {
+    state.provider = { id: "x", name: "Rocket Line" };
+    updateSource();
+    return document.getElementById("who-face").textContent;
+  })()`), "RL");
+  check("Settings is still reachable, from there", await js(`(() => {
+    state.view = "profile"; render();
+    return Boolean(document.querySelector('.mine-row[data-view="settings"]'));
+  })()`), true);
+  check("so is History", await js(`Boolean(document.querySelector('.mine-row[data-view="history"]'))`), true);
+  check("so is Together", await js(`Boolean(document.querySelector('.mine-row[data-view="together"]'))`), true);
+
   console.log("\n— a page made only of buttons —");
   await js(`(() => {
     secrets = { sources: [

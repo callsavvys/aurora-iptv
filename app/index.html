@@ -50,20 +50,18 @@
 
   <div class="app">
     <aside>
-      <div class="brand"><span><svg class="icon"><use href="#i-play"/></svg></span><b>Aurora</b></div>
+      <button class="brand" id="who" data-view="profile" title="Your profile">
+        <span class="who-face" id="who-face">AU</span>
+        <b id="who-name">Aurora</b>
+        <svg class="icon who-caret"><use href="#i-chev-right"/></svg>
+      </button>
       <p class="nav-label">Browse</p>
       <nav>
         <button class="active" data-view="home"><i><svg class="icon"><use href="#i-home"/></svg></i>Home</button>
         <button data-view="live"><i><svg class="icon"><use href="#i-live"/></svg></i>Live TV</button>
         <button data-view="movies"><i><svg class="icon"><use href="#i-movies"/></svg></i>Movies</button>
         <button data-view="series"><i><svg class="icon"><use href="#i-series"/></svg></i>Series</button>
-        <button data-view="favorites"><i><svg class="icon"><use href="#i-heart"/></svg></i>Favorites <em id="favorite-count"></em></button>
-        <button data-view="history"><i><svg class="icon"><use href="#i-history"/></svg></i>History</button>
-        <button data-view="together"><i><svg class="icon"><use href="#i-heart"/></svg></i>Together</button>
-      </nav>
-      <p class="nav-label nav-label-lower">Source</p>
-      <nav class="nav-lower">
-        <button data-view="settings"><i><svg class="icon"><use href="#i-gear"/></svg></i>Settings</button>
+        <button data-view="profile"><i><svg class="icon"><use href="#i-heart"/></svg></i>My Aurora <em id="favorite-count"></em></button>
       </nav>
       <button class="source-pill" id="source-pill" data-view="settings">
         <span class="source-icon"><svg class="icon"><use href="#i-source"/></svg></span>

@@ -100,7 +100,7 @@ const PREVIEW_DWELL = 700;   // long enough that passing over a row costs nothin
 const PREVIEW_LEAD = 6;      // start a moment before the cut, so it has somewhere to go
 const preview = { timer: null, video: null, card: null };
 
-const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings", detail: "Detail", chooser: "Choose" };
+const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings", detail: "Detail", chooser: "Choose", profile: "My Aurora" };
 
 /* ---------- navigation ----------
    Detail used to be a modal, which meant there was nowhere to go back to. It
@@ -1110,6 +1110,10 @@ function updateSource() {
     : "Not connected";
   const count = state.favorites.size, badge = $("#favorite-count");
   badge.textContent = count; badge.style.display = count ? "grid" : "none";
+  // the mark at the top left is whoever is watching, not the app's own logo
+  const face = $("#who-face"), name = $("#who-name");
+  if (face) face.textContent = state.provider ? sourceMark(state.provider) : "AU";
+  if (name) name.textContent = social.profile?.display_name || state.provider?.name || "Aurora";
 }
 
 function itemsForView(ignoreCategory = false) {
@@ -1282,6 +1286,48 @@ const sourceMark = (source) => {
   const letters = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || "?").slice(0, 2);
   return letters.toUpperCase();
 };
+
+/* ---------- my aurora ----------
+   Favorites, History and Together were three places along the top. They are
+   not places you browse; they are things that are already yours, which is why
+   the screen this is modelled on keeps them behind one door with your face on
+   it. The menu is five again, and this is what the fifth one opens. */
+
+function renderProfile() {
+  const saved = state.items.filter((item) => state.favorites.has(item.id));
+  const watching = continueWatching().slice(0, 12);
+  const source = state.provider?.name || "No source";
+  const me = social.profile;
+
+  const row = (view, name, note, glyph) => `<button class="mine-row" data-view="${escapeHtml(view)}">
+      <span class="mine-glyph">${icon(glyph)}</span>
+      <span class="mine-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(note)}</small></span>
+      <span class="mine-go">${icon("chev-right")}</span>
+    </button>`;
+
+  $("#content").innerHTML = `<section class="page mine">
+      <header class="mine-head">
+        <span class="who-face big">${escapeHtml(sourceMark(state.provider || { name: "Aurora" }))}</span>
+        <div>
+          <h1>${escapeHtml(me?.display_name || source)}</h1>
+          <p>${escapeHtml(account.user
+            ? `Signed in as ${account.user.email} \u00b7 watching ${source}`
+            : `Watching ${source} \u00b7 not signed in to an Aurora account`)}</p>
+        </div>
+      </header>
+
+      <div class="mine-rows">
+        ${row("together", "Watching together", me ? `Your code is ${me.friend_code}` : "Watch with a friend on their own line", "heart")}
+        ${row("history", "History", "Everything you have played", "history")}
+        ${row("settings", "Settings", "Sources, artwork and this device", "gear")}
+      </div>
+
+      ${saved.length
+        ? shelf("My list", saved, false, `${saved.length} saved`)
+        : `<p class="row-note">Nothing on your list yet. The heart on any poster puts it here.</p>`}
+      ${watching.length ? resumeShelf() : ""}
+    </section>`;
+}
 
 function renderChooser() {
   const sources = readSources();
@@ -1748,6 +1794,7 @@ function render() {
   // the chooser comes before the welcome check: picking a source is how you get
   // a library, so "there is no library yet" is no reason to hide it
   else if (state.view === "chooser") renderChooser();
+  else if (state.view === "profile") renderProfile();
   else if (!state.provider || !state.items.length) renderWelcome();
   else if (state.view === "detail") renderDetailView();
   else if (state.query) renderSearch();
