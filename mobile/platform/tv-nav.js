@@ -384,7 +384,11 @@
     const bits = [];
     if (item.type === "live") bits.push("Live");
     else if (item.type === "series") bits.push("Series");
-    const score = extra?.ratings?.imdb || extra?.score || item.rating;
+    // the same reading the cards use, so a provider's placeholder 10.0 does
+    // not come back in the line under the row
+    const score = typeof ratingSet === "function"
+      ? ratingSet(item, extra)[0]?.value
+      : (extra?.ratings?.imdb || extra?.score);
     if (score) bits.push("★ " + score);
     /* the provider's category often carries the year inside it, and printing
        both leaves "2026 ENGLISH 2026" sitting under the artwork */

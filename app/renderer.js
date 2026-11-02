@@ -588,11 +588,14 @@ function tidyCategory(name) {
     .trim();
   /* a leading language or country code, but never the only word left, and
      never a two-letter word that is doing real work in the name */
-  const KEEP = new Set(["TV", "HD", "4K", "ON", "MY"]);
+  const KEEP = new Set(["TV", "HD", "4K", "ON", "MY", "NEW", "TOP", "OLD", "HBO"]);
   const words = text.split(" ");
-  if (words.length > 1 && /^[a-z]{2}$/i.test(words[0]) && !KEEP.has(words[0].toUpperCase())) {
+  const lead = words[0] || "";
+  const coded = /^[a-z]{2,3}$/i.test(lead) || /^[a-z]{2,3}[-:]$/i.test(lead);
+  if (words.length > 1 && coded && !KEEP.has(lead.replace(/[-:]$/, "").toUpperCase())) {
     text = words.slice(1).join(" ");
   }
+  text = text.replace(/^[-:\s]+/, "");
   text = text.replace(/^[\s\u00b7-]+/, "").replace(/[\s\u00b7-]+$/, "").trim();
   return text || raw;
 }
@@ -600,8 +603,18 @@ function tidyCategory(name) {
 /* ---------- a rating every title shares is not a rating ----------
    Some providers stamp the same number on everything they carry. A column of
    identical 10.0 badges is not information, it is decoration sitting on top of
-   the artwork, so when one value covers most of the library the provider's own
-   number is left out and only the ones fetched by title are shown. */
+   the artwork.
+
+   Two things give a placeholder away. The first is the ends of the scale: a
+   provider writing 0 or 10 is writing "unset", and a genuine 10.0 is rare
+   enough that losing it costs nothing next to printing it on a whole category.
+   The second is any other value that covers half of everything rated, which
+   catches a provider that defaults to 5 or 7 instead. The library here has a
+   normal spread overall and a single category stamped 10.0 throughout, so the
+   first test is the one that does the work and the second is the backstop. */
+
+const PLACEHOLDER_RATINGS = new Set(["0", "0.0", "10", "10.0"]);
+const ratingIsPlaceholder = (value) => PLACEHOLDER_RATINGS.has(String(value).trim());
 
 let providerRatingVerdict = null;
 const forgetProviderRatings = () => { providerRatingVerdict = null };
@@ -636,7 +649,7 @@ function ratingSet(item, meta) {
   if (cached?.ratings?.rt) set.push({ mark: "RT", value: cached.ratings.rt, tone: Number.parseInt(cached.ratings.rt, 10) >= 60 ? "fresh" : "rotten" });
   if (cached?.ratings?.metacritic) set.push({ mark: "MC", value: cached.ratings.metacritic, tone: "critic" });
   if (!set.length && cached?.score) set.push({ mark: "TMDB", value: cached.score, tone: "imdb" });
-  if (!set.length && item.rating && providerRatingsCarryMeaning()) set.push({ mark: "", value: item.rating, tone: "imdb" });
+  if (!set.length && item.rating && !ratingIsPlaceholder(item.rating) && providerRatingsCarryMeaning()) set.push({ mark: "", value: item.rating, tone: "imdb" });
   return set;
 }
 
@@ -1284,10 +1297,24 @@ function resumeShelf() {
   return `<section class="shelf"><div class="shelf-head"><div><h2>Continue watching</h2><span>Pick up where you left off</span></div></div>${rail(`<div class="shelf-row rail-scroller wide">${records.slice(0, 20).map(resumeCard).join("")}</div>`)}</section>`;
 }
 
+/* The same film reaches the library through several of the provider's
+   categories, and a row built straight from the catalogue shows it three and
+   four times over. One entry per title, the first one found, which is the
+   highest-placed under whatever ordering the row already applied. */
+function oncePerTitle(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = `${indexKey(item.name)}|${item.year || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function recentlyAdded(type, title) {
   const cache = (index().cache ||= {});
   const key = `new:${type}`;
-  if (!cache[key]) cache[key] = ofType(type).filter((item) => item.added).sort((a, b) => b.added - a.added).slice(0, 24);
+  if (!cache[key]) cache[key] = oncePerTitle(ofType(type).filter((item) => item.added).sort((a, b) => b.added - a.added)).slice(0, 24);
   return shelf(title, cache[key], false, "New for you");
 }
 
@@ -1295,9 +1322,13 @@ function ratedItems(type, limit = 24) {
   const cache = (index().cache ||= {});
   const key = `rated:${type}`;
   if (!cache[key]) {
-    cache[key] = ofType(type)
-      .filter((item) => Number(item.rating) > 0)
-      .sort((a, b) => Number(b.rating) - Number(a.rating))
+    /* Sorting by the provider's number put every title it had stamped 10.0 at
+       the front, which is why this row was arbitrary and why not one card in
+       it carried a badge: each one was there on the strength of a placeholder.
+       Rank on the ratings that mean something. */
+    cache[key] = oncePerTitle(ofType(type)
+      .filter((item) => Number(item.rating) > 0 && !ratingIsPlaceholder(item.rating))
+      .sort((a, b) => Number(b.rating) - Number(a.rating)))
       .slice(0, limit);
   }
   return cache[key];
@@ -1381,7 +1412,7 @@ function genreChips() {
 function heroInner(featured) {
   const meta = metaCache.get(featured.id);
   const image = artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo;
-  const score = meta?.ratings?.imdb || meta?.score || featured.rating;
+  const score = ratingSet(featured, meta)[0]?.value;   // never the provider's placeholder
   return `${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(tidyCategory(featured.category))}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div>`;
 }
 

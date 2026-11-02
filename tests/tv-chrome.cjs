@@ -29,10 +29,11 @@ vm.runInContext(
    exports.tidyCategory = tidyCategory;
    exports.captionOf = captionOf;
    exports.meaning = providerRatingsCarryMeaning;
+   exports.placeholder = ratingIsPlaceholder;
    exports.forget = forgetProviderRatings;`,
   sandbox,
 );
-const { tidyCategory, captionOf, meaning, forget } = sandbox.exports;
+const { tidyCategory, captionOf, meaning, forget, placeholder } = sandbox.exports;
 
 console.log("— the provider's names, with the furniture taken off —");
 for (const [raw, want] of [
@@ -41,6 +42,8 @@ for (const [raw, want] of [
   ["FR ✓ HBO", "HBO"],
   ["ES ✓ SPAIN MOVIES", "SPAIN MOVIES"],
   ["4K ENGLISH | مسلسلات", "4K ENGLISH · مسلسلات"],
+  ["IND - INDIAN \u0623\u0641\u0644\u0627\u0645", "INDIAN \u0623\u0641\u0644\u0627\u0645"],
+  ["HBO MAX", "HBO MAX"],             // a three-letter name is not a country code
   ["AR", "AR"],                       // never strip the only word there is
   ["✓", "✓"],               // nothing left but furniture: keep it
 ]) check(`${JSON.stringify(raw)} reads as ${JSON.stringify(want)}`, tidyCategory(raw), want);
@@ -63,6 +66,21 @@ library(["7.1", "8.4", "6.0"]);
 check("too few to judge, so taken at their word", meaning(), true);
 sandbox.state.items = [];
 forget();
+
+console.log("\n— the ends of the scale are where a provider writes 'unset' —");
+for (const [value, want] of [["10", true], ["10.0", true], ["0", true], ["0.0", true],
+                             ["9.9", false], ["7.3", false], ["1", false]])
+  check(`${value} ${want ? "is" : "is not"} a placeholder`, placeholder(value), want);
+
+console.log("\n— and nothing is ranked on one —");
+check("ratedItems leaves placeholders out of the ordering",
+  /ratedItems[\s\S]{0,600}!ratingIsPlaceholder\(item\.rating\)/.test(
+    require("node:fs").readFileSync(require("node:path").join(ROOT, "app/renderer.js"), "utf8")), true);
+
+console.log("\n— one entry per title —");
+const SRC = require("node:fs").readFileSync(require("node:path").join(ROOT, "app/renderer.js"), "utf8");
+check("ratedItems is deduplicated", /cache\[key\] = oncePerTitle\(ofType\(type\)[\s\S]{0,260}ratingIsPlaceholder/.test(SRC), true);
+check("recentlyAdded is deduplicated", /cache\[key\] = oncePerTitle\(ofType\(type\)\.filter\(\(item\) => item\.added\)/.test(SRC), true);
 
 console.log("\n— the menu strip takes a floor once the page has moved —");
 const rule = TV.match(/\.platform-tv \.app:has\(\.workspace\.scrolled\) aside \{([^}]*)\}/);
