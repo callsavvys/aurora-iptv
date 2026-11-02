@@ -48,6 +48,10 @@ for (const [raw, want] of [
   ["✓", "✓"],               // nothing left but furniture: keep it
 ]) check(`${JSON.stringify(raw)} reads as ${JSON.stringify(want)}`, tidyCategory(raw), want);
 
+check("the category filter chips are tidied too, and All is left alone",
+  (require("node:fs").readFileSync(require("node:path").join(ROOT, "app/renderer.js"), "utf8")
+    .match(/data-category="\$\{escapeHtml\(name\)\}">\$\{escapeHtml\(name === "All" \? name : tidyCategory\(name\)\)\}/g) || []).length, 2);
+
 console.log("\n— the year is printed once —");
 check("a category carrying the year does not get it twice",
   captionOf({ year: "2026", category: "ENGLISH 2026", type: "movie" }), "ENGLISH 2026");
@@ -87,6 +91,12 @@ const rule = TV.match(/\.platform-tv \.app:has\(\.workspace\.scrolled\) aside \{
 check("the television is covered by the scrolled rule", Boolean(rule), true);
 const alpha = rule && rule[1].match(/background:\s*rgba\([^)]*?,\s*\.(\d+)\)/);
 check("and that floor is close to opaque", Number(alpha ? `0.${alpha[1]}` : 0) >= 0.95, true);
+
+console.log("\n— every page built out of panels is read from the same sofa —");
+check("the settings sizing is not gated to the together page",
+  /\.platform-tv \.settings:has\(\.friend-row\) \{/.test(TV), false);
+check("and settings itself is sized for a television",
+  /\.platform-tv \.settings \.panel h2 \{ font-size: 28px/.test(TV), true);
 
 console.log("\n— mixed directions keep to themselves —");
 check("the television isolates each part of a meta line",

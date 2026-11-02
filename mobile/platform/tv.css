@@ -160,13 +160,24 @@
    Everything here is read or pressed from a sofa. The friend code above all:
    a person reads it off the screen to someone on the phone, so it is the
    largest thing on the page. */
-.platform-tv .settings:has(.friend-row) { max-width: min(1180px, 100%); }
-/* panels are untouched elsewhere in this file; on this page the headings and
-   notes have to be readable from the sofa too */
-.platform-tv .settings:has(.friend-row) .panel { padding: 30px; gap: 20px; border-radius: 20px; }
-.platform-tv .settings:has(.friend-row) .panel h2 { font-size: 28px; }
-.platform-tv .settings:has(.friend-row) .panel header p { font-size: 19px; max-width: 70ch; }
-.platform-tv .settings:has(.friend-row) .row-note { font-size: 19px; }
+/* This sizing was written for the watching-together page and gated behind
+   :has(.friend-row), so it matched that page and nothing else. Settings is
+   built out of the same panels and never got any of it: on a 1920 screen it
+   was eleven-point type in a column down the left-hand third. The gate is
+   gone — every page built this way is read from the same sofa. */
+.platform-tv .settings { max-width: min(1180px, 100%); }
+.platform-tv .settings .panel { padding: 30px; gap: 20px; border-radius: 20px; }
+.platform-tv .settings .panel h2 { font-size: 28px; }
+.platform-tv .settings .panel header p { font-size: 19px; max-width: 70ch; }
+.platform-tv .settings .row-note { font-size: 19px; }
+.platform-tv .settings .panel p,
+.platform-tv .settings .panel label { font-size: 19px; }
+.platform-tv .settings .panel button,
+.platform-tv .settings .panel .small { font-size: 19px; }
+.platform-tv .settings .panel input,
+.platform-tv .settings .panel select { height: 58px; font-size: 20px; border-radius: 14px; }
+.platform-tv .settings h1 { font-size: 52px; }
+.platform-tv .settings .eyebrow { font-size: 18px; letter-spacing: .22em; }
 .platform-tv .friend-row { gap: 22px; }
 .platform-tv .friend-row .account-avatar,
 .platform-tv .friend-row:has(.friend-code) .account-avatar { width: 64px; height: 64px; font-size: 26px; }
@@ -175,7 +186,7 @@
 .platform-tv .friend-row .row-actions { gap: 12px; }
 .platform-tv .friend-row .small,
 .platform-tv #friend-form .small,
-.platform-tv .settings:has(.friend-row) .panel-foot .small,
+.platform-tv .settings .panel-foot .small,
 .platform-tv .party-invite .small { height: 60px; padding: 0 28px; border-radius: 14px; font-size: 19px; }
 .platform-tv .friend-row input { height: 60px; width: min(420px, 100%); font-size: 22px; border-radius: 14px; }
 
@@ -781,3 +792,47 @@
 .platform-tv .hero .meta span,
 .platform-tv .row-detail .line > span,
 .platform-tv .card-copy p { unicode-bidi: isolate; }
+
+/* ---- the page behind a title ----
+   This one was never brought across. It was still drawing a 170-pixel poster,
+   a nine-pixel label and forty-two pixels of margin on a 1920-wide screen, so
+   a detail page was a small column of unreadable text in the top-left corner
+   with two-thirds of the television left black under it. Netflix gives this
+   screen to the artwork and the title, and puts the rest at a size you can
+   read from a sofa. */
+
+.platform-tv .series-hero {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 640px;
+  padding: 150px 88px 60px;
+  gap: 0;
+}
+/* the backdrop is the artwork here; a thumbnail of the poster beside it is
+   the same picture twice, and neither one big enough to be worth it */
+.platform-tv .series-poster { display: none; }
+
+/* a title TMDB never matched has no backdrop, so its own poster stands in,
+   blurred out to the size of the screen rather than stretched across it */
+.platform-tv .series-hero.no-backdrop .series-backdrop {
+  filter: blur(46px) saturate(.6);
+  transform: scale(1.2);
+  opacity: .45;
+}
+
+.platform-tv .series-info h2 { font-size: 62px; line-height: 1.04; margin: 6px 0 14px; }
+.platform-tv .series-meta { font-size: 21px; gap: 18px; }
+.platform-tv .series-info > p { font-size: 24px; line-height: 1.5; max-width: 980px; margin-bottom: 26px; }
+.platform-tv .series-info .eyebrow { font-size: 18px; letter-spacing: .22em; }
+
+.platform-tv .ratings { padding: 0 88px; gap: 18px; }
+.platform-tv .ratings div { padding: 14px 22px; border-radius: 14px; }
+.platform-tv .ratings small { font-size: 15px; }
+.platform-tv .ratings strong { font-size: 30px; }
+
+.platform-tv .credits {
+  padding: 34px 88px 0;
+  gap: 34px;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+.platform-tv .credits small { font-size: 16px; letter-spacing: .14em; }
+.platform-tv .credits p { font-size: 22px; line-height: 1.5; }

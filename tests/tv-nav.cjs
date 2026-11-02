@@ -172,6 +172,49 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
      at the top left, the source pill and the Open Settings button in the
      Together panel were all dead. Pressing them did nothing at all, and moving
      Settings behind the profile page made that the only way in. */
+  /* Clicking the mark is not the same as being able to get to it. It sits at
+     the far left of the strip with the five menu buttons in the middle, and
+     the only way to it from a remote is to press left out of the menu. On the
+     home page there is a row of genre chips below the strip, and if those win
+     the comparison the mark is unreachable — which is what "I press my name
+     and nothing happens" looks like from the sofa. */
+  console.log("\n— the mark is somewhere the remote can get to —");
+  await js(`(() => { state.view = "home"; state.items = Array.from({ length: 40 }, (_, i) => ({ id: "m" + i, type: "movie", name: "Film " + i, category: "Cat " + (i % 6) })); render(); return true })()`);
+  await settle();
+  await js(`(() => { document.querySelector("aside nav button").focus(); return true })()`);
+  check("focus starts on the first thing in the menu", await where(), "nav home");
+  await press("ArrowLeft");
+  check("and left out of the menu reaches the mark", await where(), "#who");
+  await press("ArrowRight");
+  check("right comes back to the menu", (await where()).startsWith("nav"), true);
+
+  /* Back is the only way out of anything on a television. From Settings it
+     was landing on "Who is watching?", which is not where you came from, and
+     picking the line again restored the view you had left — so Back put you
+     in a loop instead of taking you back a step. */
+  console.log("\n— back goes back one step —");
+  await js(`(() => { navigate({ view: "home", query: "" }); return true })()`);
+  await settle();
+  await js(`(() => { navigate({ view: "settings", query: "" }); return true })()`);
+  await settle();
+  check("Settings is what is on screen", await js(`state.view`), "settings");
+  check("back is taken, not passed to the system", await js(`handleBack(true)`), true);
+  await settle();
+  check("and it lands on the page it came from", await js(`state.view`), "home");
+
+  // the sections below walk the grid these two built over, so put back the
+  // library and the view they were written against
+  await js(`(() => {
+    state.items = Array.from({ length: 20 }, (_, i) => ({ id: "movie-" + (i + 1), type: "movie", name: "Film " + (i + 1), category: "Drama" }));
+    navigate({ view: "movies", query: "" });
+    return true;
+  })()`);
+  await settle();
+  // and put focus back in the grid: these two left it on the menu strip, and
+  // tv-nav restores whatever it last held across a re-render
+  await js(`window.auroraTv.focusFirst(); true`);
+  await settle();
+
   console.log("\n— a button that says where it goes, goes there —");
   console.log("\n— a page made only of buttons —");
   await js(`(() => {

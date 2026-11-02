@@ -1873,7 +1873,7 @@ function renderGuide() {
       <div><span class="eyebrow">${escapeHtml(state.provider?.name || "Live TV")}</span><h1>Guide</h1></div>
       <div class="seg"><button data-live-mode="guide" class="active">Guide</button><button data-live-mode="grid">Channels</button></div>
     </div>
-    <div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>
+    <div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name === "All" ? name : tidyCategory(name))}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>
     <p class="guide-note" id="guide-note" hidden></p>
     <div class="guide" id="guide">
       <div class="guide-inner" style="--track:${width}px">
@@ -2013,7 +2013,7 @@ function paintGrid() {
 function renderCollection() {
   if (state.view === "live" && state.liveMode !== "grid") return renderGuide();
   const base = itemsForView(true), categories = ["All", ...new Set(base.map((item) => item.category).filter(Boolean))], items = itemsForView();
-  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${items.length ? gridMarkup() : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
+  $("#content").innerHTML = `<section class="page"><div class="page-title"><div><span class="eyebrow">${escapeHtml(state.provider?.name || "Local library")}</span><h1>${state.query ? "Search results" : views[state.view]}</h1></div><span>${items.length.toLocaleString()} items</span></div><div class="rail chips-rail"><button class="rail-nav prev" aria-label="Scroll left" disabled>${icon("chev-left")}</button><div class="chips rail-scroller">${categories.slice(0, 80).map((name) => `<button class="chip ${state.category === name ? "active" : ""}" data-category="${escapeHtml(name)}">${escapeHtml(name === "All" ? name : tidyCategory(name))}</button>`).join("")}</div><button class="rail-nav next" aria-label="Scroll right" disabled>${icon("chev-right")}</button></div>${items.length ? gridMarkup() : '<div class="empty"><div><h2>Nothing found</h2><p>Try another category or search.</p></div></div>'}</section>`;
   updateRails();
   if (items.length) mountGrid(items, state.view === "live"); else grid = null;
   watchArtwork();
@@ -2108,12 +2108,40 @@ function shortDuration(info = {}) {
 
 const episodeNumber = (episode, index) => episode.episode_num || episode.info?.episode_num || index + 1;
 
+/* The line under a detail page's title was reading the provider's number
+   straight out, which put a star rating there that disagreed with the IMDb and
+   TMDB boxes a few lines below it, and printed the category with its arrows
+   still attached and the year twice. One reading, the same one the cards use. */
+function detailMetaBits(item, meta, info) {
+  /* The boxes a few lines below this carry IMDb, Rotten Tomatoes, Metacritic
+     and TMDB. Printing a star up here as well put a second, different number
+     on the same page — the provider's 9.0 over an IMDb of 6.5 — because the
+     hero is drawn before those arrive and never read again. Where the boxes
+     will say something, this line says nothing; where they will be empty, it
+     is the only score there is. */
+  const willHaveBoxes = Boolean(meta?.ratings?.imdb || meta?.ratings?.rt || meta?.ratings?.metacritic || meta?.score);
+  const score = willHaveBoxes ? "" : ratingSet(item, meta)[0]?.value;
+  const year = String(info?.releasedate || info?.releaseDate || item.year || meta?.year || "").slice(0, 4);
+  const where = item.category ? tidyCategory(item.category) : "";
+  const runtime = meta?.details?.runtime || shortDuration(info) || (item.duration ? shortDuration({ duration: item.duration }) : "");
+  return [
+    score ? { icon: "star", text: score } : "",
+    year && !where.includes(year) ? year : "",
+    runtime,
+    where,
+  ];
+}
+
 function detailHero({ backdrop, poster, eyebrow, name, meta, description, actions, logo }) {
   // the title's own lettering where there is any, the words where there is not
   const heading = logo
     ? `<h2 class="has-logo"><img class="hero-logo" src="${escapeHtml(artUrl(logo, "w500"))}" alt="${escapeHtml(name)}" onerror="this.parentElement.textContent=${JSON.stringify(name)};this.parentElement.classList.remove('has-logo')"></h2>`
     : `<h2>${escapeHtml(name)}</h2>`;
-  return `<section class="series-hero">${backdrop ? `<img class="series-backdrop" src="${escapeHtml(backdrop)}" onerror="this.remove()">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span>${heading}<div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
+  /* Without a backdrop the page is a black field with a column of text on it.
+     The title's own poster, blurred out behind, is what the artwork would have
+     been doing there, and every title that has a page at all has one. */
+  const behind = backdrop || poster;
+  return `<section class="series-hero${backdrop ? "" : " no-backdrop"}">${behind ? `<img class="series-backdrop" src="${escapeHtml(behind)}" onerror="this.remove()">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span>${heading}<div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
 }
 
 function mergedInfo(info, meta) {
@@ -2199,7 +2227,7 @@ function renderMovieDetail() {
     backdrop: artUrl(meta?.backdrop, "w1280") || backdropValue || item.backdrop || item.logo,
     poster: artUrl(meta?.poster, "w342") || info.movie_image || info.cover_big || item.logo,
     eyebrow: "Movie", name: state.detailMeta?.title || item.name, logo: meta?.details?.logo,
-    meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releasedate || info.releaseDate || item.year || meta?.year || "").slice(0, 4), meta?.details?.runtime || shortDuration(info) || (item.duration ? shortDuration({ duration: item.duration }) : ""), item.category],
+    meta: detailMetaBits(item, meta, info),
     description: meta?.overview || info.plot || info.description || "Ready to watch from your connected IPTV source.",
     actions,
   }) + ratingsRow(meta) + creditsBlock(mergedInfo(info, meta)) + (bar > 1 ? `<section class="detail-progress"><span><i style="width:${bar.toFixed(1)}%"></i></span><small>${escapeHtml(`${clock(record.position)} of ${clock(record.duration)} watched`)}</small></section>` : "");
