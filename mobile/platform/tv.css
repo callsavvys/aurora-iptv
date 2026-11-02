@@ -734,3 +734,25 @@
 }
 .platform-tv .shelf-row > .card:first-child, .platform-tv .ranked-row > .card:first-child { transform-origin: left center; }
 .platform-tv .shelf-row > .card:last-child, .platform-tv .ranked-row > .card:last-child { transform-origin: right center; }
+
+/* ---------- the update notice on a television ----------
+   It sat 24px into the bottom right corner at 12px type: the exact region a
+   television crops, at a size nobody reads from a sofa. Everything else moved
+   to an overscan-safe margin and this never did, which is the likeliest reason
+   it was never seen. */
+.platform-tv .update-banner {
+  right: auto;
+  left: 88px;
+  bottom: 72px;
+  max-width: 1000px;
+  gap: 26px;
+  padding: 26px 30px;
+  border-radius: 20px;
+  border-width: 2px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .7);
+}
+.platform-tv .update-banner strong { font-size: 30px; }
+.platform-tv .update-banner small { font-size: 20px; margin-top: 8px; }
+.platform-tv .update-banner .primary { height: 60px; padding: 0 28px; font-size: 20px; border-radius: 12px; }
+.platform-tv .update-dismiss { font-size: 34px; padding: 0 10px; }
+.platform-tv .update-dismiss:focus { outline: 4px solid var(--accent); border-radius: 10px; }

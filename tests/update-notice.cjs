@@ -73,6 +73,20 @@ const cmp = (a, b) => build(ok("v0.0.1"), true).newer(a, b);
   check("rather than calling a handler that is not there",
     SHIM.includes("if (updateHandler) updateHandler(status); else updatePending = status;"), true);
 
+  console.log("\n— the things that stopped it being seen —");
+  check("the release list is asked with a User-Agent, which GitHub requires",
+    /User-Agent/.test(SHIM), true);
+  {
+    const tv = fs.readFileSync(path.join(ROOT, "mobile/platform/tv.css"), "utf8");
+    check("the notice has a place on a television at all", tv.includes(".platform-tv .update-banner"), true);
+    check("and not in the corner a television crops", /\.platform-tv \.update-banner[^}]*left: 88px/.test(tv), true);
+  }
+  {
+    const renderer = fs.readFileSync(path.join(ROOT, "app/renderer.js"), "utf8");
+    check("and there is somewhere to go and ask, rather than a banner to catch",
+      renderer.includes('id="mine-version"'), true);
+  }
+
   console.log("\n— nothing is downloaded —");
   check("only the release list was ever asked for", asked.every((url) => url === "https://example.invalid/releases"), true);
   check("and it was asked for, at least once", asked.length > 0, true);

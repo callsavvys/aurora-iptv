@@ -96,7 +96,13 @@
   async function latestRelease() {
     const current = "__AURORA_VERSION__";
     try {
-      const response = await fetch(RELEASES, { headers: { Accept: "application/vnd.github+json" } });
+      /* CapacitorHttp is enabled, so this goes out through native HTTP rather
+         than the WebView, and a native client sends no browser User-Agent.
+         GitHub refuses requests without one. */
+      const response = await fetch(RELEASES, { headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "Aurora-IPTV",
+      } });
       if (!response.ok) return { state: "error", message: `The release list answered ${response.status}` };
       const version = String((await response.json()).tag_name || "").replace(/^v/, "");
       if (!version) return { state: "error", message: "The release list named no version" };

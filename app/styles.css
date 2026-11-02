@@ -2680,3 +2680,7 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 /* the page follows the remote smoothly rather than jumping to it */
 .scroll { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { .scroll { scroll-behavior: auto; } }
+
+/* the version row turns into the update when there is one */
+.mine-update { border-color: var(--accent-edge-strong); background: var(--accent-wash); }
+.mine-update .mine-glyph { background: var(--accent); color: var(--accent-ink); }

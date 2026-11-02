@@ -1445,6 +1445,22 @@ function renderProfile() {
         : ""}
 
       <div class="mine-rows">
+        ${(() => {
+          /* A notice you have to catch is a notice you can miss. This says the
+             version you are on, always, and turns into the update when there is
+             one — so there is somewhere to go and look rather than a banner to
+             happen to see. */
+          const status = renderUpdateBanner.last;
+          const newer = status?.state === "manual";
+          return `<button class="mine-row ${newer ? "mine-update" : ""}" id="mine-version">
+            <span class="mine-glyph">${icon("refresh")}</span>
+            <span class="mine-copy">
+              <strong>${newer ? `Aurora ${escapeHtml(status.version)} is out` : "Aurora is up to date"}</strong>
+              <small>${newer ? escapeHtml(status.how || "") : `You are on ${escapeHtml(state.appVersion || "this build")}`}</small>
+            </span>
+            <span class="mine-go">${icon("chev-right")}</span>
+          </button>`;
+        })()}
         ${[["together", "Watching together", me ? `Your code is ${me.friend_code}` : "Watch with a friend on their own line", "heart"],
            ["history", "History", "Everything you have played", "history"],
            ["settings", "Settings", "Sources, artwork and this device", "gear"]]
@@ -2642,6 +2658,16 @@ document.addEventListener("click", (event) => {
 
   /* the name at the top left is an account menu, not a sixth place to browse:
      settings, switching line, and the way out */
+  if (target.closest("#mine-version")) {
+    showToast("Checking for a newer Aurora…");
+    Promise.resolve(window.aurora?.checkForUpdates?.()).then((status) => {
+      if (status) renderUpdateBanner(status);
+      renderProfile();
+      if (status?.state !== "manual") showToast(`Aurora ${state.appVersion || ""} is the newest there is`.trim());
+    }).catch(() => showToast("Could not reach the release list"));
+    return;
+  }
+
   const whoButton = target.closest("#who");
   if (whoButton) {
     const menu = $("#who-menu");
