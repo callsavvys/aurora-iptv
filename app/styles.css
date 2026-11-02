@@ -2601,3 +2601,11 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 .mine-copy small { display: block; font-family: var(--mono); font-size: 11px; color: var(--text-3); margin-top: 3px; }
 .mine-go { color: var(--text-4); }
 .mine-go .icon { width: 16px; height: 16px; }
+
+/* the billboard fading between titles */
+.hero > img, .hero-copy { transition: opacity .26s ease; }
+.hero.turning > img, .hero.turning .hero-copy { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero > img, .hero-copy { transition: none; }
+}

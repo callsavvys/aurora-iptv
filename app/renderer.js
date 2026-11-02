@@ -842,10 +842,46 @@ function matchTrending(results, type) {
   return matched;
 }
 
+/* TMDB ranks "trending" by day or by week and nothing longer, so a month and a
+   year come from discover instead: the most popular titles released inside the
+   window. Different question, honestly labelled — "biggest of 2026" is not the
+   same claim as "most watched this week", and the rows say which they are. */
+async function popularIn(kind, from, to) {
+  const key = apiKeys().tmdb;
+  if (!key) return [];
+  const cacheKey = `popular:${kind}:${from}`;
+  const cached = await idbGet("meta", cacheKey).catch(() => null);
+  if (cached?.at && Date.now() - cached.at < TRENDING_TTL) return cached.list || [];
+  const field = kind === "tv" ? "first_air_date" : "primary_release_date";
+  const pages = await Promise.all([1, 2].map((page) => fetchJson(
+    `${TMDB}/discover/${kind}?api_key=${key}&sort_by=popularity.desc&vote_count.gte=50`
+    + `&${field}.gte=${from}&${field}.lte=${to}&page=${page}`).catch(() => null)));
+  const results = pages.flatMap((page) => page?.results || []);
+  if (!results.length) return cached?.list || [];
+  await idbPut("meta", cacheKey, { at: Date.now(), list: results }).catch(() => {});
+  return results;
+}
+
+const isoDay = (date) => date.toISOString().slice(0, 10);
+
 async function loadTrending() {
   if (!hasTmdb() || !state.items.length) return;
-  const [movies, series] = await Promise.all([trendingList("movie"), trendingList("tv")]);
-  state.trending = { movie: matchTrending(movies, "movie"), series: matchTrending(series, "series"), of: movies.length + series.length };
+  const now = new Date();
+  const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1);
+  const yearStart = `${now.getFullYear()}-01-01`;
+  const [movies, series, monthly, yearly] = await Promise.all([
+    trendingList("movie"),
+    trendingList("tv"),
+    popularIn("movie", isoDay(monthAgo), isoDay(now)),
+    popularIn("movie", yearStart, isoDay(now)),
+  ]);
+  state.trending = {
+    movie: matchTrending(movies, "movie"),
+    series: matchTrending(series, "series"),
+    month: matchTrending(monthly, "movie"),
+    year: matchTrending(yearly, "movie"),
+    of: movies.length + series.length,
+  };
   if (state.view === "home" && !state.query) render();
 }
 
@@ -1231,14 +1267,33 @@ function becauseYouWatched() {
   return shelf(`More ${seed.category}`, picks, false, `Because you watched ${metaCache.get(seed.id)?.title || seed.name}`);
 }
 
-function heroPick() {
+/* The billboard rotates, the way the screen it is modelled on does. These are
+   the titles it rotates through: well rated, not already finished, and with
+   artwork, because a billboard with nothing on it is just a dark rectangle. */
+function heroPicks(wanted = 6) {
   const cache = (index().cache ||= {});
-  if (cache.hero !== undefined) return cache.hero;
+  if (cache.heroes !== undefined) return cache.heroes;
   const candidates = [...ratedItems("movie", 60), ...ratedItems("series", 60)]
     .filter((item) => !finished(progressOf(item.id)));
-  const withArt = candidates.find((item) => metaCache.get(item.id)?.backdrop || item.backdrop);
-  cache.hero = withArt || candidates[0] || state.items.find((item) => item.type === "movie") || state.items[0] || null;
-  return cache.hero;
+  const dressed = candidates.filter((item) => metaCache.get(item.id)?.backdrop || item.backdrop);
+  const pool = dressed.length ? dressed : candidates;
+  const picks = pool.slice(0, wanted);
+  const chosen = picks.length
+    ? picks
+    : [state.items.find((item) => item.type === "movie") || state.items[0]].filter(Boolean);
+  // never cache an empty answer: asked once before the library arrives, that
+  // would leave the billboard blank until something else rebuilt the index
+  if (chosen.length) cache.heroes = chosen;
+  return chosen;
+}
+
+/* Whichever title is up right now, not always the first. A background load
+   finishing — trending, artwork — re-renders the page, and returning the first
+   every time snapped the billboard back to the start while you were looking at
+   the fourth. */
+function heroPick() {
+  const picks = heroPicks();
+  return picks.length ? picks[hero.at % picks.length] : null;
 }
 
 /* The row of genres under the billboard. Netflix sets each in its own
@@ -1262,6 +1317,63 @@ function genreChips() {
     .join("")}</div>`;
 }
 
+/* What goes inside the billboard, on its own, so the rotation can replace it
+   without rebuilding the page underneath it every ten seconds. */
+function heroInner(featured) {
+  const meta = metaCache.get(featured.id);
+  const image = artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo;
+  const score = meta?.ratings?.imdb || meta?.score || featured.rating;
+  return `${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div>`;
+}
+
+/* ---------- the billboard turns over ----------
+   A fixed billboard tells you about one film for as long as you look at it.
+   This one changes, which is how the screen it is modelled on uses that space.
+
+   It holds still whenever it would be rude to move: while the remote or the
+   pointer is on the billboard's own buttons, because changing what Play means
+   under someone's thumb is how you play the wrong film; while the player is
+   open; and for anyone who has asked their system for less motion. */
+
+const HERO_EVERY = 10000;
+const hero = { timer: null, at: 0 };
+
+function stopHeroTurn() {
+  clearInterval(hero.timer);
+  hero.timer = null;
+}
+
+function heroHeld() {
+  if (!$("#player-modal").classList.contains("hidden")) return true;
+  const node = document.activeElement;
+  if (node && node !== document.body && node.closest?.(".hero")) return true;
+  return Boolean(document.querySelector(".hero:hover"));
+}
+
+function turnHero() {
+  const picks = heroPicks();
+  const billboard = document.querySelector(".hero");
+  if (!billboard || picks.length < 2) return stopHeroTurn();
+  if (heroHeld()) return;
+  hero.at = (hero.at + 1) % picks.length;
+  const next = picks[hero.at];
+  billboard.classList.add("turning");
+  // swap once the old one has faded, so the two never cross-dissolve mid-word
+  setTimeout(() => {
+    if (!billboard.isConnected) return;
+    billboard.innerHTML = heroInner(next);
+    billboard.classList.remove("turning");
+    hydrateHero(next);
+  }, 260);
+}
+
+function startHeroTurn() {
+  stopHeroTurn();
+  if (state.view !== "home" || heroPicks().length < 2) return;
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+  hero.timer = setInterval(turnHero, HERO_EVERY);
+}
+
 function renderHome() {
   const featured = heroPick();
   if (!featured) return renderWelcome();
@@ -1269,7 +1381,7 @@ function renderHome() {
   const image = artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo;
   const score = meta?.ratings?.imdb || meta?.score || featured.rating;
   const missing = state.trending && !state.trending.movie.length && !state.trending.series.length && state.trending.of > 0;
-  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${genreChips()}${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${becauseYouWatched()}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
+  $("#content").innerHTML = `<section class="hero">${heroInner(featured)}</section>${genreChips()}${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${becauseYouWatched()}${rankedShelf(`Biggest of ${new Date().getFullYear()}`, state.trending?.year, "Most popular released this year, that you have")}${rankedShelf("Big this past month", state.trending?.month, "Released in the last month")}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
   hydrateHero(featured);
 }
 
@@ -1817,6 +1929,8 @@ function render() {
     render.lastView = state.view;
   }
   syncHeader();
+  // the billboard only turns over on the home page, and only while you are looking at it
+  if (state.view === "home" && !state.query) startHeroTurn(); else stopHeroTurn();
 }
 
 function playSomething() {
