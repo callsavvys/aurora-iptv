@@ -3720,8 +3720,12 @@ async function openSession() {
 document.addEventListener("submit", (event) => {
   if (event.target.id === "friend-form") {
     event.preventDefault();
+    // read what was typed BEFORE re-rendering: renderTogether rewrites the view
+    // to show "Asking…", which destroys this input and builds an empty one, and
+    // reading it afterwards always came back blank
+    const typed = $("#friend-code")?.value || "";
     social.busy = true; renderTogether();
-    addFriendByCode($("#friend-code")?.value).finally(() => { social.busy = false; renderTogether() });
+    addFriendByCode(typed).finally(() => { social.busy = false; renderTogether() });
     return;
   }
   if (event.target.id !== "account-form") return;
@@ -3764,6 +3768,9 @@ function renderUpdateBanner(status) {
     verifying: [`Checking ${version}`, "Making sure the download is intact"],
     ready: [`${version} is ready`, "Aurora will restart to finish"],
     error: ["Update check failed", status?.message || ""],
+    // a sideloaded build cannot install anything over itself, so it says where
+    // the new one is instead of offering a button that could not work
+    manual: [`${version} is out`, status?.how || "Reinstall Aurora to update"],
     none: status?.message ? ["Aurora is up to date", `You are on ${$("#app-version").textContent}`] : null,
     skipped: status?.message ? ["Updates are off", status.message] : null,
   }[status?.state];

@@ -272,6 +272,48 @@ const NOW = 1_700_000_000_000; // followHost reads the clock; it is held still s
   await js(`Date.now = __realNow; Object.assign(party, { id: null, hosting: false, channel: null }); true`);
   check("none of that asked the account server anything", await asked(), []);
 
+  // Submitting the form re-rendered the view to show "Asking…" and only then
+  // read the input, which by that point was a fresh empty one. Adding a friend
+  // by code never worked at all, on any platform.
+  console.log("\n— the code you typed is the code that gets sent —");
+  const sent = await js(`(async () => {
+    window.__asked.length = 0;
+    // the form only exists for a signed-in account
+    account.user = { id: "me" };
+    social.friends = [];
+    social.profile = { user_id: "me", display_name: "Me", friend_code: "AAAAAAAA" };
+    social.error = ""; social.notice = "";
+    state.view = "together"; renderTogether();
+    const field = document.getElementById("friend-code");
+    if (!field) return "no field";
+    field.value = "7FK3QX2M";
+    document.getElementById("friend-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 60));
+    return social.error || "no error";
+  })()`);
+  // the stub client answers nothing, so "No one has that code" is the right
+  // outcome here; what must never come back is the length complaint
+  check("a real code is not rejected as the wrong length", String(sent).includes("eight characters"), false);
+  check("and it reached the server as a lookup", await js(`window.__asked.some((what) => what.includes("friend_by_code"))`), true);
+
+  const blank = await js(`(async () => {
+    social.error = ""; renderTogether();
+    document.getElementById("friend-code").value = "";
+    document.getElementById("friend-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 60));
+    return social.error;
+  })()`);
+  check("an empty box still says what a code looks like", blank, "A friend code is eight characters.");
+
+  const mine = await js(`(async () => {
+    social.error = ""; renderTogether();
+    document.getElementById("friend-code").value = "aaaa aaaa";
+    document.getElementById("friend-form").dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 60));
+    return social.error;
+  })()`);
+  check("lowercase with a space is still your own code, not a length error", mine, "That is your own code.");
+
   console.log("\n— the page is allowed to open a party at all —");
   // connect-src with http:/https: alone does NOT cover wss: in Chromium, and a
   // party fails with nothing but "transport failure" when it is missing

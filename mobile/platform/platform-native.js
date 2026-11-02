@@ -36,6 +36,9 @@
   const unsupported = { state: "unsupported" };
 
   let onBack = null;
+  let updateHandler = null;
+  // the TV build is the one that carries a Downloader code to quote
+  const TV_BUILD = document.documentElement.classList.contains("platform-tv");
 
   window.aurora = {
     platform,
@@ -51,20 +54,70 @@
       return { saved, encrypted: false };
     },
     version: async () => "__AURORA_VERSION__",
-    // updates on iPhone come from reinstalling the IPA, not from the app
-    updateStatus: async () => unsupported,
-    checkForUpdates: async () => unsupported,
+
+    /* A sideloaded build has no update channel: Android will not update an APK
+       that did not come from a store, and an IPA is the same. It can still find
+       out that a new one exists and say where, which is the whole gap — without
+       this, the only way anyone learns there is an update is being told.
+
+       Nothing is downloaded or installed here. It reads the release list and
+       compares version numbers. */
+    updateStatus: async () => latestRelease(),
+    checkForUpdates: async () => latestRelease(),
     installUpdate: async () => unsupported,
-    onUpdateStatus: () => {},
+    onUpdateStatus: (handler) => { updateHandler = handler },
     setTheme: () => {},
     onMenu: () => {},
   };
+
+  /* ---- is there a newer Aurora than this one? ---- */
+
+  const RELEASES = "https://api.github.com/repos/callsavvys/aurora-iptv/releases/latest";
+  const DOWNLOADER_CODE = "8502133";
+
+  // "0.31.0" vs "0.9.0": compared as numbers, part by part, never as text
+  const newer = (candidate, current) => {
+    const parts = (value) => String(value || "").replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
+    const [a, b] = [parts(candidate), parts(current)];
+    for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
+      if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+    }
+    return false;
+  };
+
+  async function latestRelease() {
+    const current = "__AURORA_VERSION__";
+    try {
+      const response = await fetch(RELEASES, { headers: { Accept: "application/vnd.github+json" } });
+      if (!response.ok) return { state: "error", message: `The release list answered ${response.status}` };
+      const version = String((await response.json()).tag_name || "").replace(/^v/, "");
+      if (!version) return { state: "error", message: "The release list named no version" };
+      if (!newer(version, current)) return { state: "none", message: "up to date" };
+      return {
+        state: "manual",
+        version,
+        how: TV_BUILD
+          ? `Open Downloader and enter ${DOWNLOADER_CODE}`
+          : "Reinstall Aurora from the latest release to update",
+      };
+    } catch (error) {
+      return { state: "error", message: error?.message || "Could not reach the release list" };
+    }
+  }
 
   /* On a TV this is the only way out of anything, so a back press that the app
      does not want must reach the system rather than trap the person inside. */
   window.Capacitor?.Plugins?.App?.addListener?.("backButton", () => {
     if (!onBack?.()) window.Capacitor?.Plugins?.App?.exitApp?.();
   });
+
+  /* Asked once a little after launch: the answer is a banner, not a blocker,
+     and the library matters more than the release list in the first seconds. */
+  setTimeout(() => {
+    latestRelease().then((status) => {
+      if (status.state === "manual") updateHandler?.(status);
+    }).catch(() => {});
+  }, 4000);
 
   const renderer = document.createElement("script");
   renderer.src = "renderer.js";
