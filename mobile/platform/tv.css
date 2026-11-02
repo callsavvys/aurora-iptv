@@ -628,7 +628,7 @@
 .platform-tv .chrome-top .now small { font-size: 21px; color: var(--text-2); }
 
 /* transport and track share a line, the way a remote reads them */
-.platform-tv .chrome-bottom { display: flex; align-items: center; gap: 28px; }
+.platform-tv .chrome-bottom { display: flex; flex-direction: row; align-items: center; gap: 28px; }
 .platform-tv .chrome-bottom .transport { order: -1; flex: 0 0 auto; gap: 14px; }
 .platform-tv .chrome-bottom .timeline { flex: 1 1 auto; min-width: 0; margin: 0; }
 
@@ -661,3 +661,11 @@
   color: var(--bg);
   transform: scale(1.06);
 }
+
+/* The transport carries a spacer that pushes its right-hand controls apart on
+   a desk. Sharing a line with the scrub bar, that spacer took all the room and
+   wrapped the bar onto a line of its own, where only its knob showed. */
+.platform-tv .chrome-bottom { flex-wrap: nowrap; }
+.platform-tv .chrome-bottom .transport { flex: 0 1 auto; min-width: 0; flex-wrap: nowrap; }
+.platform-tv .chrome-bottom .transport .grow { display: none; }
+.platform-tv .chrome-bottom .timeline { flex: 1 1 40%; min-width: 260px; }
