@@ -149,8 +149,14 @@
     }
     const card = document.querySelector(`#content ${CARD}`);
     if (card && reachable(card)) return focus(card);
+    /* A page with no cards is still a page you have to be able to use. The
+       chooser is the case that found this: it has only buttons, and it hides
+       the menu, so falling back to the menu left the remote with nothing at
+       all to hold and the screen was dead. */
+    const control = candidates(document.getElementById("content") || document)[0];
+    if (control) return focus(control);
     const nav = activeNav();
-    if (nav) focus(nav);
+    if (nav && reachable(nav)) focus(nav);
   }
 
   function refocus() {

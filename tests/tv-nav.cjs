@@ -133,6 +133,38 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
   await settle();
   check("left out of the first column stays put", await js(`document.activeElement.dataset.id`), before);
 
+  /* The chooser has no cards and hides the menu. focusFirst looked for a card,
+     then fell back to the menu, so on that screen the remote held nothing and
+     the page was dead. And render() checked "is the library empty" before it
+     checked for the chooser, so with no library loaded the chooser never drew
+     at all — which is exactly when it is shown. */
+  console.log("\n— a page made only of buttons —");
+  await js(`(() => {
+    secrets = { sources: [
+      { id: "s1", name: "Rocket", server: "a", username: "u", password: "p" },
+      { id: "s2", name: "Blue Line", server: "b", username: "u", password: "p" }] };
+    writePref("activeSource", "s1");
+    const keep = state.items;
+    state.items = [];               // no library yet, which is the normal case here
+    state.view = "chooser"; render();
+    state.items = keep;
+    document.activeElement.blur();
+    return true;
+  })()`);
+  await settle();
+  check("the chooser draws even with no library loaded", await js(`Boolean(document.querySelector(".chooser"))`), true);
+  check("and it hides the menu", await js(`getComputedStyle(document.querySelector("aside")).display`), "none");
+  // which source it lands on depends on what focus was remembered from before;
+  // that it lands on one at all is the thing that was broken
+  await press("ArrowRight");
+  check("the first press finds a source rather than nothing", await js(`["s1", "s2"].includes(document.activeElement?.dataset?.pick)`), true);
+  const landedOn = await js(`document.activeElement?.dataset?.pick`);
+  await press("ArrowRight");
+  check("and the remote moves off it rather than sticking", await js(`document.activeElement?.dataset?.pick !== ${JSON.stringify(landedOn)}`), true);
+  check("onto something the chooser owns", await js(`Boolean(document.activeElement?.closest(".chooser"))`), true);
+  await js(`(() => { state.view = "movies"; navigate({ view: "movies", query: "" }); return true })()`);
+  await settle();
+
   console.log("\n— focus survives a re-render —");
   await press("ArrowRight");
   await press("ArrowRight");
@@ -153,10 +185,17 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
   check("focus falls back to the first poster", await where(), "card 0");
   await js(`(() => { state.items = []; state.provider = null; document.activeElement.blur(); render(); return true })()`);
   await settle();
-  check("and with no cards at all, to the sidebar button for this view", await js(`(() => {
+  /* This used to expect the menu. With no library the page shown is the welcome,
+     whose whole purpose is one button that connects a source, and landing the
+     remote on the menu instead meant arriving at a screen asking you to do a
+     thing with the cursor nowhere near the thing. Focus now prefers what the
+     page itself offers, and only falls to the menu when the page offers
+     nothing. */
+  check("and with no cards at all, on what the page is asking you to do", await js(`(() => {
     const node = document.activeElement;
-    return [Boolean(node.closest("aside")), node.classList.contains("active")];
-  })()`), [true, true]);
+    if (!node || node === document.body) return "NOTHING";
+    return node.closest("aside") ? "menu" : (node.className || node.localName);
+  })()`), "primary open-source");
 
   console.log("\n— the search field keeps what it needs —");
   await js(`(() => {

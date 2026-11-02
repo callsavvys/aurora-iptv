@@ -1745,12 +1745,13 @@ function render() {
   stopPreview();
   if (state.view === "settings") renderSettings();
   else if (state.view === "together") renderTogether();
+  // the chooser comes before the welcome check: picking a source is how you get
+  // a library, so "there is no library yet" is no reason to hide it
+  else if (state.view === "chooser") renderChooser();
   else if (!state.provider || !state.items.length) renderWelcome();
   else if (state.view === "detail") renderDetailView();
   else if (state.query) renderSearch();
   else if (state.view === "history") renderHistory();
-  else if (state.view === "together") renderTogether();
-  else if (state.view === "chooser") renderChooser();
   else if (state.view === "home") renderHome();
   else renderCollection();
   document.querySelectorAll("nav button").forEach((button) => button.classList.toggle("active", !state.query && button.dataset.view === state.view));
