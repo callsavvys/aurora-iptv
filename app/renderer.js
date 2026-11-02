@@ -207,6 +207,12 @@ async function useSource(id, { auto = false } = {}) {
   if (!source) return;
   writePref("activeSource", id);
   state.provider = source;
+  /* Reading a hundred and thirty thousand titles back out of the database
+     takes eleven seconds on a television, and until now the screen did not
+     change at all while it happened — not even the tile that was pressed.
+     Measured off a recording: press at three seconds, first pixel moves at
+     fourteen. Anybody would think it had hung. */
+  sourceOpening(id, source.name);
   state.items = await loadLibrary(id); forgetProviderRatings();
   libraryIndex = null; state.trending = null;
   // an empty cache normally means "go and press refresh", but not when Aurora
@@ -1561,6 +1567,16 @@ function renderProfile() {
            </button>`).join("")}
       </div>
     </section>`;
+}
+
+/* Said on the chooser itself, where the press happened, rather than in a
+   corner: on a television the eye is already on the tile it just pressed. */
+function sourceOpening(id, name) {
+  const face = document.querySelector(`[data-pick="${CSS.escape(id)}"]`);
+  if (!face) return;
+  face.closest(".pick")?.classList.add("opening");
+  const head = document.querySelector(".chooser-head p");
+  if (head) head.textContent = `Opening ${name || "your library"}\u2026`;
 }
 
 function renderChooser() {

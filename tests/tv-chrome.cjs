@@ -101,6 +101,21 @@ console.log("\n— thirty-three thousand channels, and a remote —");
     /scrollGuideToNow\(\);[\s\S]{0,160}watchGuideEnd\(total\);/.test(SRC2), true);
 }
 
+console.log("\n— the highlight stays on its own poster —");
+{
+  const gap = Number((TV.match(/\.platform-tv \.shelf-row, \.platform-tv \.ranked-row \{[\s\S]*?gap: (\d+)px/) || [])[1] || 0);
+  const ring = TV.match(/\.platform-tv \.card:focus \.art \{[\s\S]*?outline: (\d+)px[\s\S]*?outline-offset: (\d+)px[\s\S]*?box-shadow: 0 0 0 (\d+)px/) || [];
+  const reach = Number(ring[1] || 0) + Number(ring[2] || 0) + Number(ring[3] || 0);
+  check(`the ring reaches ${reach}px and half the gap is ${gap / 2}px`, reach <= gap / 2, true);
+}
+check("a numbered row keeps its shape, every tile the same",
+  /if \(card\.closest\("\.ranked-row"\)\) return;/
+    .test(require("node:fs").readFileSync(require("node:path").join(ROOT, "mobile/platform/tv-nav.js"), "utf8")), true);
+check("a ranked tile grows at the same pace as every other one",
+  /\.platform-tv \.ranked-row > \.card \{[^}]*transition: flex-basis \.2s ease/.test(TV), true);
+check("and its shape follows its width rather than jumping first",
+  /\.platform-tv \.card \.art \{ transition: aspect-ratio \.2s ease; \}/.test(TV), true);
+
 console.log("\n— the menu strip takes a floor once the page has moved —");
 const rule = TV.match(/\.platform-tv \.app:has\(\.workspace\.scrolled\) aside \{([^}]*)\}/);
 check("the television is covered by the scrolled rule", Boolean(rule), true);

@@ -2692,3 +2692,24 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 /* the version row turns into the update when there is one */
 .mine-update { border-color: var(--accent-edge-strong); background: var(--accent-wash); }
 .mine-update .mine-glyph { background: var(--accent); color: var(--accent-ink); }
+
+/* ---- a library takes a moment to open ----
+   Reading a large library back out of the database takes seconds, and the
+   chooser used to sit unchanged throughout: the tile you pressed did not even
+   acknowledge the press. The sweep across it is the only thing on screen that
+   says the television is still working. */
+.pick.opening .pick-face {
+  border-color: var(--accent);
+  color: var(--accent);
+  position: relative;
+  overflow: hidden;
+}
+.pick.opening .pick-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, var(--accent-wash) 50%, transparent 80%);
+  animation: pick-sweep 1.1s linear infinite;
+}
+@keyframes pick-sweep { from { transform: translateX(-100%) } to { transform: translateX(100%) } }
+.pick.opening .pick-edit { opacity: .35; }

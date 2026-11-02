@@ -77,10 +77,11 @@
   z-index: 3;
 }
 .platform-tv .card:focus .art {
-  outline: 5px solid var(--accent);
-  outline-offset: 5px;
+  outline: 4px solid var(--accent);
+  outline-offset: 3px;
   border-color: var(--accent);
-  box-shadow: 0 0 0 14px var(--accent-glow), var(--shadow-hero);
+  /* eleven pixels in all, which fits inside half of the row gap */
+  box-shadow: 0 0 0 4px var(--accent-glow), var(--shadow-hero);
 }
 /* what hover used to reveal, focus now reveals */
 .platform-tv .card:focus .play-bubble { opacity: 1; transform: translate(-50%, -50%); }
@@ -430,13 +431,19 @@
 /* a flex row, because one tile in it has to be able to grow */
 .platform-tv .shelf-row, .platform-tv .ranked-row {
   display: flex;
-  gap: 9px;
+  /* The ring around a focused poster is drawn outside its box, so the gap has
+     to be wider than the ring or the highlight lands on its neighbours — at
+     nine pixels it was covering both of them. */
+  gap: 26px;
   grid-auto-columns: initial;
   padding-right: 88px;
 }
 .platform-tv .shelf-row > .card { flex: 0 0 176px; min-width: 0; transition: flex-basis .2s ease; }
 .platform-tv .shelf-row.wide > .card { flex-basis: 300px; }
-.platform-tv .ranked-row > .card { flex: 0 0 240px; }
+/* The same easing as the other rows. Without it a ranked tile jumped from 240
+   to 580 in one frame while its scale was still easing, which is what "it does
+   not scale animated correctly" looks like. */
+.platform-tv .ranked-row > .card { flex: 0 0 240px; min-width: 0; transition: flex-basis .2s ease; }
 
 /* the title under every poster is what the spotlight replaces */
 .platform-tv .card .card-copy { display: none; }
@@ -454,6 +461,8 @@
 .platform-tv .card.spotlit { flex-basis: 520px; }
 .platform-tv .shelf-row.wide > .card.spotlit { flex-basis: 560px; }
 .platform-tv .ranked-row > .card.spotlit { flex-basis: 580px; }
+/* the shape changes with the width rather than a frame before it */
+.platform-tv .card .art { transition: aspect-ratio .2s ease; }
 .platform-tv .card.spotlit .art { aspect-ratio: 16 / 9; }
 .platform-tv .card.spotlit .focus-art {
   position: absolute;

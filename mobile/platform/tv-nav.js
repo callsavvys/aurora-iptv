@@ -421,6 +421,14 @@
       box.replaceChildren(line, title);
     }
 
+    /* A numbered row keeps its shape. Widening a tile in it moves every
+       poster after it out from under its own numeral, and whether a tile
+       widened at all depended on whether that title happened to have landscape
+       artwork — so walking along Top 20 some tiles grew and some did not, with
+       no way to tell which from looking. The numbers are the point of the row;
+       they stay lined up. */
+    if (card.closest(".ranked-row")) return;
+
     // the landscape artwork is what lets it widen; without it, it stays put
     const art = card.querySelector(".art");
     const wide = item.backdrop || meta(item.id)?.backdrop;
