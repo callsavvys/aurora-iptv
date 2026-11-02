@@ -836,3 +836,61 @@
 }
 .platform-tv .credits small { font-size: 16px; letter-spacing: .14em; }
 .platform-tv .credits p { font-size: 22px; line-height: 1.5; }
+
+/* ---- the pages a sweep found, rather than a screenshot ----
+   Three surfaces in a row turned out never to have been brought across: the
+   detail page, Settings, and the chips on Movies and Live TV. Each was found
+   by looking at one screen at a time, which is how you find the fourth one
+   next week. tests/tv-sweep.cjs walks every view at 1920x1080 and measures
+   what is on it. These are what it answered. */
+
+/* Every page built on .page started 29 pixels from the edge — inside the strip
+   a television throws away, and a long way inside the 88 everything else uses. */
+.platform-tv .page { padding: 34px 88px 60px; }
+.platform-tv .page-title h1 { font-size: 46px; }
+.platform-tv .page-title > span { font-size: 19px; }
+.platform-tv .eyebrow { font-size: 17px; letter-spacing: .2em; }
+
+/* the number on a poster: eleven pixels is a smudge from a sofa */
+.platform-tv .score b { font-size: 19px; }
+.platform-tv .score em { font-size: 13px; }
+
+/* ---- Live TV ----
+   The guide had none of this. The clock along the top was ten-pixel type and
+   the channel names twelve, which is the size they are on a laptop a foot
+   from your face. */
+.platform-tv .seg { padding: 5px; border-radius: 14px; }
+.platform-tv .seg button { height: 54px; padding: 0 28px; font-size: 19px; border-radius: 10px; }
+.platform-tv .guide-ticks i { font-size: 17px; }
+.platform-tv .guide-name { font-size: 19px; }
+.platform-tv .guide-corner .chip { height: 48px; font-size: 18px; padding: 0 22px; }
+.platform-tv .prog { font-size: 18px; padding: 10px 14px; }
+.platform-tv .prog b { font-size: 18px; }
+.platform-tv .prog span { font-size: 15px; }
+.platform-tv .panel-empty { font-size: 20px; }
+
+/* the last of the small print on Settings */
+.platform-tv .settings small,
+.platform-tv .settings .keys-note { font-size: 16px; }
+.platform-tv .settings .version,
+.platform-tv .settings .version b { font-size: 18px; }
+.platform-tv .guide-logo b { font-size: 18px; }
+.platform-tv .prog.blank span, .platform-tv .prog.loading span { font-size: 18px; }
+.platform-tv .row-note { font-size: 19px; }
+
+/* Watching together is a .settings straight inside the scroller, with no
+   .page around it, so it never picked up the margin the others have. */
+.platform-tv #content > .settings { padding: 34px 88px 60px; max-width: min(1356px, 100%); }
+.platform-tv .ratings-hint { font-size: 17px; height: 54px; padding: 0 24px; border-radius: 14px; }
+
+/* The channel column is 200 pixels because the names in it were twelve-point.
+   At nineteen they truncate to "ALWAN SPO…", which tells you nothing about
+   which channel you are looking at. The corner has to match it exactly or the
+   clock along the top no longer lines up with the rows beneath. */
+.platform-tv .guide-corner,
+.platform-tv .guide-channel { width: 340px; padding: 10px 20px; }
+.platform-tv .guide-logo { width: 46px; }
+.platform-tv .guide-row,
+.platform-tv .guide-progs { height: 76px; }
+.platform-tv .guide-times { height: auto; }
+.platform-tv .guide-ticks { height: 56px; }

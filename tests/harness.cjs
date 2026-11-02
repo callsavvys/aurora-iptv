@@ -13,14 +13,14 @@ function liftStoreHandlers() {
   return file;
 }
 
-async function openAurora({ dataDir, port }) {
+async function openAurora({ dataDir, port, width = 1280, height = 860 }) {
   app.setPath("userData", dataDir);
   require(liftStoreHandlers());
   const { createAuroraServer } = require(path.join(ROOT, "server.cjs"));
   app.on("window-all-closed", () => {});
   await app.whenReady();
   const server = await createAuroraServer(path.join(ROOT, "app"), port);
-  const win = new BrowserWindow({ width: 1280, height: 860, show: false, webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false, preload: path.join(ROOT, "preload.cjs") } });
+  const win = new BrowserWindow({ width, height, show: false, webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false, preload: path.join(ROOT, "preload.cjs") } });
   const pageErrors = [];
   win.webContents.on("console-message", (e) => { if (/TypeError|ReferenceError|Uncaught/.test(e.message || "")) pageErrors.push(e.message) });
   await win.loadURL(server.origin);
