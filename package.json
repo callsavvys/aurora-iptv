@@ -7,7 +7,7 @@
   "scripts": {
     "start": "electron .",
     "package:mac": "bash scripts/build-mac.sh",
-    "test": "electron tests/local-sync.cjs && electron tests/signed-in.cjs && electron tests/tv-nav.cjs && electron tests/together.cjs",
+    "test": "electron tests/local-sync.cjs && electron tests/signed-in.cjs && electron tests/tv-nav.cjs && electron tests/together.cjs && electron tests/cliffhanger.cjs",
     "test:party": "electron tests/party-live.cjs",
     "test:sync": "bash tests/two-devices.sh",
     "test:updater": "electron tests/updater-app",

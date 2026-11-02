@@ -96,6 +96,10 @@ const state = {
   playerItem: null, playing: null, hls: null, queue: null, appVersion: "", confirmRemove: null, revealSource: null, historyFilter: "all", historyOpen: new Set(), confirmForget: null, trending: null, searchScope: "all", liveMode: "guide", detailId: null, history: [], historyAt: -1,
   seriesItem: null, seriesData: null, selectedSeason: null, detailItem: null, detailData: null, detailMeta: null,
 };
+const PREVIEW_DWELL = 700;   // long enough that passing over a row costs nothing
+const PREVIEW_LEAD = 6;      // start a moment before the cut, so it has somewhere to go
+const preview = { timer: null, video: null, card: null };
+
 const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings", detail: "Detail" };
 
 /* ---------- navigation ----------
@@ -1654,6 +1658,9 @@ function renderCollection() {
 }
 
 function render() {
+  // a render replaces the card the preview was living in, which would otherwise
+  // leave its stream open and still counting against the line
+  stopPreview();
   if (state.view === "settings") renderSettings();
   else if (state.view === "together") renderTogether();
   else if (!state.provider || !state.items.length) renderWelcome();
@@ -2233,6 +2240,93 @@ video.addEventListener("ended", () => {
   if (target) { showToast(target.season === state.queue.season ? "Playing the next episode…" : `Starting season ${target.season}…`); stepEpisode(1) }
 });
 
+/* ---------- your own cliffhanger ----------
+   Netflix previews a film with a clip someone at Netflix chose. Aurora knows
+   where *you* stopped, so a film you are part-way through previews from
+   exactly there, silently, under the poster.
+
+   Only films you have actually started, because a title you have never opened
+   has no moment of yours to show. Only one at a time, and only after a
+   deliberate pause on the card: every preview opens a real connection to the
+   provider, the line allows a handful at once, and drifting along a row would
+   otherwise spend all of them in a second. */
+
+function stopPreview() {
+  clearTimeout(preview.timer);
+  preview.timer = null;
+  if (preview.video) {
+    // dropping the source is what actually closes the connection; pausing alone
+    // leaves it open and the line keeps counting it
+    preview.video.pause();
+    preview.video.removeAttribute("src");
+    preview.video.load();
+    preview.video.remove();
+    preview.video = null;
+  }
+  preview.card?.classList.remove("previewing");
+  preview.card = null;
+}
+
+/* The moment worth showing: a film under way, not finished, and far enough in
+   that it is a scene rather than the distributor's logo. */
+function cliffhanger(item) {
+  if (!item || item.type !== "movie" || !state.provider || !item.streamId) return null;
+  const saved = progressOf(item.id);
+  if (!saved || finished(saved) || saved.position < 60) return null;
+  return saved;
+}
+
+function startPreview(card) {
+  stopPreview();
+  // the card can be gone by the time the dwell timer fires, or focus can land
+  // on something that is not a card at all
+  if (!card?.dataset?.id) return;
+  // never while something is actually being watched: that is the connection
+  // that matters, and a preview could take the last one the line allows
+  if (!$("#player-modal").classList.contains("hidden")) return;
+  const item = state.items.find((entry) => entry.id === card.dataset.id);
+  const saved = cliffhanger(item);
+  if (!saved) return;
+  const art = card.querySelector(".art");
+  if (!art) return;
+
+  const { server, user, pass } = credentials();
+  const video = document.createElement("video");
+  video.className = "preview-video";
+  video.muted = true;
+  video.defaultMuted = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+  video.addEventListener("loadedmetadata", () => {
+    video.currentTime = Math.max(0, saved.position - PREVIEW_LEAD);
+    video.play().catch(() => stopPreview());
+  }, { once: true });
+  video.addEventListener("error", stopPreview, { once: true });
+  video.src = relay(`${server}/movie/${user}/${pass}/${item.streamId}.${item.ext || "mp4"}`);
+
+  art.append(video);
+  card.classList.add("previewing");
+  preview.video = video;
+  preview.card = card;
+}
+
+function queuePreview(card) {
+  if (card === preview.card) return;
+  stopPreview();
+  if (!card) return;
+  preview.timer = setTimeout(() => startPreview(card), PREVIEW_DWELL);
+}
+
+// a pointer on the desktop, the remote's focus on a television
+$("#content").addEventListener("pointerover", (event) => {
+  if (TV) return;
+  queuePreview(event.target.closest?.("article.card") || null);
+});
+$("#content").addEventListener("pointerleave", () => { if (!TV) stopPreview() });
+document.addEventListener("focusin", (event) => {
+  if (!TV) return;
+  queuePreview(event.target.closest?.("article.card") || null);
+});
 document.addEventListener("click", (event) => {
   const target = event.target;
   const close = target.closest("[data-close]"); if (close) return closeModal(close.dataset.close);

@@ -519,3 +519,9 @@
 }
 .platform-tv .workspace > header .search:focus-within input { width: 100%; opacity: 1; padding-left: 12px; }
 .platform-tv .workspace > header .search:focus-within { outline: 4px solid var(--accent); }
+
+/* The cliffhanger preview on a television: the spotlight tile is already
+   showing its landscape artwork, so the preview takes that same frame. */
+.platform-tv .card.previewing .art:before { font-size: 13px; left: 14px; bottom: 12px; padding: 5px 10px; }
+.platform-tv .card.spotlit .preview-video { z-index: 2; }
+.platform-tv .card.spotlit.previewing .spotlight-title { z-index: 4; }

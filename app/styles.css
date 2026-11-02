@@ -2336,3 +2336,47 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 }
 
 .card:hover .art .score, .platform-tv .card:focus .art .score { opacity: 1; }
+
+/* ---------- your own cliffhanger ----------
+   The preview sits over the poster rather than replacing it, so a stream that
+   stalls or never starts leaves the artwork exactly where it was. */
+
+.preview-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+  opacity: 0;
+  animation: preview-in .45s ease forwards;
+  background: var(--bg);
+}
+
+@keyframes preview-in { to { opacity: 1; } }
+
+/* the resume bar belongs on top of the moving picture, not under it */
+.card.previewing .resume-bar { z-index: 3; }
+.card.previewing .play-bubble { z-index: 3; opacity: 1; transform: translate(-50%, -50%); }
+.card.previewing .score { z-index: 3; }
+
+/* says whose moment this is, so it does not read as a random clip */
+.card.previewing .art:before {
+  content: "Where you left off";
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 4;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--badge-bg);
+  backdrop-filter: blur(6px);
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .04em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-video { animation: none; opacity: 1; }
+}
