@@ -386,9 +386,13 @@
     else if (item.type === "series") bits.push("Series");
     const score = extra?.ratings?.imdb || extra?.score || item.rating;
     if (score) bits.push("★ " + score);
-    if (item.year || extra?.year) bits.push(String(item.year || extra.year));
+    /* the provider's category often carries the year inside it, and printing
+       both leaves "2026 ENGLISH 2026" sitting under the artwork */
+    const where = item.category ? (typeof tidyCategory === "function" ? tidyCategory(item.category) : item.category) : "";
+    const year = String(item.year || extra?.year || "");
+    if (year && !where.includes(year)) bits.push(year);
     if (extra?.runtime) bits.push(extra.runtime);
-    if (item.category) bits.push(item.category);
+    if (where) bits.push(where);
     return { bits, overview: extra?.overview || item.description || "" };
   };
 

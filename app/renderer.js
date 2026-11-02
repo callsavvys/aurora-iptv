@@ -207,7 +207,7 @@ async function useSource(id, { auto = false } = {}) {
   if (!source) return;
   writePref("activeSource", id);
   state.provider = source;
-  state.items = await loadLibrary(id);
+  state.items = await loadLibrary(id); forgetProviderRatings();
   libraryIndex = null; state.trending = null;
   // an empty cache normally means "go and press refresh", but not when Aurora
   // picked the source itself: ensureLibrary is about to fetch it
@@ -255,7 +255,7 @@ async function removeSource(id) {
     writePref("activeSource", undefined);
     const next = list[0];
     if (next) return useSource(next.id);
-    state.provider = null; state.items = []; libraryIndex = null; state.trending = null;
+    state.provider = null; state.items = []; libraryIndex = null; state.trending = null; forgetProviderRatings();
   }
   render();
 }
@@ -570,6 +570,65 @@ async function omdbRatings(imdbId) {
 // Text marks rather than the IMDb and Rotten Tomatoes logos: both are
 // trademarks that need written permission, and RT has no non-commercial
 // exemption at all. The numbers are the useful part; the marks name the source.
+/* ---------- what the provider calls things ----------
+   A provider's category names carry their own decoration: a language code at
+   the front, a tick or a snowflake as a separator, an English name and an
+   Arabic one on either side of a vertical bar. None of it means anything on a
+   television, and on a screen that reads left to right the Arabic half drags
+   the numbers around it out of order. Keep the words, drop the furniture. */
+
+const CATEGORY_FURNITURE = /[\u2000-\u206F\u2190-\u2BFF\uFE00-\uFE0F]|[\u{1F000}-\u{1FAFF}]/gu;
+
+function tidyCategory(name) {
+  const raw = String(name || "").trim();
+  let text = raw
+    .replace(CATEGORY_FURNITURE, " ")
+    .replace(/\s*[|/]\s*/g, " \u00b7 ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  /* a leading language or country code, but never the only word left, and
+     never a two-letter word that is doing real work in the name */
+  const KEEP = new Set(["TV", "HD", "4K", "ON", "MY"]);
+  const words = text.split(" ");
+  if (words.length > 1 && /^[a-z]{2}$/i.test(words[0]) && !KEEP.has(words[0].toUpperCase())) {
+    text = words.slice(1).join(" ");
+  }
+  text = text.replace(/^[\s\u00b7-]+/, "").replace(/[\s\u00b7-]+$/, "").trim();
+  return text || raw;
+}
+
+/* ---------- a rating every title shares is not a rating ----------
+   Some providers stamp the same number on everything they carry. A column of
+   identical 10.0 badges is not information, it is decoration sitting on top of
+   the artwork, so when one value covers most of the library the provider's own
+   number is left out and only the ones fetched by title are shown. */
+
+let providerRatingVerdict = null;
+const forgetProviderRatings = () => { providerRatingVerdict = null };
+
+function providerRatingsCarryMeaning() {
+  if (providerRatingVerdict !== null) return providerRatingVerdict;
+  const counts = new Map();
+  let rated = 0;
+  for (const item of state.items) {
+    if (!item.rating) continue;
+    rated += 1;
+    const value = String(item.rating);
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  if (rated < 20) return true;      // too few to judge, so take them at their word
+  providerRatingVerdict = Math.max(...counts.values()) / rated < 0.5;
+  return providerRatingVerdict;
+}
+
+/* The year is printed beside the category, and a provider's category often
+   carries that same year inside it. One of the two is enough. */
+function captionOf(item) {
+  const where = item.category ? tidyCategory(item.category) : "";
+  const year = String(item.year || "");
+  return [year && !where.includes(year) ? year : "", where].filter(Boolean).join(" • ") || item.type;
+}
+
 function ratingSet(item, meta) {
   const cached = meta || metaCache.get(item.id);
   const set = [];
@@ -577,7 +636,7 @@ function ratingSet(item, meta) {
   if (cached?.ratings?.rt) set.push({ mark: "RT", value: cached.ratings.rt, tone: Number.parseInt(cached.ratings.rt, 10) >= 60 ? "fresh" : "rotten" });
   if (cached?.ratings?.metacritic) set.push({ mark: "MC", value: cached.ratings.metacritic, tone: "critic" });
   if (!set.length && cached?.score) set.push({ mark: "TMDB", value: cached.score, tone: "imdb" });
-  if (!set.length && item.rating) set.push({ mark: "", value: item.rating, tone: "imdb" });
+  if (!set.length && item.rating && providerRatingsCarryMeaning()) set.push({ mark: "", value: item.rating, tone: "imdb" });
   return set;
 }
 
@@ -1083,7 +1142,7 @@ async function connectProvider(event) {
     writePref("activeSource", provider.id);
     await saveLibrary(items, provider.id);
     libraryIndex = null; state.trending = null;
-    state.items = items; state.view = "home"; state.category = "All"; state.limit = 120;
+    state.items = items; forgetProviderRatings(); state.view = "home"; state.category = "All"; state.limit = 120;
     closeModal("source-modal"); render();
     $("#source-form").reset();
     showToast(`${items.length.toLocaleString()} items loaded successfully`);
@@ -1106,7 +1165,7 @@ async function refreshLibrary(quiet = false, id = activeSourceId()) {
     const items = await loadEverything(quiet);
     await saveLibrary(items, source.id);
     libraryIndex = null; state.trending = null;
-    if (activeSourceId() === source.id) { state.items = items } else { state.provider = previous }
+    if (activeSourceId() === source.id) { state.items = items; forgetProviderRatings() } else { state.provider = previous }
     render();
     publishLibraryFilter().catch(() => {}); // what you can play is what a friend can match against
     showToast(`Library refreshed • ${items.length.toLocaleString()} items`);
@@ -1183,7 +1242,7 @@ function card(item, wide = false, rank = 0) {
   // caption is kept for anything with no artwork to speak for it, and for live
   // channels, where the name is the whole point.
   const named = art && item.type !== "live";
-  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""} ${named ? "has-art" : ""}" data-id="${escapeHtml(item.id)}" title="${escapeHtml(item.name)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml([item.year, item.category].filter(Boolean).join(" • ") || item.type)}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
+  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""} ${named ? "has-art" : ""}" data-id="${escapeHtml(item.id)}" title="${escapeHtml(item.name)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(captionOf(item))}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
 function resumeCard(entry) {
@@ -1313,7 +1372,7 @@ function genreChips() {
     .slice(0, 12);
   if (top.length < 3) return "";
   return `<div class="genre-strip">${top
-    .map(([name]) => `<button class="genre-chip" data-genre="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+    .map(([name]) => `<button class="genre-chip" data-genre="${escapeHtml(name)}">${escapeHtml(tidyCategory(name))}</button>`)
     .join("")}</div>`;
 }
 
@@ -1323,7 +1382,7 @@ function heroInner(featured) {
   const meta = metaCache.get(featured.id);
   const image = artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo;
   const score = meta?.ratings?.imdb || meta?.score || featured.rating;
-  return `${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div>`;
+  return `${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(tidyCategory(featured.category))}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div>`;
 }
 
 /* ---------- the billboard turns over ----------
@@ -4178,7 +4237,7 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
     if (source) {
       setLoading(true, "Opening Aurora", "Loading your saved library…");
       state.provider = source;
-      state.items = await loadLibrary(source.id);
+      state.items = await loadLibrary(source.id); forgetProviderRatings();
       libraryIndex = null; state.trending = null;
     }
   } catch (error) { showToast(error.message || "Could not open your library") }

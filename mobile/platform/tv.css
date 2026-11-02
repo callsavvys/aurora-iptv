@@ -337,6 +337,18 @@
   border-radius: 0;
   overflow: visible;
   background: linear-gradient(180deg, rgba(2, 5, 9, .92) 0%, rgba(2, 5, 9, .5) 55%, transparent 100%);
+  transition: background .18s ease;
+}
+
+/* Over the billboard the strip is a gradient, because there is artwork behind
+   it worth seeing. Once the page has moved past the billboard there is a row
+   of posters behind it instead, and a gradient lets them run straight through
+   the menu: the headings and the names become unreadable and so do the
+   posters. Past the first scroll it takes a floor of its own. The desktop
+   already did this; the television was left out of the rule. */
+.platform-tv .app:has(.workspace.scrolled) aside {
+  background: rgba(2, 5, 9, .97);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .07), 0 18px 40px rgba(0, 0, 0, .55);
 }
 
 /* the menu wrapper is what sits at the left edge now; the button inside it
@@ -553,8 +565,11 @@
 .platform-tv .chooser { min-height: var(--tv-height, 100vh); }
 
 /* ---- the genre strip on a television ---- */
-.platform-tv .genre-strip { padding: 0 88px 6px; gap: 14px; margin-top: -48px; }
-.platform-tv .genre-chip { min-width: 230px; height: 94px; font-size: 22px; border-radius: 14px; padding: 0 34px; }
+/* These were a slab: twelve boxes ninety-four pixels tall, directly under the
+   billboard, shouting provider category names at the one place the eye should
+   land first. They are a way through the library, not the headline. */
+.platform-tv .genre-strip { padding: 0 88px 4px; gap: 12px; margin-top: -30px; }
+.platform-tv .genre-chip { min-width: 0; height: 52px; font-size: 19px; border-radius: 999px; padding: 0 26px; }
 .platform-tv .genre-chip:focus { outline: 4px solid var(--accent); outline-offset: 3px; transform: scale(1.04); }
 
 /* ---------- typing on a remote ----------
@@ -756,3 +771,13 @@
 .platform-tv .update-banner .primary { height: 60px; padding: 0 28px; font-size: 20px; border-radius: 12px; }
 .platform-tv .update-dismiss { font-size: 34px; padding: 0 10px; }
 .platform-tv .update-dismiss:focus { outline: 4px solid var(--accent); border-radius: 10px; }
+
+
+/* ---- a line that reads in one direction ----
+   The provider's names are often Arabic, and an Arabic run placed in a line of
+   numbers drags those numbers around it: "★ 7.3 2026" came out with the year
+   on the wrong side of the rating. Isolating each part keeps every one of them
+   in its own direction without changing the direction of the line. */
+.platform-tv .hero .meta span,
+.platform-tv .row-detail .line > span,
+.platform-tv .card-copy p { unicode-bidi: isolate; }
