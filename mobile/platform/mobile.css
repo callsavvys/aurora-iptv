@@ -205,3 +205,7 @@ input, select, textarea { font-size: 16px !important; }
 .pick-face { height: 84px; font-size: 24px; }
 /* no pointer to hover with, so the way to edit is always there */
 .pick-edit { opacity: 1; }
+
+/* ---- the genre strip on a phone ---- */
+.genre-strip { padding: 0 16px 4px; margin-top: 18px; gap: 8px; }
+.genre-chip { min-width: 118px; height: 50px; font-size: 13px; padding: 0 16px; }

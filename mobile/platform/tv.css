@@ -297,7 +297,7 @@
    text is set larger than a desk would need, and the row below keeps its
    distance so the first poster never crowds the title. */
 .platform-tv .hero { height: auto; min-height: clamp(520px, 64vh, 760px); }
-.platform-tv .hero-copy { width: min(52%, 820px); padding: 40px 0 150px 56px; }
+.platform-tv .hero-copy { width: min(52%, 820px); padding: 40px 0 86px 88px; }
 .platform-tv .eyebrow { font-size: 14px; letter-spacing: .16em; }
 .platform-tv .hero h1 { font-size: clamp(56px, 5.2vw, 92px); }
 .platform-tv .hero .meta { font-size: 16px; gap: 14px; }
@@ -548,3 +548,116 @@
 .platform-tv .chooser-signin { height: 60px; padding: 0 30px; font-size: 19px; }
 .platform-tv .app:has(.chooser) .scroll { padding-top: 0; }
 .platform-tv .chooser { min-height: var(--tv-height, 100vh); }
+
+/* ---- the genre strip on a television ---- */
+.platform-tv .genre-strip { padding: 0 88px 6px; gap: 14px; margin-top: -48px; }
+.platform-tv .genre-chip { min-width: 230px; height: 94px; font-size: 22px; border-radius: 14px; padding: 0 34px; }
+.platform-tv .genre-chip:focus { outline: 4px solid var(--accent); outline-offset: 3px; transform: scale(1.04); }
+
+/* ---------- typing on a remote ----------
+   A grid of letters down the left, the results beside it, so you stop pressing
+   the moment you see what you came for. */
+
+.platform-tv .remote-keys {
+  position: fixed;
+  left: 88px;
+  top: 160px;
+  z-index: 9;
+  width: 440px;
+  padding: 22px;
+  border-radius: 20px;
+  background: var(--scrim-deep);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow-modal);
+}
+.platform-tv .remote-keys.hidden { display: none; }
+.platform-tv .key-row { display: flex; gap: 10px; margin-bottom: 10px; }
+.platform-tv .key-row.wide { margin-bottom: 0; margin-top: 16px; }
+
+.platform-tv .key {
+  flex: 1 1 0;
+  height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--fill-1);
+  color: var(--text);
+  font-family: var(--display);
+  font-size: 26px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.platform-tv .key-space { flex: 3 1 0; font-size: 20px; }
+.platform-tv .key-back, .platform-tv .key-clear { flex: 1.4 1 0; font-size: 20px; }
+.platform-tv .key:focus {
+  outline: none;
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+  transform: scale(1.06);
+}
+
+/* the results move over to make room for the keys */
+.platform-tv .workspace.typing .scroll > .page,
+.platform-tv .workspace.typing .scroll > .shelf,
+.platform-tv .workspace.typing .scroll > section { margin-left: 560px; }
+.platform-tv .workspace.typing .remote-keys { margin-left: 0; }
+
+/* the title's lettering, at the size a room reads it */
+.platform-tv .hero-logo { height: clamp(120px, 20vh, 230px); max-width: min(100%, 760px); }
+.platform-tv .hero h1.has-logo { margin-bottom: 20px; }
+
+/* ---- the detail page on a television ----
+   Art to the right, everything you choose from stacked down the left, the way
+   a remote walks it: one column, top to bottom, nothing side by side. */
+.platform-tv .series-info h2.has-logo .hero-logo { height: clamp(90px, 13vh, 170px); max-width: min(100%, 620px); }
+.platform-tv .series-actions { flex-direction: column; align-items: flex-start; gap: 12px; }
+.platform-tv .series-actions button,
+.platform-tv .series-actions .trailer { width: min(520px, 100%); justify-content: flex-start; height: 72px; font-size: 22px; padding: 0 28px; border-radius: 12px; }
+.platform-tv .series-actions button:focus, .platform-tv .series-actions .trailer:focus {
+  outline: none; background: var(--text); color: var(--bg); transform: scale(1.02);
+}
+
+/* ---------- the player on a television ----------
+   The reference puts the title in the top right, the transport and the scrub
+   bar on one line, and a pause you can find without looking. Aurora already
+   has every control; this is where they sit. */
+
+.platform-tv .chrome-top { align-items: flex-start; }
+.platform-tv .chrome-top .now { margin-left: auto; text-align: right; }
+.platform-tv .chrome-top .now strong { display: block; font-size: 30px; }
+.platform-tv .chrome-top .now small { font-size: 21px; color: var(--text-2); }
+
+/* transport and track share a line, the way a remote reads them */
+.platform-tv .chrome-bottom { display: flex; align-items: center; gap: 28px; }
+.platform-tv .chrome-bottom .transport { order: -1; flex: 0 0 auto; gap: 14px; }
+.platform-tv .chrome-bottom .timeline { flex: 1 1 auto; min-width: 0; margin: 0; }
+
+/* the pause button is the one you reach for in the dark */
+.platform-tv #player-toggle {
+  width: 92px;
+  height: 92px;
+  min-width: 92px;
+  border-radius: 50%;
+  background: var(--fill-3);
+  border: 2px solid var(--line-strong);
+}
+.platform-tv #player-toggle .icon { width: 40px; height: 40px; }
+.platform-tv #player-toggle:focus {
+  outline: none;
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+  transform: scale(1.06);
+}
+
+.platform-tv .chrome-bottom .clock { font-size: 24px; font-variant-numeric: tabular-nums; }
+.platform-tv .chrome-bottom .timeline .track { height: 12px; border-radius: 6px; }
+
+/* a focused control in the player says so plainly, from across a room */
+.platform-tv .chrome .ghost:focus,
+.platform-tv .chrome .track-select:focus-within {
+  outline: none;
+  background: var(--text);
+  color: var(--bg);
+  transform: scale(1.06);
+}

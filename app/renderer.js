@@ -533,7 +533,7 @@ async function fullMeta(item) {
   const key = apiKeys().tmdb;
   const base = await metaFor(item, { force: true });
   if (!key || !base?.tmdbId || base.details) return base;
-  const data = await fetchJson(`${TMDB}/${base.kind}/${base.tmdbId}?api_key=${key}&append_to_response=credits,videos,external_ids`).catch(() => null);
+  const data = await fetchJson(`${TMDB}/${base.kind}/${base.tmdbId}?api_key=${key}&append_to_response=credits,videos,external_ids,images&include_image_language=en,null`).catch(() => null);
   if (!data) return base;
   const trailer = (data.videos?.results || []).find((v) => v.site === "YouTube" && /trailer/i.test(v.type || ""));
   const details = {
@@ -545,6 +545,14 @@ async function fullMeta(item) {
     imdbId: data.external_ids?.imdb_id || data.imdb_id || "",
     tagline: data.tagline || "",
   };
+  /* A title's own lettering, the way a billboard carries it. Netflix never sets
+     a headline in its own typeface; it shows the artwork the title was sold
+     with. PNG only, because the SVG logos TMDB also serves often reference
+     fonts that are not there and come out as a line of squares. */
+  const logo = (data.images?.logos || [])
+    .filter((entry) => entry.file_path && /\.png$/i.test(entry.file_path))
+    .sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))[0];
+  if (logo) details.logo = logo.file_path;
   const merged = { ...base, overview: data.overview || base.overview, backdrop: data.backdrop_path || base.backdrop, poster: data.poster_path || base.poster, details };
   if (merged.details.imdbId && apiKeys().omdb) merged.ratings = await omdbRatings(merged.details.imdbId);
   return storeMeta(item.id, merged);
@@ -1229,6 +1237,27 @@ function heroPick() {
   return cache.hero;
 }
 
+/* The row of genres under the billboard. Netflix sets each in its own
+   lettering; Aurora has only the names a provider supplies, so they are set in
+   its own display face and the colour does the work instead. Live channel
+   categories are left out: a genre row is for things you browse, not for the
+   two hundred regional feeds a line carries. */
+function genreChips() {
+  const counts = new Map();
+  for (const item of state.items) {
+    if (item.type === "live" || !item.category) continue;
+    counts.set(item.category, (counts.get(item.category) || 0) + 1);
+  }
+  const top = [...counts.entries()]
+    .filter(([, n]) => n >= 4)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12);
+  if (top.length < 3) return "";
+  return `<div class="genre-strip">${top
+    .map(([name]) => `<button class="genre-chip" data-genre="${escapeHtml(name)}">${escapeHtml(name)}</button>`)
+    .join("")}</div>`;
+}
+
 function renderHome() {
   const featured = heroPick();
   if (!featured) return renderWelcome();
@@ -1236,7 +1265,7 @@ function renderHome() {
   const image = artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo;
   const score = meta?.ratings?.imdb || meta?.score || featured.rating;
   const missing = state.trending && !state.trending.movie.length && !state.trending.series.length && state.trending.of > 0;
-  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${becauseYouWatched()}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
+  $("#content").innerHTML = `<section class="hero">${image ? `<img src="${escapeHtml(image)}">` : ""}<div class="hero-copy"><span class="eyebrow">${escapeHtml(featured.type === "series" ? "Series worth starting" : "Worth your evening")}</span><h1>${escapeHtml(meta?.title || featured.name)}</h1><div class="meta">${score ? `<span>${icon("star")}${escapeHtml(score)}</span>` : ""}${featured.year || meta?.year ? `<span>${escapeHtml(featured.year || meta.year)}</span>` : ""}${featured.category ? `<span>${escapeHtml(featured.category)}</span>` : ""}</div><p>${escapeHtml(meta?.overview || featured.description || "Ready to watch from your connected source.")}</p><div class="actions"><button class="primary play-featured" data-id="${escapeHtml(featured.id)}">${featured.type === "series" ? "View episodes" : `${icon("play")}Play`}</button><button class="secondary" id="play-something">${icon("shuffle")}Play something</button><button class="secondary favorite-featured" data-id="${escapeHtml(featured.id)}">${state.favorites.has(featured.id) ? `${icon("heart-fill")}Saved` : `${icon("heart")}My list`}</button></div></div></section>${genreChips()}${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${becauseYouWatched()}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
   hydrateHero(featured);
 }
 
@@ -1795,8 +1824,12 @@ function shortDuration(info = {}) {
 
 const episodeNumber = (episode, index) => episode.episode_num || episode.info?.episode_num || index + 1;
 
-function detailHero({ backdrop, poster, eyebrow, name, meta, description, actions }) {
-  return `<section class="series-hero">${backdrop ? `<img class="series-backdrop" src="${escapeHtml(backdrop)}" onerror="this.remove()">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span><h2>${escapeHtml(name)}</h2><div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
+function detailHero({ backdrop, poster, eyebrow, name, meta, description, actions, logo }) {
+  // the title's own lettering where there is any, the words where there is not
+  const heading = logo
+    ? `<h2 class="has-logo"><img class="hero-logo" src="${escapeHtml(artUrl(logo, "w500"))}" alt="${escapeHtml(name)}" onerror="this.parentElement.textContent=${JSON.stringify(name)};this.parentElement.classList.remove('has-logo')"></h2>`
+    : `<h2>${escapeHtml(name)}</h2>`;
+  return `<section class="series-hero">${backdrop ? `<img class="series-backdrop" src="${escapeHtml(backdrop)}" onerror="this.remove()">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span>${heading}<div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
 }
 
 function mergedInfo(info, meta) {
@@ -1832,7 +1865,7 @@ function renderSeriesDetail() {
   $("#series-detail").innerHTML = detailHero({
     backdrop: artUrl(meta?.backdrop, "w1280") || backdropValue || item.backdrop || item.logo,
     poster: artUrl(meta?.poster, "w342") || info.cover || info.movie_image || item.logo,
-    eyebrow: "Series", name: state.detailMeta?.title || item.name,
+    eyebrow: "Series", name: state.detailMeta?.title || item.name, logo: state.detailMeta?.details?.logo,
     meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releaseDate || info.releasedate || item.year || meta?.year || "").slice(0, 4), meta?.details?.genres || info.genre || item.category, `${seasons.length} season${seasons.length === 1 ? "" : "s"}`],
     description: meta?.overview || info.plot || item.description || "Choose a season and episode to start watching.",
     actions,
@@ -1861,7 +1894,7 @@ function renderMovieDetail() {
   $("#series-detail").innerHTML = detailHero({
     backdrop: artUrl(meta?.backdrop, "w1280") || backdropValue || item.backdrop || item.logo,
     poster: artUrl(meta?.poster, "w342") || info.movie_image || info.cover_big || item.logo,
-    eyebrow: "Movie", name: state.detailMeta?.title || item.name,
+    eyebrow: "Movie", name: state.detailMeta?.title || item.name, logo: meta?.details?.logo,
     meta: [rating(info.rating || item.rating) ? { icon: "star", text: rating(info.rating || item.rating) } : "", String(info.releasedate || info.releaseDate || item.year || meta?.year || "").slice(0, 4), meta?.details?.runtime || shortDuration(info) || (item.duration ? shortDuration({ duration: item.duration }) : ""), item.category],
     description: meta?.overview || info.plot || info.description || "Ready to watch from your connected IPTV source.",
     actions,
@@ -1895,16 +1928,40 @@ async function hydrateDetail(item) {
 
 async function hydrateHero(item) {
   if (!hasTmdb() || !item) return;
-  const meta = await metaFor(item, { force: true }).catch(() => null);
-  if (!meta?.backdrop) return;
+  // fullMeta rather than metaFor: the billboard wants the title's own lettering
+  // and its runtime, and neither of those comes back from the search alone
+  const meta = await fullMeta(item).catch(() => null);
   const hero = document.querySelector(".hero");
-  if (!hero) return;
-  const url = artUrl(meta.backdrop, "w1280");
-  const existing = hero.querySelector("img");
-  if (existing) { existing.src = url; return }
-  const image = new Image();
-  image.src = url;
-  image.addEventListener("load", () => { if (hero.isConnected && !hero.querySelector("img")) hero.insertBefore(image, hero.firstChild) });
+  if (!hero || !meta) return;
+
+  if (meta.backdrop) {
+    const url = artUrl(meta.backdrop, "w1280");
+    const existing = hero.querySelector("img.hero-art, img:not(.hero-logo)");
+    if (existing) existing.src = url;
+    else {
+      const image = new Image();
+      image.className = "hero-art";
+      image.src = url;
+      image.addEventListener("load", () => {
+        if (hero.isConnected && !hero.querySelector("img.hero-art")) hero.insertBefore(image, hero.firstChild);
+      });
+    }
+  }
+
+  /* The headline becomes the artwork the title was sold with. It only replaces
+     the words once the image has actually loaded, so a missing logo leaves the
+     billboard exactly as it was rather than empty. */
+  const headline = hero.querySelector("h1");
+  if (!meta.details?.logo || !headline || headline.querySelector("img")) return;
+  const logo = new Image();
+  logo.className = "hero-logo";
+  logo.alt = meta.title || item.name;
+  logo.src = artUrl(meta.details.logo, "w500");
+  logo.addEventListener("load", () => {
+    if (!headline.isConnected || headline.querySelector("img")) return;
+    headline.replaceChildren(logo);
+    headline.classList.add("has-logo");
+  });
 }
 
 async function loadDetail(id) {
@@ -2394,6 +2451,9 @@ document.addEventListener("click", (event) => {
     return navigate({ view: "settings", query: "" });
   }
   if (target.closest("[data-pick-add]")) return $("#source-modal").classList.remove("hidden");
+
+  const genre = target.closest("[data-genre]");
+  if (genre) return navigate({ view: "movies", category: genre.dataset.genre, query: "" });
 
   const joinBtn = target.closest("[data-join-party]");
   if (joinBtn) { $("#party-invite").classList.add("hidden"); return joinParty(joinBtn.dataset.joinParty) }

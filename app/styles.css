@@ -2487,3 +2487,58 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 .app:has(.chooser) .workspace > header { display: none; }
 .app:has(.chooser) .scroll { padding-top: 0; }
 .chooser { min-height: 100vh; }
+
+/* The title's own lettering, in place of a headline set in Aurora's typeface.
+   Sized by height so wide logos and tall ones both sit on the same line. */
+.hero h1.has-logo { margin: 0 0 14px; line-height: 1; }
+.hero-logo {
+  display: block;
+  height: clamp(74px, 9vh, 150px);
+  width: auto;
+  max-width: min(100%, 560px);
+  object-fit: contain;
+  object-position: left bottom;
+  filter: drop-shadow(0 3px 16px rgba(0, 0, 0, .6));
+}
+
+/* ---------- the genre strip under the billboard ---------- */
+
+.genre-strip {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 29px 4px;
+  margin-top: -34px;
+}
+.genre-strip::-webkit-scrollbar { display: none; }
+
+.genre-chip {
+  flex: 0 0 auto;
+  min-width: 150px;
+  height: 62px;
+  padding: 0 24px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(160deg, var(--card), var(--panel));
+  color: var(--text-2);
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: .18s;
+}
+.genre-chip:hover, .genre-chip:focus {
+  outline: none;
+  color: var(--text);
+  border-color: var(--accent-edge-strong);
+  transform: translateY(-2px);
+}
+
+/* the detail page carries the title's lettering the same way the billboard does */
+.series-info h2.has-logo { margin: 6px 0 10px; line-height: 1; }
+.series-info h2.has-logo .hero-logo { height: clamp(56px, 7vh, 104px); max-width: min(100%, 420px); }

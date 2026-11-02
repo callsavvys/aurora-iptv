@@ -265,24 +265,68 @@
    on the way to the button beside it. So the field is held shut — focusable,
    ringed, but not typable — until OK is pressed on it, and it closes again on
    Back or when focus leaves. */
-(function deliberateTyping() {
+/* ---------- typing on a remote ----------
+   The system keyboard on a television is a thing you drive with a D-pad
+   anyway, and it covers the results while you do it. A grid of letters on the
+   page is the same number of presses and leaves the results visible, which is
+   the whole point of searching on a sofa: you stop as soon as you see it.
+
+   The field itself never takes text here, so the system keyboard never opens. */
+(function remoteKeyboard() {
   const field = document.getElementById("search");
   if (!field) return;
-  const shut = () => { field.setAttribute("readonly", "readonly"); field.setAttribute("inputmode", "none") };
-  const open = () => {
-    field.removeAttribute("readonly");
-    field.setAttribute("inputmode", "text");
-    field.blur();
-    field.focus(); // the keyboard only follows a focus that lands on a typable field
+  field.setAttribute("readonly", "readonly");
+  field.setAttribute("inputmode", "none");
+
+  const ROWS = ["abcdef", "ghijkl", "mnopqr", "stuvwx", "yz0123", "456789"];
+  const pad = document.createElement("div");
+  pad.className = "remote-keys hidden";
+  pad.innerHTML = ROWS.map((row) => `<div class="key-row">${[...row]
+    .map((ch) => `<button class="key" data-key="${ch}">${ch}</button>`).join("")}</div>`).join("") +
+    `<div class="key-row wide">
+       <button class="key key-space" data-key=" ">space</button>
+       <button class="key key-back" data-back>&#9003;</button>
+       <button class="key key-clear" data-clear>clear</button>
+     </div>`;
+
+  const type = (text) => {
+    field.value = text;
+    field.dispatchEvent(new Event("input", { bubbles: true }));
   };
-  shut();
-  field.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || !field.hasAttribute("readonly")) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    open();
-  }, true);
-  field.addEventListener("blur", shut);
+
+  pad.addEventListener("click", (event) => {
+    const key = event.target.closest("[data-key]");
+    if (key) return type(field.value + key.dataset.key);
+    if (event.target.closest("[data-back]")) return type(field.value.slice(0, -1));
+    if (event.target.closest("[data-clear]")) return type("");
+  });
+
+  // it belongs beside the results, not inside the top strip
+  const place = () => {
+    const content = document.getElementById("content");
+    if (!content || pad.isConnected) return;
+    content.prepend(pad);
+  };
+
+  const show = (on) => {
+    place();
+    pad.classList.toggle("hidden", !on);
+    document.querySelector(".workspace")?.classList.toggle("typing", on);
+  };
+
+  field.addEventListener("focus", () => show(true));
+  // blur fires no focusin, so without this the keys stay up over whatever the
+  // remote moved on to
+  field.addEventListener("blur", () => setTimeout(() => {
+    if (!pad.contains(document.activeElement)) show(false);
+  }, 0));
+  document.addEventListener("focusin", (event) => {
+    const node = event.target;
+    if (!(node instanceof Element)) return;
+    // stays up while the remote is on the keys or the field, closes elsewhere
+    if (node === field || pad.contains(node)) return show(true);
+    show(false);
+  });
 })();
 
 /* ---------- the spotlight ----------
