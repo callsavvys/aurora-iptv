@@ -10,7 +10,7 @@
    safe margin, and because box-sizing is border-box throughout, padding on the
    app grid takes it out of the layout rather than off the screen. */
 .platform-tv .app {
-  padding: 2.5vh 2.5vw;
+  padding: calc(2.5 * var(--tv-vh, 1vh)) calc(2.5 * var(--tv-vw, 1vw));
   grid-template-columns: 300px minmax(0, 1fr);
 }
 
@@ -124,7 +124,7 @@
 .platform-tv .volume input { width: 180px; opacity: 1; margin-left: 8px; }
 .platform-tv .track-select select { font-size: 17px; height: 56px; }
 .platform-tv .bubble { font-size: 16px; bottom: 42px; padding: 7px 12px; }
-.platform-tv .episodes-panel { width: min(520px, 42vw); }
+.platform-tv .episodes-panel { width: min(520px, calc(42 * var(--tv-vw, 1vw))); }
 .platform-tv .panel-episode { padding: 16px 18px; font-size: 18px; }
 .platform-tv .up-next { padding: 24px 28px; font-size: 19px; }
 .platform-tv .shortcuts { font-size: 18px; }
@@ -243,8 +243,8 @@
    of the strip's way at the top; in front of everything */
 .platform-tv .party-invite {
   top: auto;
-  bottom: 17vh;
-  width: min(980px, 82vw);
+  bottom: calc(17 * var(--tv-vh, 1vh));
+  width: min(980px, calc(82 * var(--tv-vw, 1vw)));
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 12px 26px;
   padding: 26px 32px 26px 40px;
@@ -275,7 +275,7 @@
   .platform-tv .party-who { font-size: 20px; }
   .platform-tv .party-state { font-size: 16px; }
   .platform-tv .party-strip .ghost { height: 52px; min-width: 60px; font-size: 18px; }
-  .platform-tv .party-invite { bottom: 26vh; padding: 20px 26px 20px 34px; }
+  .platform-tv .party-invite { bottom: calc(26 * var(--tv-vh, 1vh)); padding: 20px 26px 20px 34px; }
   .platform-tv .party-invite strong { font-size: 26px; }
   .platform-tv .party-invite small { font-size: 19px; }
 }
@@ -307,16 +307,16 @@
    Read from across a room: the copy sits further in from the edge, the body
    text is set larger than a desk would need, and the row below keeps its
    distance so the first poster never crowds the title. */
-.platform-tv .hero { height: auto; min-height: clamp(520px, 64vh, 760px); }
+.platform-tv .hero { height: auto; min-height: clamp(520px, calc(64 * var(--tv-vh, 1vh)), 760px); }
 .platform-tv .hero-copy { width: min(52%, 820px); padding: 40px 0 86px 88px; }
 .platform-tv .eyebrow { font-size: 14px; letter-spacing: .16em; }
-.platform-tv .hero h1 { font-size: clamp(56px, 5.2vw, 92px); }
+.platform-tv .hero h1 { font-size: clamp(56px, calc(5.2 * var(--tv-vw, 1vw)), 92px); }
 .platform-tv .hero .meta { font-size: 16px; gap: 14px; }
 .platform-tv .hero p { font-size: 21px; line-height: 1.5; max-width: 760px; }
 .platform-tv .actions button { height: 60px; padding: 0 30px; font-size: 19px; border-radius: 10px; }
 .platform-tv .hero + .shelf, .platform-tv .hero + * > .shelf:first-child { margin-top: -48px; }
 .platform-tv .shelf-head span { font-size: 15px; }
-.platform-tv .card.ranked .rank { font-size: clamp(96px, 8vw, 150px); -webkit-text-stroke-width: 4px; }
+.platform-tv .card.ranked .rank { font-size: clamp(96px, calc(8 * var(--tv-vw, 1vw)), 150px); -webkit-text-stroke-width: 4px; }
 
 /* ======================================================================
    The television, rebuilt to Netflix's 2025 model
@@ -632,13 +632,13 @@
 .platform-tv .workspace.typing .remote-keys { margin-left: 0; }
 
 /* the title's lettering, at the size a room reads it */
-.platform-tv .hero-logo { height: clamp(120px, 20vh, 230px); max-width: min(100%, 760px); }
+.platform-tv .hero-logo { height: clamp(120px, calc(20 * var(--tv-vh, 1vh)), 230px); max-width: min(100%, 760px); }
 .platform-tv .hero h1.has-logo { margin-bottom: 20px; }
 
 /* ---- the detail page on a television ----
    Art to the right, everything you choose from stacked down the left, the way
    a remote walks it: one column, top to bottom, nothing side by side. */
-.platform-tv .series-info h2.has-logo .hero-logo { height: clamp(90px, 13vh, 170px); max-width: min(100%, 620px); }
+.platform-tv .series-info h2.has-logo .hero-logo { height: clamp(90px, calc(13 * var(--tv-vh, 1vh)), 170px); max-width: min(100%, 620px); }
 .platform-tv .series-actions { flex-direction: column; align-items: flex-start; gap: 12px; }
 .platform-tv .series-actions button,
 .platform-tv .series-actions .trailer { width: min(520px, 100%); justify-content: flex-start; height: 72px; font-size: 22px; padding: 0 28px; border-radius: 12px; }
@@ -894,3 +894,22 @@
 .platform-tv .guide-progs { height: 76px; }
 .platform-tv .guide-times { height: auto; }
 .platform-tv .guide-ticks { height: 56px; }
+
+
+/* ---- one percent of the screen is not one percent of the screen ----
+   The television lays the page out as if it were 1920 wide and lets the screen
+   scale it back, so every vh in a stylesheet measures half what it means here.
+   That is how the programme guide came out three rows tall on a screen with
+   room for eight: its height is calc(100vh - 260px), and 100vh was 540.
+   --tv-vh and --tv-vw are one percent of the real screen. */
+.platform-tv .guide { max-height: calc(var(--tv-height, 100vh) - 420px); }
+.platform-tv .welcome { height: calc(var(--tv-height, 100vh) - 140px); }
+
+/* The guide opens scrolled to now, and the channel column is sticky over the
+   top of the track rather than beside it, so a message belonging to the whole
+   track began at track zero and arrived with its first words under the
+   column: "ovider has no guide for this channel". Sticky cannot rescue it —
+   the message is already at the left edge of the scrollport. It starts after
+   the column instead. */
+.platform-tv .prog.blank,
+.platform-tv .prog.loading { padding-left: 360px; }

@@ -1863,7 +1863,7 @@ function renderGuide() {
   }
 
   const rows = channels.map((item) => `<div class="guide-row" data-guide-for="${escapeHtml(item.id)}">
-      <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" src="${escapeHtml(item.logo)}" onerror="this.remove()">` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
+      <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" src="${escapeHtml(item.logo)}" onerror="this.remove()" onload="this.dataset.ok=1">` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
       <div class="guide-progs" style="width:${width}px"><span class="prog loading"><span>Loading guide…</span></span></div>
     </div>`).join("");
 
@@ -1891,7 +1891,31 @@ function renderGuide() {
   updateRails();
   for (const node of document.querySelectorAll(".guide-row[data-guide-for]")) paintGuideRow(node);
   scrollGuideToNow();
+  if (guideResumeAt) { $("#guide").scrollTop = guideResumeAt; guideResumeAt = 0 }
+  watchGuideEnd(total);
 }
+
+/* A button that says "Show 60 more · 33,284 remaining" is a fair offer with a
+   mouse. With a remote it is five hundred and fifty presses, so reaching the
+   last row is taken as the request. The button stays for anyone who would
+   rather press it, and for a page that has not scrolled at all. */
+function watchGuideEnd(total) {
+  const guide = $("#guide");
+  if (!guide || total <= state.limit) return;
+  let asking = false;
+  guide.addEventListener("scroll", () => {
+    if (asking || total <= state.limit) return;
+    if (guide.scrollTop + guide.clientHeight < guide.scrollHeight - 320) return;
+    asking = true;
+    /* The next page rebuilds the whole guide, and a fresh element starts at
+       the top: you walk sixty rows down, sixty more arrive, and you are back
+       at the fourth one. Where you were is the one thing that must survive. */
+    guideResumeAt = guide.scrollTop;
+    navigate({ limit: state.limit + GUIDE_CHANNELS }, { replace: true });
+  }, { passive: true });
+}
+
+let guideResumeAt = 0;
 
 let guideWindow = null;
 let guideCounts = null;

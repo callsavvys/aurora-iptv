@@ -121,7 +121,10 @@
      in because the same data-id is a card in one view and a hero button in
      another. */
   function signature(node) {
-    for (const name of ["data-id", "data-view", "data-resume", "data-show-play"]) {
+    /* A programme in the guide is named by the channel it belongs to. Without
+       it here, the next page of channels arriving sent focus back to the first
+       row — you walked sixty down and landed on the fourth. */
+    for (const name of ["data-id", "data-view", "data-resume", "data-show-play", "data-play", "data-guide-for"]) {
       const value = node.getAttribute(name);
       if (value) return `${node.localName}[${name}="${CSS.escape(value)}"]`;
     }

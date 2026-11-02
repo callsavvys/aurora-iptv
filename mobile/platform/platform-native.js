@@ -152,8 +152,16 @@
     root.style.zoom = String(scale);
     /* vh does not compensate for the scale: on a 540-tall screen scaled by a
        half, 100vh still measures 540 and the page ends up covering a quarter
-       of the television. The real height has to be handed to the stylesheet. */
+       of the television. The real height has to be handed to the stylesheet.
+
+       And not only the height. Every vh and vw in the stylesheets is half what
+       it should be for the same reason, which is how the programme guide ended
+       up three rows tall on a screen with room for eight. One percent of the
+       real screen, in each direction, so the stylesheet can do the arithmetic
+       itself. */
     root.style.setProperty("--tv-height", `${Math.round(height / scale)}px`);
+    root.style.setProperty("--tv-vh", `${(height / scale / 100).toFixed(2)}px`);
+    root.style.setProperty("--tv-vw", `${(width / scale / 100).toFixed(2)}px`);
   };
   fitToScreen();
   window.addEventListener("resize", fitToScreen);

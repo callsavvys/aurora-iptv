@@ -86,6 +86,21 @@ const SRC = require("node:fs").readFileSync(require("node:path").join(ROOT, "app
 check("ratedItems is deduplicated", /cache\[key\] = oncePerTitle\(ofType\(type\)[\s\S]{0,260}ratingIsPlaceholder/.test(SRC), true);
 check("recentlyAdded is deduplicated", /cache\[key\] = oncePerTitle\(ofType\(type\)\.filter\(\(item\) => item\.added\)/.test(SRC), true);
 
+console.log("\n— thirty-three thousand channels, and a remote —");
+{
+  const SRC2 = require("node:fs").readFileSync(require("node:path").join(ROOT, "app/renderer.js"), "utf8");
+  check("reaching the end of the guide asks for the next page",
+    /function watchGuideEnd[\s\S]{0,700}scrollHeight - 320[\s\S]{0,600}navigate\(\{ limit: state\.limit \+ GUIDE_CHANNELS/.test(SRC2), true);
+  check("and where you were survives the next page arriving",
+    /guideResumeAt = guide\.scrollTop;[\s\S]{0,200}navigate\(\{ limit/.test(SRC2)
+    && /if \(guideResumeAt\) \{ \$\("#guide"\)\.scrollTop = guideResumeAt/.test(SRC2), true);
+  check("a guide row is something the remote can be put back on",
+    /\["data-id", "data-view", "data-resume", "data-show-play", "data-play", "data-guide-for"\]/
+      .test(require("node:fs").readFileSync(require("node:path").join(ROOT, "mobile/platform/tv-nav.js"), "utf8")), true);
+  check("and it is armed when the guide is drawn",
+    /scrollGuideToNow\(\);[\s\S]{0,160}watchGuideEnd\(total\);/.test(SRC2), true);
+}
+
 console.log("\n— the menu strip takes a floor once the page has moved —");
 const rule = TV.match(/\.platform-tv \.app:has\(\.workspace\.scrolled\) aside \{([^}]*)\}/);
 check("the television is covered by the scrolled rule", Boolean(rule), true);

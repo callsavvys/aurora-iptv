@@ -1857,7 +1857,12 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
   display: grid;
   place-items: center;
 }
-.guide-logo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+/* A provider that answers a logo request with a 200 and something that is not
+   an image never fires onerror, so the browser paints its own broken-image
+   mark over the initials underneath. Nothing shows until the image has
+   actually decoded, and then the initials are what you see instead. */
+.guide-logo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; }
+.guide-logo img[data-ok] { opacity: 1; }
 .guide-logo b { font-size: 11px; font-weight: 800; color: var(--text); opacity: .5; }
 
 .guide-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
