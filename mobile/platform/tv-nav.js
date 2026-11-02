@@ -320,17 +320,19 @@
     document.querySelector(".workspace")?.classList.toggle("typing", on);
   };
 
-  field.addEventListener("focus", () => show(true));
-  // blur fires no focusin, so without this the keys stay up over whatever the
-  // remote moved on to
-  field.addEventListener("blur", () => setTimeout(() => {
-    if (!pad.contains(document.activeElement)) show(false);
-  }, 0));
+  /* Opening on focus meant the keys sprang up merely because the remote passed
+     over the field on its way somewhere else. Moving across it should do
+     nothing at all; OK is what opens it. */
+  field.addEventListener("click", () => show(true));
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") show(true);
+  });
+
   document.addEventListener("focusin", (event) => {
     const node = event.target;
     if (!(node instanceof Element)) return;
-    // stays up while the remote is on the keys or the field, closes elsewhere
-    if (node === field || pad.contains(node)) return show(true);
+    // stays up while the remote is on the keys or on the field it belongs to
+    if (node === field || pad.contains(node)) return;
     show(false);
   });
 })();

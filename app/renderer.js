@@ -1407,15 +1407,22 @@ const sourceMark = (source) => {
 
 function renderProfile() {
   const saved = state.items.filter((item) => state.favorites.has(item.id));
-  const watching = continueWatching().slice(0, 12);
+  const watching = continueWatching();
   const source = state.provider?.name || "No source";
   const me = social.profile;
 
-  const row = (view, name, note, glyph) => `<button class="mine-row" data-view="${escapeHtml(view)}">
-      <span class="mine-glyph">${icon(glyph)}</span>
-      <span class="mine-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(note)}</small></span>
-      <span class="mine-go">${icon("chev-right")}</span>
-    </button>`;
+  /* Things you have already finished, newest first. Netflix calls this Watch It
+     Again and it is the row people actually use most, because the thing you
+     want at eleven at night is usually something you have seen. */
+  const finishedAgain = [...state.progress.values()]
+    .filter((record) => finished(record))
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .map((record) => state.items.find((item) => item.id === record.id))
+    .filter(Boolean)
+    .slice(0, 20);
+
+  const likedShows = saved.filter((item) => item.type === "series");
+  const likedFilms = saved.filter((item) => item.type === "movie");
 
   $("#content").innerHTML = `<section class="page mine">
       <header class="mine-head">
@@ -1428,16 +1435,25 @@ function renderProfile() {
         </div>
       </header>
 
-      <div class="mine-rows">
-        ${row("together", "Watching together", me ? `Your code is ${me.friend_code}` : "Watch with a friend on their own line", "heart")}
-        ${row("history", "History", "Everything you have played", "history")}
-        ${row("settings", "Settings", "Sources, artwork and this device", "gear")}
-      </div>
-
-      ${saved.length
-        ? shelf("My list", saved, false, `${saved.length} saved`)
-        : `<p class="row-note">Nothing on your list yet. The heart on any poster puts it here.</p>`}
       ${watching.length ? resumeShelf() : ""}
+      ${saved.length ? shelf("My list", saved, false, `${saved.length} saved`) : ""}
+      ${finishedAgain.length ? shelf("Watch it again", finishedAgain, false, "You have seen these all the way through") : ""}
+      ${likedShows.length ? shelf("Series you have liked", likedShows) : ""}
+      ${likedFilms.length && likedShows.length ? shelf("Films you have liked", likedFilms) : ""}
+      ${!watching.length && !saved.length && !finishedAgain.length
+        ? `<p class="row-note">Nothing here yet. The heart on any poster puts it on your list, and anything you start shows up to carry on with.</p>`
+        : ""}
+
+      <div class="mine-rows">
+        ${[["together", "Watching together", me ? `Your code is ${me.friend_code}` : "Watch with a friend on their own line", "heart"],
+           ["history", "History", "Everything you have played", "history"],
+           ["settings", "Settings", "Sources, artwork and this device", "gear"]]
+          .map(([view, name, note, glyph]) => `<button class="mine-row" data-view="${escapeHtml(view)}">
+             <span class="mine-glyph">${icon(glyph)}</span>
+             <span class="mine-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(note)}</small></span>
+             <span class="mine-go">${icon("chev-right")}</span>
+           </button>`).join("")}
+      </div>
     </section>`;
 }
 
@@ -1453,7 +1469,7 @@ function renderChooser() {
         <span>${escapeHtml(sourceMark(source))}</span>
       </button>
       <strong class="pick-name">${escapeHtml(source.name || "Source")}</strong>
-      <button class="pick-edit" data-pick-edit="${escapeHtml(source.id)}" title="Edit ${escapeHtml(source.name || "this source")}" aria-label="Edit ${escapeHtml(source.name || "this source")}">${icon("gear")}</button>
+      <button class="pick-edit" data-pick-edit="${escapeHtml(source.id)}">${icon("gear")}Edit</button>
     </div>`;
 
   $("#content").innerHTML = `<section class="chooser">
@@ -2623,6 +2639,23 @@ document.addEventListener("focusin", (event) => {
 document.addEventListener("click", (event) => {
   const target = event.target;
   const close = target.closest("[data-close]"); if (close) return closeModal(close.dataset.close);
+
+  /* the name at the top left is an account menu, not a sixth place to browse:
+     settings, switching line, and the way out */
+  const whoButton = target.closest("#who");
+  if (whoButton) {
+    const menu = $("#who-menu");
+    const opening = menu.classList.contains("hidden");
+    menu.classList.toggle("hidden", !opening);
+    whoButton.setAttribute("aria-expanded", String(opening));
+    if (opening) menu.querySelector("button")?.focus();
+    return;
+  }
+  if (target.closest("#who-exit")) {
+    $("#who-menu").classList.add("hidden");
+    return window.aurora?.exit?.() || window.close();
+  }
+  if (!target.closest("#who-menu")) $("#who-menu")?.classList.add("hidden");
 
   // the chooser: a face opens that line, the gear beside it edits it
   const face = target.closest("[data-pick]");

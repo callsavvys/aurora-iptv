@@ -72,6 +72,8 @@
       // the answer there loses the notice for the whole run
       if (updatePending) { handler(updatePending); updatePending = null }
     },
+    // the way out of a television app, which has no window to close
+    exit: () => { window.Capacitor?.Plugins?.App?.exitApp?.(); return true },
     setTheme: () => {},
     onMenu: () => {},
   };

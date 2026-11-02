@@ -339,7 +339,10 @@
   background: linear-gradient(180deg, rgba(2, 5, 9, .92) 0%, rgba(2, 5, 9, .5) 55%, transparent 100%);
 }
 
-.platform-tv .brand { position: absolute; left: 88px; padding: 0; font-size: 26px; }
+/* the menu wrapper is what sits at the left edge now; the button inside it
+   must stay in that wrapper's flow or it anchors to the wrong thing */
+.platform-tv .who-wrap { position: absolute; left: 88px; }
+.platform-tv .brand { position: static; padding: 0; font-size: 26px; }
 .platform-tv .nav-label, .platform-tv .source-pill { display: none; }
 .platform-tv aside nav, .platform-tv .nav-lower { display: flex; flex-direction: row; gap: 4px; margin: 0; }
 
@@ -541,9 +544,9 @@
 .platform-tv .pick-face.add { font-size: 54px; }
 .platform-tv .pick-face:focus { outline: 4px solid var(--accent); outline-offset: 4px; transform: scale(1.06); }
 .platform-tv .pick-name { font-size: 19px; margin-top: 14px; }
-.platform-tv .pick-edit { width: 42px; height: 42px; top: -10px; right: -10px; }
-.platform-tv .pick-edit .icon { width: 20px; height: 20px; }
-.platform-tv .pick-edit:focus { outline: 4px solid var(--accent); outline-offset: 2px; color: var(--accent); }
+.platform-tv .pick-edit { height: 52px; margin-top: 14px; font-size: 18px; gap: 10px; border-radius: 12px; }
+.platform-tv .pick-edit .icon { width: 22px; height: 22px; }
+.platform-tv .pick-edit:focus { outline: none; background: var(--text); color: var(--bg); border-color: var(--text); }
 .platform-tv .chooser-foot { font-size: 16px; }
 .platform-tv .chooser-signin { height: 60px; padding: 0 30px; font-size: 19px; }
 .platform-tv .app:has(.chooser) .scroll { padding-top: 0; }
@@ -715,3 +718,19 @@
 .platform-tv .mine-row:focus { background: var(--text); color: var(--bg); border-color: var(--text); }
 .platform-tv .mine-row:focus .mine-glyph { background: var(--bg); }
 .platform-tv .mine-row:focus .mine-copy small, .platform-tv .mine-row:focus .mine-go { color: var(--bg); opacity: .7; }
+
+/* the account menu, at a size a remote can land on */
+.platform-tv .who-menu { min-width: 380px; padding: 10px; border-radius: 18px; top: calc(100% + 12px); }
+.platform-tv .who-menu button { height: 72px; font-size: 22px; gap: 18px; padding: 0 20px; border-radius: 12px; }
+.platform-tv .who-menu .icon { width: 26px; height: 26px; }
+.platform-tv .who-menu button:focus { background: var(--text); color: var(--bg); }
+
+/* a focused poster grows further and wears an outline, so it needs more room */
+.platform-tv .shelf-row, .platform-tv .ranked-row {
+  padding-top: 44px;
+  padding-bottom: 44px;
+  margin-top: -44px;
+  margin-bottom: -44px;
+}
+.platform-tv .shelf-row > .card:first-child, .platform-tv .ranked-row > .card:first-child { transform-origin: left center; }
+.platform-tv .shelf-row > .card:last-child, .platform-tv .ranked-row > .card:last-child { transform-origin: right center; }

@@ -50,11 +50,18 @@
 
   <div class="app">
     <aside>
-      <button class="brand" id="who" data-view="profile" title="Your profile">
-        <span class="who-face" id="who-face">AU</span>
-        <b id="who-name">Aurora</b>
-        <svg class="icon who-caret"><use href="#i-chev-right"/></svg>
-      </button>
+      <div class="who-wrap">
+        <button class="brand" id="who" title="Your account" aria-haspopup="menu" aria-expanded="false">
+          <span class="who-face" id="who-face">AU</span>
+          <b id="who-name">Aurora</b>
+          <svg class="icon who-caret"><use href="#i-chev-right"/></svg>
+        </button>
+        <div class="who-menu hidden" id="who-menu" role="menu">
+          <button role="menuitem" data-view="settings"><svg class="icon"><use href="#i-gear"/></svg>Settings</button>
+          <button role="menuitem" data-view="chooser"><svg class="icon"><use href="#i-source"/></svg>Switch profile</button>
+          <button role="menuitem" id="who-exit"><svg class="icon"><use href="#i-close"/></svg>Exit Aurora</button>
+        </div>
+      </div>
       <p class="nav-label">Browse</p>
       <nav>
         <button class="active" data-view="home"><i><svg class="icon"><use href="#i-home"/></svg></i>Home</button>

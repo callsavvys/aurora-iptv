@@ -2454,32 +2454,34 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .pick:hover .pick-name, .pick:focus-within .pick-name { color: var(--text); }
 
-/* the gear waits until that face is the one being looked at */
+/* A gear tucked into the corner of the face was a target you could not aim at
+   with a remote: the D-pad walks between stops, and that one sat on top of
+   another. It is its own stop now, underneath the name. */
 .pick-edit {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
   height: 30px;
-  border-radius: 50%;
-  border: 1px solid var(--line-strong);
-  background: var(--elevated);
-  color: var(--text-2);
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--fill-1);
+  color: var(--text-3);
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
-  display: grid;
-  place-items: center;
-  opacity: 0;
-  transition: opacity .18s ease;
+  transition: .18s;
 }
-.pick:hover .pick-edit, .pick:focus-within .pick-edit, .pick-edit:focus { opacity: 1; }
-.pick-edit:hover { color: var(--accent); border-color: var(--accent-edge); }
-.pick-edit .icon { width: 15px; height: 15px; }
+.pick-edit:hover, .pick-edit:focus { outline: none; color: var(--accent); border-color: var(--accent-edge-strong); }
+.pick-edit .icon { width: 14px; height: 14px; }
 
 .chooser-foot { font-family: var(--mono); font-size: 11px; color: var(--text-4); margin: 30px 0 0; }
 .chooser-signin { margin-top: 30px; height: 40px; padding: 0 18px; border-radius: 10px; font-size: 13px; }
 
 /* a remote has no pointer to wait with */
-.platform-tv .pick-edit { opacity: 1; }
 
 /* The chooser comes before the app, so it carries none of the app's chrome:
    no menu, no search, nothing to navigate until a line has been picked. */
@@ -2609,3 +2611,72 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   .hero > img, .hero-copy { transition: none; }
 }
+
+/* ---------- the account menu behind your name ---------- */
+
+.who-wrap { position: relative; }
+
+.who-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  min-width: 220px;
+  padding: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--elevated);
+  box-shadow: var(--shadow-modal);
+  display: grid;
+  gap: 2px;
+}
+.who-menu.hidden { display: none; }
+
+.who-menu button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.who-menu button:hover, .who-menu button:focus { outline: none; background: var(--fill-2); color: var(--text); }
+.who-menu .icon { width: 16px; height: 16px; }
+.who-menu #who-exit { color: var(--danger-text); }
+
+/* on your own page the rows come first and the links sit under them */
+.mine .mine-rows { margin: 34px 0 0; }
+.mine .shelf { padding-left: 0; }
+.mine .shelf-row { padding-right: 0; }
+
+/* ---------- room to grow ----------
+   A row scrolls sideways, and overflow-x: auto quietly makes overflow-y auto
+   too, so the row clips top and bottom. With the cards filling it exactly, a
+   poster that scaled up was cut off on every edge the moment it grew — which
+   is what made hovering feel broken rather than alive.
+
+   The row keeps vertical room for the growth and takes it back out of the
+   layout, so nothing else moves. */
+.shelf-row, .ranked-row {
+  padding-top: 26px;
+  padding-bottom: 26px;
+  margin-top: -26px;
+  margin-bottom: -26px;
+}
+
+/* and a poster at either end grows inward rather than off the side */
+.shelf-row > .card:first-child .art, .ranked-row > .card:first-child .art { transform-origin: left center; }
+.shelf-row > .card:last-child .art, .ranked-row > .card:last-child .art { transform-origin: right center; }
+
+/* the page follows the remote smoothly rather than jumping to it */
+.scroll { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { .scroll { scroll-behavior: auto; } }

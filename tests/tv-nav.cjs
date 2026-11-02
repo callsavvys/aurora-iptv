@@ -146,7 +146,15 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
   check("and they are these", await js(`[...document.querySelectorAll("aside nav button")].map((b) => b.dataset.view).join(",")`),
     "home,live,movies,series,profile");
   check("Settings is not one of them", await js(`Boolean(document.querySelector('aside nav button[data-view="settings"]'))`), false);
-  check("the mark at the top left opens your own page", await js(`document.getElementById("who")?.dataset.view`), "profile");
+  // the mark is an account menu, not a sixth place to browse
+  check("the mark at the top left opens a menu", await js(`(() => {
+    document.getElementById("who-menu").classList.add("hidden");
+    document.getElementById("who").click();
+    return !document.getElementById("who-menu").classList.contains("hidden");
+  })()`), true);
+  check("holding settings, switching line, and the way out", await js(`
+    [...document.querySelectorAll("#who-menu button")].map((b) => b.id || b.dataset.view).join(",")`),
+    "settings,chooser,who-exit");
   check("and wears the source's initials", await js(`(() => {
     state.provider = { id: "x", name: "Rocket Line" };
     updateSource();
@@ -288,11 +296,18 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
   check("Settings opens from the profile page", await clickTo('.mine-row[data-view="settings"]'), "settings");
   check("so does History", await clickTo('.mine-row[data-view="history"]'), "history");
   check("and Together", await clickTo('.mine-row[data-view="together"]'), "together");
-  check("the mark at the top left opens the profile", await js(`(() => {
+  check("Switch profile from the account menu reaches the chooser", await js(`(() => {
     state.view = "home"; render();
-    document.querySelector("#who").click();
+    document.getElementById("who-menu").classList.remove("hidden");
+    document.querySelector('#who-menu [data-view="chooser"]').click();
     return state.view;
-  })()`), "profile");
+  })()`), "chooser");
+  check("and Settings from it reaches settings", await js(`(() => {
+    state.view = "home"; render();
+    document.getElementById("who-menu").classList.remove("hidden");
+    document.querySelector('#who-menu [data-view="settings"]').click();
+    return state.view;
+  })()`), "settings");
 
   await close();
 })();
