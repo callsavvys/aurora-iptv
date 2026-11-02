@@ -2678,8 +2678,14 @@ document.addEventListener("click", (event) => {
     renderUpdateBanner({ state: "checking" });
     return window.aurora?.checkForUpdates();
   }
-    const nav = target.closest("nav button");
-  if (nav) return navigate({ view: nav.dataset.view, query: "" });
+  /* Anything carrying data-view, not only the buttons inside the menu. The
+     profile rows, the mark at the top left, the source pill and the Open
+     Settings button in the Together panel all said where they wanted to go and
+     were all silently ignored, because this only ever matched "nav button".
+     Moving Settings behind the profile page made that fatal: the one door to
+     it did nothing when pressed. */
+  const goTo = target.closest("[data-view]");
+  if (goTo?.dataset.view) return navigate({ view: goTo.dataset.view, query: "" });
   const use = target.closest("[data-use]"); if (use) return useSource(use.dataset.use);
   const reload = target.closest("[data-refresh]"); if (reload) return refreshLibrary(false, reload.dataset.refresh);
   const showLogin = target.closest("[data-show-login]");

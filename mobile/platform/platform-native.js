@@ -37,6 +37,7 @@
 
   let onBack = null;
   let updateHandler = null;
+  let updatePending = null;   // an answer that arrived before anyone was listening
   // the TV build is the one that carries a Downloader code to quote
   const TV_BUILD = document.documentElement.classList.contains("platform-tv");
 
@@ -65,7 +66,12 @@
     updateStatus: async () => latestRelease(),
     checkForUpdates: async () => latestRelease(),
     installUpdate: async () => unsupported,
-    onUpdateStatus: (handler) => { updateHandler = handler },
+    onUpdateStatus: (handler) => {
+      updateHandler = handler;
+      // the check can finish before the renderer has got this far, and dropping
+      // the answer there loses the notice for the whole run
+      if (updatePending) { handler(updatePending); updatePending = null }
+    },
     setTheme: () => {},
     onMenu: () => {},
   };
@@ -115,7 +121,8 @@
      and the library matters more than the release list in the first seconds. */
   setTimeout(() => {
     latestRelease().then((status) => {
-      if (status.state === "manual") updateHandler?.(status);
+      if (status.state !== "manual") return;
+      if (updateHandler) updateHandler(status); else updatePending = status;
     }).catch(() => {});
   }, 4000);
 

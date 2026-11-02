@@ -159,6 +159,12 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
   check("so is History", await js(`Boolean(document.querySelector('.mine-row[data-view="history"]'))`), true);
   check("so is Together", await js(`Boolean(document.querySelector('.mine-row[data-view="together"]'))`), true);
 
+  /* Every button that says where it wants to go must actually go there. The
+     handler only matched buttons inside the menu, so the profile rows, the mark
+     at the top left, the source pill and the Open Settings button in the
+     Together panel were all dead. Pressing them did nothing at all, and moving
+     Settings behind the profile page made that the only way in. */
+  console.log("\n— a button that says where it goes, goes there —");
   console.log("\n— a page made only of buttons —");
   await js(`(() => {
     secrets = { sources: [
@@ -269,6 +275,24 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
   await js(`window.__opened = null; window.openDetail = (item) => { window.__opened = item && item.id }; true`);
   await press("Enter");
   check("OK on a card opens it, though the card itself is not clickable", await js(`window.__opened`), "movie-1");
+
+  const clickTo = (selector) => js(`(() => {
+    state.provider = state.provider || { id: "p", name: "Rocket" };
+    state.view = "profile"; render();
+    const node = document.querySelector(${JSON.stringify(selector)});
+    if (!node) return "missing";
+    node.click();
+    return state.view;
+  })()`);
+
+  check("Settings opens from the profile page", await clickTo('.mine-row[data-view="settings"]'), "settings");
+  check("so does History", await clickTo('.mine-row[data-view="history"]'), "history");
+  check("and Together", await clickTo('.mine-row[data-view="together"]'), "together");
+  check("the mark at the top left opens the profile", await js(`(() => {
+    state.view = "home"; render();
+    document.querySelector("#who").click();
+    return state.view;
+  })()`), "profile");
 
   await close();
 })();

@@ -66,6 +66,13 @@ const cmp = (a, b) => build(ok("v0.0.1"), true).newer(a, b);
   check("a reply with no version is an error", (await ask({ ok: true, json: () => Promise.resolve({}) })).state, "error");
   check("a network failure is an error", (await ask(Promise.reject(new Error("offline")))).state, "error");
 
+  console.log("\n— an answer nobody is listening for yet —");
+  check("the shim keeps an early answer", SHIM.includes("updatePending"), true);
+  check("and hands it over once the renderer starts listening",
+    /onUpdateStatus:[\s\S]{0,400}updatePending/.test(SHIM), true);
+  check("rather than calling a handler that is not there",
+    SHIM.includes("if (updateHandler) updateHandler(status); else updatePending = status;"), true);
+
   console.log("\n— nothing is downloaded —");
   check("only the release list was ever asked for", asked.every((url) => url === "https://example.invalid/releases"), true);
   check("and it was asked for, at least once", asked.length > 0, true);
