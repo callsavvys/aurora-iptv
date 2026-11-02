@@ -100,7 +100,7 @@ const PREVIEW_DWELL = 700;   // long enough that passing over a row costs nothin
 const PREVIEW_LEAD = 6;      // start a moment before the cut, so it has somewhere to go
 const preview = { timer: null, video: null, card: null };
 
-const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings", detail: "Detail" };
+const views = { home: "Home", live: "Live TV", movies: "Movies", series: "Series", favorites: "Favorites", history: "History", settings: "Settings", detail: "Detail", chooser: "Choose" };
 
 /* ---------- navigation ----------
    Detail used to be a modal, which meant there was nowhere to go back to. It
@@ -1240,6 +1240,59 @@ function renderHome() {
   hydrateHero(featured);
 }
 
+/* ---------- who is watching ----------
+   The screen Aurora opens on. Each source is a face: a line you pay for, with
+   its own library behind it. Picking one is how you say which library this
+   evening belongs to, and the one beside it is how you change it.
+
+   A billboard behind, because the alternative is a list of accounts on a black
+   screen, and this is a television. */
+
+const sourceMark = (source) => {
+  const words = String(source?.name || "?").trim().split(/\s+/).filter(Boolean);
+  const letters = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || "?").slice(0, 2);
+  return letters.toUpperCase();
+};
+
+function renderChooser() {
+  const sources = readSources();
+  const active = activeSourceId();
+  const featured = heroPick();
+  const meta = featured ? metaCache.get(featured.id) : null;
+  const art = featured ? (artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo) : "";
+
+  const tile = (source) => `<div class="pick ${source.id === active ? "current" : ""}">
+      <button class="pick-face" data-pick="${escapeHtml(source.id)}" title="${escapeHtml(source.name || "Source")}">
+        <span>${escapeHtml(sourceMark(source))}</span>
+      </button>
+      <strong class="pick-name">${escapeHtml(source.name || "Source")}</strong>
+      <button class="pick-edit" data-pick-edit="${escapeHtml(source.id)}" title="Edit ${escapeHtml(source.name || "this source")}" aria-label="Edit ${escapeHtml(source.name || "this source")}">${icon("gear")}</button>
+    </div>`;
+
+  $("#content").innerHTML = `<section class="chooser">
+      ${art ? `<img class="chooser-art" src="${escapeHtml(art)}" alt="">` : ""}
+      <div class="chooser-body">
+        <div class="chooser-head">
+          <span class="chooser-brand">Aurora</span>
+          <h1>${sources.length ? "Who is watching?" : "Connect a source"}</h1>
+          <p>${sources.length
+            ? "Each one is a line of its own, with its own library behind it."
+            : `Aurora is a player only. Add an Xtream account you\u2019re authorized to use.`}</p>
+        </div>
+        <div class="picks">
+          ${sources.map(tile).join("")}
+          <div class="pick">
+            <button class="pick-face add" data-pick-add title="Add a source"><span>+</span></button>
+            <strong class="pick-name">Add source</strong>
+          </div>
+        </div>
+        ${account.user
+          ? `<p class="chooser-foot">Signed in as ${escapeHtml(account.user.email || "your account")} \u00b7 sources follow you to every device.</p>`
+          : `<button class="secondary chooser-signin" data-view="settings">${icon("source")}Sign in to carry these across devices</button>`}
+      </div>
+    </section>`;
+}
+
 function renderWelcome() {
   $("#content").innerHTML = `<section class="welcome"><div class="welcome-card"><div class="welcome-mark">${icon("play")}</div><h1>${TV ? "Your TV. Your channels." : "Your TV. Your Mac."}</h1><p>Connect your Xtream account to browse live channels, movies and series directly through your own internet connection.</p><button class="primary open-source">＋ Connect source</button></div></section>`;
 }
@@ -1668,6 +1721,7 @@ function render() {
   else if (state.query) renderSearch();
   else if (state.view === "history") renderHistory();
   else if (state.view === "together") renderTogether();
+  else if (state.view === "chooser") renderChooser();
   else if (state.view === "home") renderHome();
   else renderCollection();
   document.querySelectorAll("nav button").forEach((button) => button.classList.toggle("active", !state.query && button.dataset.view === state.view));
@@ -2330,6 +2384,16 @@ document.addEventListener("focusin", (event) => {
 document.addEventListener("click", (event) => {
   const target = event.target;
   const close = target.closest("[data-close]"); if (close) return closeModal(close.dataset.close);
+
+  // the chooser: a face opens that line, the gear beside it edits it
+  const face = target.closest("[data-pick]");
+  if (face) return useSource(face.dataset.pick);
+  const editPick = target.closest("[data-pick-edit]");
+  if (editPick) {
+    writePref("activeSource", editPick.dataset.pickEdit);
+    return navigate({ view: "settings", query: "" });
+  }
+  if (target.closest("[data-pick-add]")) return $("#source-modal").classList.remove("hidden");
 
   const joinBtn = target.closest("[data-join-party]");
   if (joinBtn) { $("#party-invite").classList.add("hidden"); return joinParty(joinBtn.dataset.joinParty) }
@@ -3813,7 +3877,12 @@ document.querySelectorAll(".theme-switch button").forEach((button) => button.cla
   } catch (error) { showToast(error.message || "Could not open your library") }
   finally {
     setLoading(false);
-    if (state.history.length) render(); else navigate({ view: "home" });
+    // Aurora opens on the chooser, the way a television does: pick the line this
+    // evening belongs to before anything else. With nothing saved yet there is
+    // nothing to choose between, so the welcome does its job instead.
+    if (state.history.length) render();
+    else if (readSources().length) navigate({ view: "chooser", query: "" });
+    else navigate({ view: "home" });
     watchScroll();
     if (!state.provider) setTimeout(() => $("#source-modal").classList.remove("hidden"), 250);
     else if (!state.items.length || Number(readPref("librarySchema", 0)) < LIBRARY_SCHEMA || libraryStale(state.provider)) {

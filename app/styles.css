@@ -2380,3 +2380,110 @@ a.small { display: inline-flex; align-items: center; text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   .preview-video { animation: none; opacity: 1; }
 }
+
+/* ---------- who is watching ----------
+   The screen Aurora opens on: the sources as faces, over a billboard, because
+   the alternative is a list of accounts on a black screen. */
+
+.chooser {
+  position: relative;
+  min-height: calc(100vh - 72px);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.chooser-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 30%;
+  opacity: var(--billboard-art);
+}
+
+.chooser:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, var(--bill-side) 0%, var(--bill-side-mid) 42%, transparent 78%),
+    linear-gradient(0deg, var(--bg) 0%, var(--bill-foot) 24%, transparent 60%);
+}
+
+.chooser-body { position: relative; z-index: 1; padding: 0 44px; width: min(640px, 92%); }
+.chooser-brand { color: var(--accent); font-size: 13px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+.chooser-head h1 { font-size: clamp(32px, 3.4vw, 52px); font-weight: 800; letter-spacing: -.045em; margin: 10px 0 8px; }
+.chooser-head p { font-family: var(--body); color: var(--text-2); font-size: 15px; margin: 0 0 28px; max-width: 46ch; }
+
+.picks { display: flex; flex-wrap: wrap; gap: 22px 26px; }
+
+/* one source: a face, its name, and the way to change it */
+.pick { position: relative; width: 104px; text-align: center; }
+
+.pick-face {
+  width: 104px;
+  height: 104px;
+  border-radius: 16px;
+  border: 2px solid transparent;
+  background: linear-gradient(145deg, var(--avatar-a), var(--avatar-b));
+  color: var(--text);
+  font-family: var(--display);
+  font-size: 30px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease;
+  display: grid;
+  place-items: center;
+}
+
+.pick-face.add { background: var(--fill-2); color: var(--text-3); font-size: 38px; font-weight: 400; }
+.pick-face:hover, .pick-face:focus { outline: none; transform: scale(1.06); border-color: var(--accent); }
+.pick.current .pick-face { border-color: var(--accent-edge-strong); }
+
+.pick-name {
+  display: block;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pick:hover .pick-name, .pick:focus-within .pick-name { color: var(--text); }
+
+/* the gear waits until that face is the one being looked at */
+.pick-edit {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--elevated);
+  color: var(--text-2);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.pick:hover .pick-edit, .pick:focus-within .pick-edit, .pick-edit:focus { opacity: 1; }
+.pick-edit:hover { color: var(--accent); border-color: var(--accent-edge); }
+.pick-edit .icon { width: 15px; height: 15px; }
+
+.chooser-foot { font-family: var(--mono); font-size: 11px; color: var(--text-4); margin: 30px 0 0; }
+.chooser-signin { margin-top: 30px; height: 40px; padding: 0 18px; border-radius: 10px; font-size: 13px; }
+
+/* a remote has no pointer to wait with */
+.platform-tv .pick-edit { opacity: 1; }
+
+/* The chooser comes before the app, so it carries none of the app's chrome:
+   no menu, no search, nothing to navigate until a line has been picked. */
+.app:has(.chooser) aside,
+.app:has(.chooser) .workspace > header { display: none; }
+.app:has(.chooser) .scroll { padding-top: 0; }
+.chooser { min-height: 100vh; }

@@ -194,3 +194,14 @@ input, select, textarea { font-size: 16px !important; }
   #player-prev { display: grid !important; }
   .episodes-panel { width: min(430px, 60vw); border-radius: 0 0 0 16px; }
 }
+
+/* ---- who is watching, on a phone ---- */
+.chooser { min-height: 70vh; }
+.chooser-body { padding: 0 16px; width: 100%; }
+.chooser-head h1 { font-size: 30px; }
+.chooser-head p { font-size: 14px; margin-bottom: 22px; }
+.picks { gap: 16px 18px; }
+.pick, .pick-face { width: 84px; }
+.pick-face { height: 84px; font-size: 24px; }
+/* no pointer to hover with, so the way to edit is always there */
+.pick-edit { opacity: 1; }

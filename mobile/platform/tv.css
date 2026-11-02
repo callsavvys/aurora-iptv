@@ -385,9 +385,12 @@
 .platform-tv .nav-steps, .platform-tv #add-source { display: none !important; }
 .platform-tv .workspace > header .search { width: 300px; }
 
-/* ---- no billboard: the first row is the spotlight ---- */
+/* ---- the billboard, and the spotlight below it ----
+   I removed the billboard from the television on the strength of a press image
+   that turned out to show a different state. Photographs of the real thing have
+   both: a billboard at the top of the page, and tiles that expand into their own
+   artwork as the remote moves through the rows underneath it. */
 
-.platform-tv .hero { display: none !important; }
 .platform-tv .scroll { padding-top: 124px; padding-bottom: 90px; }
 .platform-tv .hero + .shelf,
 .platform-tv .hero + * > .shelf:first-child { margin-top: 0; }
@@ -525,3 +528,23 @@
 .platform-tv .card.previewing .art:before { font-size: 13px; left: 14px; bottom: 12px; padding: 5px 10px; }
 .platform-tv .card.spotlit .preview-video { z-index: 2; }
 .platform-tv .card.spotlit.previewing .spotlight-title { z-index: 4; }
+
+/* ---- who is watching, on a television ---- */
+.platform-tv .chooser { min-height: calc(var(--tv-height, 100vh) - 124px); }
+.platform-tv .chooser-body { padding: 0 88px; width: min(900px, 90%); }
+.platform-tv .chooser-brand { font-size: 18px; }
+.platform-tv .chooser-head h1 { font-size: 64px; }
+.platform-tv .chooser-head p { font-size: 22px; margin-bottom: 40px; }
+.platform-tv .picks { gap: 30px 36px; }
+.platform-tv .pick, .platform-tv .pick-face { width: 150px; }
+.platform-tv .pick-face { height: 150px; border-radius: 20px; font-size: 44px; }
+.platform-tv .pick-face.add { font-size: 54px; }
+.platform-tv .pick-face:focus { outline: 4px solid var(--accent); outline-offset: 4px; transform: scale(1.06); }
+.platform-tv .pick-name { font-size: 19px; margin-top: 14px; }
+.platform-tv .pick-edit { width: 42px; height: 42px; top: -10px; right: -10px; }
+.platform-tv .pick-edit .icon { width: 20px; height: 20px; }
+.platform-tv .pick-edit:focus { outline: 4px solid var(--accent); outline-offset: 2px; color: var(--accent); }
+.platform-tv .chooser-foot { font-size: 16px; }
+.platform-tv .chooser-signin { height: 60px; padding: 0 30px; font-size: 19px; }
+.platform-tv .app:has(.chooser) .scroll { padding-top: 0; }
+.platform-tv .chooser { min-height: var(--tv-height, 100vh); }
