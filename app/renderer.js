@@ -3861,12 +3861,26 @@ async function addFriendByCode(code) {
   const { error: asked } = await accountClient().from("friends").insert({ requester: account.user.id, addressee: found.user_id, status: "pending" });
   if (asked && !/duplicate|unique/i.test(asked.message || "")) { social.error = friendlyError(asked); return }
   social.notice = `Asked ${found.display_name} to be friends.`;
+  nudge(found.user_id, "friends");
   await loadFriends();
 }
 
 async function acceptFriend(userId) {
   await accountClient().from("friends").update({ status: "accepted" }).eq("requester", userId).eq("addressee", account.user.id);
+  nudge(userId, "friends");
   await loadFriends();
+}
+
+/* A party invitation arrives the moment it is sent, on a channel of your own.
+   A friend request did not: it sat in the table until the other person next
+   opened Aurora, so asking someone to be your friend while they were looking
+   at the same screen appeared to do nothing at all. The same channel carries
+   both. */
+function nudge(userId, what) {
+  if (!userId) return;
+  accountClient().channel(`aurora-user-${userId}`)
+    .send({ type: "broadcast", event: what, payload: { from: account.user?.id } })
+    .catch(() => {});
 }
 
 async function removeFriend(userId) {
@@ -4009,6 +4023,10 @@ function listenForInvites() {
   listenForInvites.on = true;
   accountClient().channel(`aurora-user-${account.user.id}`)
     .on("broadcast", { event: "invite" }, ({ payload }) => offerParty(payload))
+    // someone asked to be your friend, or answered that you had asked them
+    .on("broadcast", { event: "friends" }, () => {
+      loadFriends().then(() => { if (state.view === "together") renderTogether() }).catch(() => {});
+    })
     .subscribe();
 }
 

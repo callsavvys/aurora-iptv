@@ -18,13 +18,19 @@ const NOW = 1_700_000_000_000; // followHost reads the clock; it is held still s
     window.__asked = [];
     window.__sent = [];
     const note = (what) => window.__asked.push(what);
+    /* Awaiting a link in this chain used to hand back the proxy itself, so
+       code that reads error.message off the result threw "cannot convert
+       object to primitive value" rather than taking the no-error path. A
+       finished call resolves to what PostgREST actually returns. */
     const chain = (what) => new Proxy(() => {}, {
-      get: (_, key) => (key === "then" ? undefined : chain(what + "." + String(key))),
+      get: (_, key) => (key === "then"
+        ? ((resolve) => resolve({ data: null, error: null }))
+        : chain(what + "." + String(key))),
       apply: () => { note(what); return chain(what) },
     });
     window.accountClient = () => ({
       from: (table) => chain("from(" + table + ")"),
-      rpc: (name) => { note("rpc(" + name + ")"); return Promise.resolve({ data: null }) },
+      rpc: (name) => { note("rpc(" + name + ")"); return Promise.resolve({ data: name === "friend_by_code" ? window.__foundByCode || null : null }) },
       channel: (name) => { note("channel(" + name + ")"); return { send: () => Promise.resolve(), on() { return this }, subscribe: () => Promise.resolve(), track() {} } },
       removeChannel: (channel) => { window.__removed = channel; return Promise.resolve() },
     });
@@ -313,6 +319,36 @@ const NOW = 1_700_000_000_000; // followHost reads the clock; it is held still s
     return social.error;
   })()`);
   check("lowercase with a space is still your own code, not a length error", mine, "That is your own code.");
+
+  /* A party invitation arrives the moment it is sent. A friend request did
+     not: it sat in the table until the other person next opened Aurora, so
+     asking while they were looking at the same screen did nothing visible. */
+  console.log("\n— a friend request arrives while they are looking at it —");
+  const onAccept = await js(`(async () => {
+    window.__asked.length = 0;
+    account.user = { id: "me" };
+    await acceptFriend("them");
+    return window.__asked.slice();
+  })()`);
+  check("accepting tells the one who asked", onAccept.some((what) => what === "channel(aurora-user-them)"), true);
+
+  const onAsk = await js(`(async () => {
+    window.__asked.length = 0;
+    window.__foundByCode = [{ user_id: "them", display_name: "Them" }];
+    social.profile = { user_id: "me", display_name: "Me", friend_code: "AAAAAAAA" };
+    social.error = ""; social.notice = "";
+    await addFriendByCode("7FK3QX2M");
+    window.__foundByCode = null;
+    return [window.__asked.slice(), social.error, social.notice];
+  })()`);
+  check("and asking tells the one being asked", onAsk[0].some((what) => what === "channel(aurora-user-them)"), true);
+  check("with nothing to complain about", [onAsk[1], onAsk[2]], ["", "Asked Them to be friends."]);
+
+  const listening = await js(`(() => {
+    const src = String(listenForInvites);
+    return [/event: "invite"/.test(src), /event: "friends"/.test(src)];
+  })()`);
+  check("both kinds arrive on the same channel of your own", listening, [true, true]);
 
   console.log("\n— the page is allowed to open a party at all —");
   // connect-src with http:/https: alone does NOT cover wss: in Chromium, and a
