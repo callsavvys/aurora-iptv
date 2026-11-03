@@ -76,12 +76,23 @@
   transform: scale(1.05);
   z-index: 3;
 }
+/* A thin line tight against the artwork, the way their app marks the tile you
+   are on. What was here before was four pixels of outline, three of offset and
+   a four-pixel glow — eleven pixels of colour around every poster, which from
+   a sofa is a green slab rather than a highlight. Three pixels, no offset, no
+   glow.
+
+   What was being cut off was not this. A row scrolls sideways, and overflow-x
+   quietly makes overflow-y clip as well, so the row keeps 44 pixels of room
+   for a poster that grows. A tile that widened to 580 at sixteen by nine
+   stood 326 pixels tall against a poster's 264 — sixty-two over, against
+   forty-four of room — and came back trimmed top and bottom. No tile widens
+   any more, so nothing exceeds the room. */
 .platform-tv .card:focus .art {
-  outline: 4px solid var(--accent);
-  outline-offset: 3px;
+  outline: 3px solid var(--accent);
+  outline-offset: 0;
   border-color: var(--accent);
-  /* eleven pixels in all, which fits inside half of the row gap */
-  box-shadow: 0 0 0 4px var(--accent-glow), var(--shadow-hero);
+  box-shadow: var(--shadow-hero);
 }
 /* what hover used to reveal, focus now reveals */
 .platform-tv .card:focus .play-bubble { opacity: 1; transform: translate(-50%, -50%); }
@@ -418,13 +429,17 @@
    both: a billboard at the top of the page, and tiles that expand into their own
    artwork as the remote moves through the rows underneath it. */
 
-.platform-tv .scroll { padding-top: 124px; padding-bottom: 90px; }
+.platform-tv .scroll { padding-top: 124px; padding-bottom: 150px; }
 .platform-tv .hero + .shelf,
 .platform-tv .hero + * > .shelf:first-child { margin-top: 0; }
 
-.platform-tv .shelf { margin-top: 30px; padding-left: 88px; }
-.platform-tv .shelf:first-child { margin-top: 8px; }
-.platform-tv .shelf-head { margin-bottom: 12px; padding-right: 88px; }
+/* ---- room to breathe ----
+   Every one of these was set at a desk, a foot from the screen. On a
+   television three metres away the rows ran into each other and the headings
+   sat on top of their posters. */
+.platform-tv .shelf { margin-top: 58px; padding-left: 88px; }
+.platform-tv .shelf:first-child { margin-top: 20px; }
+.platform-tv .shelf-head { margin-bottom: 22px; padding-right: 88px; }
 .platform-tv .shelf-head h2 { font-size: 23px; font-weight: 600; color: var(--text-2); letter-spacing: -.01em; }
 .platform-tv .shelf-head span { display: none; }
 
@@ -588,7 +603,7 @@
 /* These were a slab: twelve boxes ninety-four pixels tall, directly under the
    billboard, shouting provider category names at the one place the eye should
    land first. They are a way through the library, not the headline. */
-.platform-tv .genre-strip { padding: 0 88px 4px; gap: 12px; margin-top: -30px; }
+.platform-tv .genre-strip { padding: 0 88px 10px; gap: 16px; margin-top: -18px; }
 .platform-tv .genre-chip { min-width: 0; height: 52px; font-size: 19px; border-radius: 999px; padding: 0 26px; }
 .platform-tv .genre-chip:focus { outline: 4px solid var(--accent); outline-offset: 3px; transform: scale(1.04); }
 
@@ -922,3 +937,8 @@
    the column instead. */
 .platform-tv .prog.blank,
 .platform-tv .prog.loading { padding-left: 360px; }
+
+
+/* the detail under a row, which is the only thing that now says what a tile
+   is, sits clear of the posters rather than against them */
+.platform-tv .row-detail { margin-top: 18px; }

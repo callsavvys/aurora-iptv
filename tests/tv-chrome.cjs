@@ -104,17 +104,39 @@ console.log("\n— thirty-three thousand channels, and a remote —");
 console.log("\n— the highlight stays on its own poster —");
 {
   const gap = Number((TV.match(/\.platform-tv \.shelf-row, \.platform-tv \.ranked-row \{[\s\S]*?gap: (\d+)px/) || [])[1] || 0);
-  const ring = TV.match(/\.platform-tv \.card:focus \.art \{[\s\S]*?outline: (\d+)px[\s\S]*?outline-offset: (\d+)px[\s\S]*?box-shadow: 0 0 0 (\d+)px/) || [];
-  const reach = Number(ring[1] || 0) + Number(ring[2] || 0) + Number(ring[3] || 0);
-  check(`the ring reaches ${reach}px and half the gap is ${gap / 2}px`, reach <= gap / 2, true);
+  const ring = TV.match(/\.platform-tv \.card:focus \.art \{[\s\S]*?outline: (\d+)px[\s\S]*?outline-offset: (\d+)/) || [];
+  const reach = Number(ring[1] || 0) + Number(ring[2] || 0);
+  check(`the ring is ${reach}px and half the gap is ${gap / 2}px`, reach <= gap / 2, true);
+  check("it is a line, not a slab", reach <= 4, true);
+  // the row clips what grows past its own box, so the ring plus the growth of
+  // a 264px poster at 1.05 has to fit in the padding the row keeps
+  const pad = Number((TV.match(/\.platform-tv \.shelf-row, \.platform-tv \.ranked-row \{\s*\n\s*padding-top: (\d+)px/) || [])[1] || 0);
+  check("the row keeps that room in one place, not two", (TV.match(/padding-top: \d+px;\s*\n\s*padding-bottom: \d+px;\s*\n\s*margin-top: -\d+px/g) || []).length, 1);
+  check(`${reach + 7}px of ring and growth fits in ${pad}px of room`, reach + 7 <= pad, true);
 }
-check("a numbered row keeps its shape, every tile the same",
-  /if \(card\.closest\("\.ranked-row"\)\) return;/
-    .test(require("node:fs").readFileSync(require("node:path").join(ROOT, "mobile/platform/tv-nav.js"), "utf8")), true);
+check("no tile widens any more: every one behaves the same",
+  /classList\.add\(SPOTLIT\)/
+    .test(require("node:fs").readFileSync(require("node:path").join(ROOT, "mobile/platform/tv-nav.js"), "utf8")), false);
 check("a ranked tile grows at the same pace as every other one",
   /\.platform-tv \.ranked-row > \.card \{[^}]*transition: flex-basis \.2s ease/.test(TV), true);
 check("and its shape follows its width rather than jumping first",
   /\.platform-tv \.card \.art \{ transition: aspect-ratio \.2s ease; \}/.test(TV), true);
+
+console.log("\n— passing over a text box does not summon a keyboard —");
+{
+  const NAV = require("node:fs").readFileSync(require("node:path").join(ROOT, "mobile/platform/tv-nav.js"), "utf8");
+  check("every text field is held back, not only the search box",
+    /function tameFields[\s\S]{0,400}setAttribute\("readonly"[\s\S]{0,200}setAttribute\("inputmode", "none"\)/.test(NAV), true);
+  check("and it is run again after every render",
+    /tagCards\(\);\s*\n\s*tameFields\(\);/.test(NAV), true);
+  check("OK is what hands a field over",
+    /if \(node\.dataset\?\.tamed && node\.hasAttribute\("readonly"\)\) return handOver\(node\);/.test(NAV), true);
+  check("leaving it puts it back",
+    /focusout[\s\S]{0,200}takeBack\(node\)/.test(NAV), true);
+  check("and while held back the remote walks straight through it",
+    /if \(node\.dataset\.tamed && node\.hasAttribute\("readonly"\)\) return key !== "Enter";/.test(NAV), true);
+  check("the search box keeps its own keys", /field\.id === "search"|node\.id !== "search"|\.id === "search"/.test(NAV), true);
+}
 
 console.log("\n— the menu strip takes a floor once the page has moved —");
 const rule = TV.match(/\.platform-tv \.app:has\(\.workspace\.scrolled\) aside \{([^}]*)\}/);

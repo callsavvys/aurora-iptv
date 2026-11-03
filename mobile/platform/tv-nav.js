@@ -185,6 +185,44 @@
     for (const card of document.querySelectorAll(`${CARD}:not([tabindex])`)) card.tabIndex = 0;
   };
 
+  /* ---------- a text field does not summon a keyboard by being passed over ----------
+     A television has no keyboard, so Android throws its own up the instant a
+     text field takes focus — and on a remote, focus lands on a field merely on
+     the way past it to something else. Only the search box was ever held back
+     from doing that; every field in Settings, in the source form and in the
+     friend code box did it. Each one is held readonly, which focus alone
+     cannot defeat, and OK hands it over for real. */
+
+  const TEXT_FIELD = "input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]), textarea";
+  function tameFields(root) {
+    for (const field of (root || document).querySelectorAll(TEXT_FIELD)) {
+      if (field.dataset.tamed || field.id === "search") continue;
+      field.dataset.tamed = "1";
+      field.setAttribute("readonly", "readonly");
+      field.setAttribute("inputmode", "none");
+    }
+  }
+
+  const handOver = (field) => {
+    field.removeAttribute("readonly");
+    field.removeAttribute("inputmode");
+    field.focus();
+    try { field.setSelectionRange(field.value.length, field.value.length) } catch { /* not every type has a caret */ }
+  };
+
+  const takeBack = (field) => {
+    if (!field.dataset.tamed) return;
+    field.setAttribute("readonly", "readonly");
+    field.setAttribute("inputmode", "none");
+  };
+
+  // leaving a field puts it back, so passing over it again stays silent
+  document.addEventListener("focusout", (event) => {
+    const node = event.target;
+    if (node instanceof Element && node.dataset?.tamed) takeBack(node);
+  });
+
+
   /* Every view replaces #content wholesale, and the grid views go further and
      rewrite their own rows as you scroll past them, so there is no single point
      to hook. Watching the subtree covers both, and one timeout coalesces the
@@ -196,15 +234,19 @@
     setTimeout(() => {
       pending = false;
       tagCards();
+      tameFields();
       const active = document.activeElement;
       if (!active || active === document.body || active === document.documentElement) refocus();
     }, 0);
   }).observe(document.getElementById("content"), { childList: true, subtree: true });
   tagCards();
+  tameFields();
 
   /* ---------- OK ---------- */
 
   function activate(node) {
+    // OK on a held-back field is the moment it was waiting for
+    if (node.dataset?.tamed && node.hasAttribute("readonly")) return handOver(node);
     /* The renderer's click delegation only recognises the artwork inside a card
        (.open-detail, .play-item, .play-resume); a click on the <article> itself
        matches none of its branches and quietly does nothing. */
@@ -233,6 +275,8 @@
       return key === "ArrowLeft" || key === "ArrowRight";
     }
     if (takesText(node)) {
+      // held back: nothing has been typed into it, so every key is the remote's
+      if (node.dataset.tamed && node.hasAttribute("readonly")) return key !== "Enter";
       if (key === "Enter") return false; // the field's own submit
       if (key === "ArrowUp" || key === "ArrowDown") return true;
       const caret = caretAt(node);
@@ -421,31 +465,15 @@
       box.replaceChildren(line, title);
     }
 
-    /* A numbered row keeps its shape. Widening a tile in it moves every
-       poster after it out from under its own numeral, and whether a tile
-       widened at all depended on whether that title happened to have landscape
-       artwork — so walking along Top 20 some tiles grew and some did not, with
-       no way to tell which from looking. The numbers are the point of the row;
-       they stay lined up. */
-    if (card.closest(".ranked-row")) return;
+    /* The tile no longer widens into its artwork, and this is the second time
+       that decision has been made with better information than the first.
 
-    // the landscape artwork is what lets it widen; without it, it stays put
-    const art = card.querySelector(".art");
-    const wide = item.backdrop || meta(item.id)?.backdrop;
-    if (!art || !wide) return;
-    const img = document.createElement("img");
-    img.className = "focus-art";
-    img.src = wide;
-    img.addEventListener("error", () => {
-      card.classList.remove(SPOTLIT);
-      img.remove();
-      card.querySelector(".spotlight-title")?.remove();
-    });
-    const name = document.createElement("b");
-    name.className = "spotlight-title";
-    name.textContent = item.name;
-    art.append(img, name);
-    card.classList.add(SPOTLIT);
+       It only ever widened when the title happened to carry landscape artwork,
+       which plenty do not, so walking a row some grew and some did not with no
+       way to tell which from looking — and the ones that did pushed every tile
+       after them sideways. Half an expansion reads as broken where none reads
+       as still. What a tile is stays where it always was: written under the
+       row, the same way for every one of them. */
     // focusin scrolled the tile into view at its old width; it is wider now,
     // so at the end of a row it would otherwise sit half off the screen
     card.scrollIntoView({ block: "nearest", inline: "nearest" });
