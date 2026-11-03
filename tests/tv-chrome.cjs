@@ -175,5 +175,19 @@ console.log("\n— the mark is never off the screen while a row moves —");
     /scrollIntoView/.test(spotlight ? spotlight[0] : "scrollIntoView"), false);
 }
 
+console.log("\n— the television does not pay for a blur nobody can see —");
+{
+  /* dumpsys gfxinfo over ten presses, before and after: 92% of frames janky
+     at 65ms median became 54% at 42ms, and the 99th percentile fell from
+     300ms to 105ms. The GPU was never the problem — 4ms throughout. */
+  const head = TV.match(/\.platform-tv \.workspace\.scrolled > header,[\s\S]{0,200}?\}/);
+  check("the menu strip reads back nothing behind it", /backdrop-filter:\s*none/.test(head ? head[0] : ""), true);
+  check("and it has a floor of its own instead",
+    /\.platform-tv \.workspace\.scrolled > header \{ background: rgba\(2, 5, 9, \.97\)/.test(TV), true);
+  const ring = TV.match(/\.platform-tv \.card:focus \.art \{[\s\S]*?\}/);
+  check("a focused poster does not rasterise a 70px shadow on every press",
+    /var\(--shadow-hero\)/.test(ring ? ring[0] : "var(--shadow-hero)"), false);
+}
+
 console.log(failed ? `\n${failed} failed` : "\nall passed");
 process.exit(failed ? 1 : 0);

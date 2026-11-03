@@ -92,7 +92,10 @@
   outline: 3px solid var(--accent);
   outline-offset: 0;
   border-color: var(--accent);
-  box-shadow: var(--shadow-hero);
+  /* --shadow-hero is a 70px blur. It was being rasterised afresh on every
+     press, on the one tile that changes every press. Tighter, and the ring is
+     what marks the tile anyway. */
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .5);
 }
 /* what hover used to reveal, focus now reveals */
 .platform-tv .card:focus .play-bubble { opacity: 1; transform: translate(-50%, -50%); }
@@ -388,6 +391,21 @@
   background: rgba(2, 5, 9, .97);
   box-shadow: 0 1px 0 rgba(255, 255, 255, .07), 0 18px 40px rgba(0, 0, 0, .55);
 }
+
+/* The same floor for the menu strip, and for the same reason the sidebar got
+   one — except here it is what the strip costs rather than what it shows.
+   `backdrop-filter: blur(16px)` on a bar that spans the screen makes the
+   television read back and blur everything scrolling behind it, every frame.
+   Measured with dumpsys gfxinfo over ten presses: 92% of frames janky, 65ms
+   at the median against a 16.7ms budget, with the GPU idle at 4ms and the
+   cost all in issuing draw commands. The strip is already all but opaque, so
+   the blur was paying for something nobody can see. */
+.platform-tv .workspace.scrolled > header,
+.platform-tv .workspace > header {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.platform-tv .workspace.scrolled > header { background: rgba(2, 5, 9, .97); }
 
 /* the menu wrapper is what sits at the left edge now; the button inside it
    must stay in that wrapper's flow or it anchors to the wrong thing */
