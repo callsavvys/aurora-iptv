@@ -474,9 +474,8 @@
        after them sideways. Half an expansion reads as broken where none reads
        as still. What a tile is stays where it always was: written under the
        row, the same way for every one of them. */
-    // focusin scrolled the tile into view at its old width; it is wider now,
-    // so at the end of a row it would otherwise sit half off the screen
-    card.scrollIntoView({ block: "nearest", inline: "nearest" });
+    /* There is no second scroll here any more. It existed because the tile
+       had grown since focusin scrolled it into view, and nothing grows now. */
   }
 
   document.addEventListener("focusin", (event) => {

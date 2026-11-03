@@ -352,5 +352,30 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
     return state.view;
   })()`), "settings");
 
+  /* Filmed on the television: focus walked to the end of a ranked row and the
+     tile parked flush against the side of the screen. The ring is painted
+     outside the tile's box, so its whole right-hand edge was off the screen —
+     the top edge ran to the last pixel column and simply stopped. */
+  console.log("\n— a focused tile never touches the side of the screen —");
+  const railGap = await js(`(() => {
+    state.items = Array.from({ length: 20 }, (_, i) => ({
+      id: "rail-" + i, type: "movie", name: "Film " + i, category: "Drama", year: 2024
+    }));
+    state.trending = { movie: state.items.slice(), series: [], year: [], month: [] };
+    state.view = "home"; render();
+    const row = document.querySelector(".ranked-row");
+    if (!row) return "no ranked row";
+    const cards = [...row.querySelectorAll("article.card")];
+    const far = cards[cards.length - 1];
+    far.focus();
+    far.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const box = row.getBoundingClientRect(), tile = far.getBoundingClientRect();
+    // in the scroller's own units, so a zoomed television reads the same
+    const scale = row.offsetWidth / box.width;
+    return Math.round((box.right - tile.right) * scale);
+  })()`);
+  // the failure prints the clearance it actually had, which is the useful part
+  check("it keeps the overscan margin clear of its ring", railGap >= 80 ? "clear" : railGap, "clear");
+
   await close();
 })();

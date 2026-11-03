@@ -156,5 +156,24 @@ check("the television isolates each part of a meta line",
 check("so does the row detail the remote writes",
   /\.row-detail \.line > span,[\s\S]{0,120}unicode-bidi: isolate/.test(TV), true);
 
+console.log("\n— the mark is never off the screen while a row moves —");
+{
+  // Filmed on the television: a smooth 300ms rail scroll left five frames with
+  // no focus ring anywhere, because the tile focus had moved to was still past
+  // the right edge for the first half of the slide.
+  const rail = TV.match(/\.platform-tv \.rail-scroller \{([^}]*)\}/);
+  check("the television's rows arrive in one step", /scroll-behavior:\s*auto/.test(rail ? rail[1] : ""), true);
+  // the ring is painted outside the tile, so a tile parked flush against the
+  // side of the screen loses that whole edge of it
+  check("and they stop short of the side of the screen",
+    /scroll-padding-inline:\s*88px/.test(rail ? rail[1] : ""), true);
+  const NAV = require("node:fs").readFileSync(require("node:path").join(ROOT, "mobile/platform/tv-nav.js"), "utf8");
+  // focusin already scrolls the tile into view; spotlight asked a second time
+  // because the tile used to grow afterwards, and nothing grows now
+  const spotlight = NAV.match(/function spotlight\(card\) \{[\s\S]*?\n  \}/);
+  check("the row detail is written without asking for a second scroll",
+    /scrollIntoView/.test(spotlight ? spotlight[0] : "scrollIntoView"), false);
+}
+
 console.log(failed ? `\n${failed} failed` : "\nall passed");
 process.exit(failed ? 1 : 0);

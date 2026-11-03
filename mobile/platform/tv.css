@@ -165,8 +165,23 @@
   .platform-tv .now strong { font-size: 22px; }
 }
 
-/* A shelf that jumps as focus walks along it reads badly across a room. */
-.platform-tv .rail-scroller { scroll-behavior: smooth; }
+/* A shelf moves in one step, because a shelf that slides loses the mark.
+   Measured on the television: a press scrolled the row 248px over 300ms, and
+   the tile focus had just moved to was still off the right edge for the first
+   half of it. For five frames there was no focus ring anywhere on the screen,
+   and then it slid in from the edge a fifth at a time. Sliding is only worth
+   having if the thing you are looking for comes with it; here it did not, so
+   the row arrives at once and the mark is never off the screen. */
+.platform-tv .rail-scroller {
+  scroll-behavior: auto;
+  /* and it stops short of the edge. `nearest` parks the tile flush against the
+     side of the screen, and the ring is drawn outside the tile's box, so the
+     whole right-hand edge of it was being painted off the screen: filmed on
+     the television, the ring's top edge ran to the last pixel column and its
+     right edge was never there at all. The same 88px the rest of the TV
+     layout keeps clear of the bezel. */
+  scroll-padding-inline: 88px;
+}
 
 /* ---- watching together ----
    Everything here is read or pressed from a sofa. The friend code above all:
