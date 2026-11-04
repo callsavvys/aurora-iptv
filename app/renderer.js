@@ -1261,7 +1261,7 @@ function card(item, wide = false, rank = 0) {
   // caption is kept for anything with no artwork to speak for it, and for live
   // channels, where the name is the whole point.
   const named = art && item.type !== "live";
-  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""} ${named ? "has-art" : ""}" data-id="${escapeHtml(item.id)}" title="${escapeHtml(item.name)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" src="${escapeHtml(art)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(captionOf(item))}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
+  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""} ${named ? "has-art" : ""}" data-id="${escapeHtml(item.id)}" title="${escapeHtml(item.name)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" decoding="async" src="${escapeHtml(art)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(captionOf(item))}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
 function resumeCard(entry) {
@@ -1269,7 +1269,7 @@ function resumeCard(entry) {
   const bar = fresh ? 0 : percent(record);
   const left = fresh ? "Next episode" : record.duration > record.position ? `${clock(record.duration - record.position)} left` : "Ready";
   const target = entry.kind === "series" ? `data-show-play="${escapeHtml(entry.show.id)}"` : `data-resume="${escapeHtml(record.key)}"`;
-  return `<article class="card wide" ${target}><div class="art play-resume">${record.poster ? `<img loading="lazy" src="${escapeHtml(record.poster)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div><span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" \u2022 "))}</p></div><button class="forget" title="Remove from Continue watching">${icon("close")}</button></div></article>`;
+  return `<article class="card wide" ${target}><div class="art play-resume">${record.poster ? `<img loading="lazy" decoding="async" src="${escapeHtml(record.poster)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div><span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" \u2022 "))}</p></div><button class="forget" title="Remove from Continue watching">${icon("close")}</button></div></article>`;
 }
 
 function rail(scroller) {
@@ -1654,7 +1654,7 @@ function historyEntries() {
 }
 
 function historyArt(poster, title, playAttr, label) {
-  return `<button class="history-art" ${playAttr} aria-label="${escapeHtml(label)}">${poster ? `<img loading="lazy" src="${escapeHtml(poster)}" alt="" onerror="this.remove()">` : ""}<span class="fallback">${escapeHtml(initials(title))}</span><span class="history-play">${icon("play")}</span></button>`;
+  return `<button class="history-art" ${playAttr} aria-label="${escapeHtml(label)}">${poster ? `<img loading="lazy" decoding="async" src="${escapeHtml(poster)}" alt="" onerror="this.remove()">` : ""}<span class="fallback">${escapeHtml(initials(title))}</span><span class="history-play">${icon("play")}</span></button>`;
 }
 
 function episodeStatus(record) {
@@ -1879,7 +1879,7 @@ function renderGuide() {
   }
 
   const rows = channels.map((item) => `<div class="guide-row" data-guide-for="${escapeHtml(item.id)}">
-      <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" src="${escapeHtml(item.logo)}" onerror="this.remove()" onload="this.dataset.ok=1">` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
+      <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" decoding="async" src="${escapeHtml(item.logo)}" onerror="this.remove()" onload="this.dataset.ok=1">` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
       <div class="guide-progs" style="width:${width}px"><span class="prog loading"><span>Loading guide…</span></span></div>
     </div>`).join("");
 
@@ -2220,7 +2220,7 @@ function renderSeriesDetail() {
     const seen = finished(record);
     return `<button class="episode ${seen ? "watched" : ""}" data-episode-index="${index}">
       <span class="episode-still">
-        ${still ? `<img loading="lazy" src="${escapeHtml(still)}" onerror="this.remove()">` : ""}
+        ${still ? `<img loading="lazy" decoding="async" src="${escapeHtml(still)}" onerror="this.remove()">` : ""}
         <span class="episode-slug">S${escapeHtml(state.selectedSeason)}: E${escapeHtml(number)}</span>
         <span class="episode-play">${icon("play")}</span>
         ${bar > 1 && !seen ? `<span class="episode-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}
@@ -2589,7 +2589,7 @@ function renderEpisodesPanel() {
     const plot = episode.info?.plot || episode.info?.overview || "";
     const duration = shortDuration(episode.info);
     const status = finished(record) ? "Watched" : record && bar > 1 ? `${clock(record.duration - record.position)} left` : "";
-    return `<button class="panel-episode ${playing ? "playing" : ""} ${finished(record) ? "watched" : ""}" data-panel-index="${index}"><span class="panel-still">${still ? `<img loading="lazy" src="${escapeHtml(still)}" alt="" onerror="this.remove()">` : ""}<span class="panel-num">${escapeHtml(number)}</span>${playing ? '<span class="panel-now">Now playing</span>' : ""}${bar > 1 && !finished(record) ? `<span class="panel-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="panel-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml([duration, status].filter(Boolean).join(" \u2022 ") || `Season ${panelSeason}`)}</small>${plot ? `<p>${escapeHtml(plot)}</p>` : ""}</span></button>`;
+    return `<button class="panel-episode ${playing ? "playing" : ""} ${finished(record) ? "watched" : ""}" data-panel-index="${index}"><span class="panel-still">${still ? `<img loading="lazy" decoding="async" src="${escapeHtml(still)}" alt="" onerror="this.remove()">` : ""}<span class="panel-num">${escapeHtml(number)}</span>${playing ? '<span class="panel-now">Now playing</span>' : ""}${bar > 1 && !finished(record) ? `<span class="panel-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="panel-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml([duration, status].filter(Boolean).join(" \u2022 ") || `Season ${panelSeason}`)}</small>${plot ? `<p>${escapeHtml(plot)}</p>` : ""}</span></button>`;
   }).join("") || '<p class="episodes-empty">No episodes were returned for this season.</p>';
 }
 

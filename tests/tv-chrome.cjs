@@ -195,6 +195,26 @@ console.log("\n— the television does not pay for a blur nobody can see —");
   const ring = TV.match(/\.platform-tv \.card:focus \.art \{[\s\S]*?\}/);
   check("a focused poster does not rasterise a 70px shadow on every press",
     /var\(--shadow-hero\)/.test(ring ? ring[0] : "var(--shadow-hero)"), false);
+
+  /* The strip was the obvious blur and not the expensive one: `.score` is on
+     every poster, so a shelf of twenty asked for twenty readbacks a frame.
+     Removing every remaining blur took the television from 29-31ms a frame to
+     18-20ms, and Slow UI thread from 27-29 frames in 190 to 1. */
+  const blurred = [];
+  for (const m of TV.matchAll(/([^{}]+)\{([^}]*)\}/g)) {
+    for (const decl of m[2].split(";")) {
+      // `-webkit-backdrop-filter` ends with the same name, so match the whole property
+      const d = decl.match(/(?:^|\s)(-webkit-)?backdrop-filter\s*:\s*(.+)$/);
+      if (d && d[2].trim() !== "none") blurred.push(m[1].trim().split("\n").pop().trim());
+    }
+  }
+  check("nothing on the television reads back what is behind it",
+    blurred.length ? blurred.join(", ") : "nothing blurred", "nothing blurred");
+  for (const sel of [".score", ".modal", ".loading-overlay", ".episodes-panel", ".shortcuts", ".party-strip"]) {
+    check(`and ${sel} is given a floor instead`,
+      new RegExp("\\.platform-tv \\" + sel + "[^{]*\\{[^}]*backdrop-filter:\\s*none").test(TV)
+      || new RegExp("\\.platform-tv \\" + sel + ",")  .test(TV), true);
+  }
 }
 
 console.log(failed ? `\n${failed} failed` : "\nall passed");

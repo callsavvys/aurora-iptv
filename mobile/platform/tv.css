@@ -186,6 +186,31 @@
   scroll-padding-inline: 88px;
 }
 
+/* No surface on a television reads back what is behind it.
+   The menu strip was the obvious one and it was not the expensive one. `.score`
+   carries `backdrop-filter: blur(6px)` and every poster has a score badge, so a
+   shelf of twenty tiles asked the television for twenty readbacks and twenty
+   blurs on every frame the row moved — which is every frame of every press.
+   Measured on the television over twelve presses, `Slow issue draw commands`
+   was on 57-62 of 190 frames with the GPU sitting idle at 5ms: the cost was all
+   in issuing the draw, which is what a readback costs.
+
+   The badge is 82% opaque already, so the blur was doing almost nothing you
+   could see. Every blurred surface that can appear here gets a floor instead. */
+.platform-tv .score,
+.platform-tv .card.previewing .art:before { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.platform-tv .score,
+.platform-tv .card.previewing .art:before { background: rgba(8, 13, 19, .94); }
+
+.platform-tv .modal,
+.platform-tv .loading-overlay,
+.platform-tv .episodes-panel,
+.platform-tv .shortcuts,
+.platform-tv .party-strip { backdrop-filter: none; -webkit-backdrop-filter: none; }
+.platform-tv .loading-overlay { background: rgba(4, 8, 12, .96); }
+.platform-tv .shortcuts { background: rgba(4, 7, 10, .96); }
+.platform-tv .party-strip { background: rgba(4, 7, 10, .96); }
+
 /* ---- watching together ----
    Everything here is read or pressed from a sofa. The friend code above all:
    a person reads it off the screen to someone on the phone, so it is the
@@ -652,8 +677,7 @@
   width: 440px;
   padding: 22px;
   border-radius: 20px;
-  background: var(--scrim-deep);
-  backdrop-filter: blur(18px);
+  background: rgba(4, 8, 12, .97);
   box-shadow: var(--shadow-modal);
 }
 .platform-tv .remote-keys.hidden { display: none; }
