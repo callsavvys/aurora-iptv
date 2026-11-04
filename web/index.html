@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en" data-theme="teal">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+<script src="config.js"></script>
+</head>
+<body>
+<div class="stage">
+  <div id="app">
+    <div id="screen"></div>
+    <header class="bar" data-zone="tabs" data-lock="x" data-prefer=".tab.on" data-exit-down="#screen [data-start]" data-enter="up">
+      <div class="brand"><i></i>aurora</div>
+      <div class="tabs"><nav>
+        <button class="tab" data-f data-key="tab:home" data-tab="home">Home</button>
+        <button class="tab" data-f data-key="tab:movies" data-tab="movies">Movies</button>
+        <button class="tab" data-f data-key="tab:series" data-tab="series">Series</button>
+        <button class="tab" data-f data-key="tab:live" data-tab="live">Live TV</button>
+        <button class="tab" data-f data-key="tab:mylist" data-tab="mylist">My List</button>
+      </nav></div>
+      <div class="bar-tools">
+        <button class="round" data-f data-key="tab:search" data-tab="search" aria-label="Search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg></button>
+        <button class="round face" data-f data-key="tab:settings" data-tab="settings" aria-label="Settings">ZE</button>
+      </div>
+    </header>
+  </div>
+  <div class="toast" id="toast"></div>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

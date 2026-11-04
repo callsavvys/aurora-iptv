@@ -23,6 +23,14 @@
         "design/directions"
       ],
       "port": 4173
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "web/server.cjs"
+      ],
+      "port": 5174
     }
   ]
 }
