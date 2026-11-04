@@ -12,7 +12,8 @@
     "test:sync": "bash tests/two-devices.sh",
     "test:updater": "electron tests/updater-app",
     "test:signed-in": "electron tests/signed-in.cjs",
-    "package:tv": "bash mobile/scripts/build-android.sh"
+    "package:tv": "bash mobile/scripts/build-android.sh",
+    "tv": "electron scripts/tv-preview.cjs"
   },
   "dependencies": {
     "hls.js": "^1.6.13"
