@@ -17,10 +17,11 @@ export const icons = {
   list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   next: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 5.5v13l9.5-6.5zM16.5 5h2.5v14h-2.5z"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 14H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.3 7l-.1-.1A2 2 0 1 1 7 4.1l.1.1A1.7 1.7 0 0 0 10 3V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1A2 2 0 1 1 19.8 7l-.1.1A1.7 1.7 0 0 0 21 10h.1a2 2 0 1 1 0 4H21a1.7 1.7 0 0 0-1.6 1z"/></svg>',
+  film: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m10 9.2 5 2.8-5 2.8z" fill="currentColor"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 5-7 7 7 7"/></svg>',
 };
 
-const LABEL = { movie: "Movie", series: "Series", live: "Live", anime: "Anime", arabic: "Arabic", turkish: "Turkish", new: "New" };
+const LABEL = { movie: "Movie", series: "Series", live: "Live", anime: "Anime", arabic: "Arabic", turkish: "Turkish", new: "New", online: "On your line" };
 export const badge = (b, extra = "") => (b ? `<span class="badge b-${b} ${extra}">${LABEL[b] || esc(b)}</span>` : "");
 export const kindLabel = (item) => (item.kind === "series" ? "Series" : item.kind === "live" ? "Live" : "Movie");
 const art = (src, title) => (src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async" data-fallback="${esc(title)}">` : `<div class="fallback">${esc(title)}</div>`);
@@ -41,14 +42,21 @@ export const keyOf = (item, where = "") => `${where}|${item.source || "demo"}:${
 
 export function posterCard(item, where) {
   return `<button class="card poster" data-f data-key="${esc(keyOf(item, where))}"><div class="art">${art(item.poster, item.title)}${badge(item.badge)}</div>
-    <div class="t">${esc(item.title)}</div><div class="m">${meta(item)}</div></button>`;
+    <div class="t" dir="auto">${esc(item.title)}</div><div class="m">${meta(item)}</div></button>`;
+}
+
+/* a person: a round photo, their name, and who they play */
+export function personCard(c) {
+  const initials = c.name.split(" ").map((w) => w[0]).slice(0, 2).join("");
+  return `<button class="card person" data-f data-key="cast:${c.id}"><div class="art">${c.photo ? `<img src="${esc(c.photo)}" alt="" loading="lazy" data-fallback="${esc(initials)}">` : `<div class="fallback">${esc(initials)}</div>`}</div>
+    <div class="t" dir="auto">${esc(c.name)}</div><div class="m" dir="auto">${esc(c.character || (c.episodes ? `${c.episodes} episodes` : ""))}</div></button>`;
 }
 
 export function wideCard(item, where, { flag = "", sub = "", pct = 0, left = "", key } = {}) {
   return `<button class="card wide" data-f data-key="${esc(key || keyOf(item, where))}"><div class="art">${art(item.still || item.backdrop || item.poster, item.title)}
     ${left ? `<span class="left">${esc(left)}</span>` : ""}${flag ? `<span class="flag">${esc(flag)}</span>` : ""}
     ${pct ? `<div class="meter"><i style="width:${Math.min(100, Math.max(2, pct))}%"></i></div>` : ""}<span class="play">${icons.play}</span></div>
-    <div class="t">${esc(item.title)}</div><div class="m">${sub ? esc(sub) : meta(item)}</div></button>`;
+    <div class="t" dir="auto">${esc(item.title)}</div><div class="m">${sub ? esc(sub) : meta(item)}</div></button>`;
 }
 
 export function topCard(item, n, where) {

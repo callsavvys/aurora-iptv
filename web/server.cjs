@@ -23,8 +23,8 @@ const PORT = Number(process.env.PORT) || 5174;
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".woff2": "font/woff2", ".ico": "image/x-icon" };
 
-const tmdbKey = () => {
-  try { return fs.readFileSync(path.join(REPO, "app", "renderer.js"), "utf8").match(/tmdb: "([0-9a-f]{32})"/)[1]; } catch { return ""; }
+const builtIn = (name, pattern) => {
+  try { return fs.readFileSync(path.join(REPO, "app", "renderer.js"), "utf8").match(pattern)[1]; } catch { return ""; }
 };
 
 async function proxy(req, res, target) {
@@ -61,7 +61,7 @@ const server = http.createServer((req, res) => {
   if (url.pathname === "/api/proxy") return proxy(req, res, url.searchParams.get("u") || "");
   if (url.pathname === "/config.js") {
     res.writeHead(200, { "content-type": TYPES[".js"], "cache-control": "no-store" });
-    return res.end(`window.AURORA_CONFIG = ${JSON.stringify({ tmdb: tmdbKey() })};`);
+    return res.end(`window.AURORA_CONFIG = ${JSON.stringify({ tmdb: builtIn("tmdb", /tmdb: "([0-9a-f]{32})"/), omdb: builtIn("omdb", /omdb: "([0-9a-f]+)"/) })};`);
   }
   if (url.pathname === "/vendor/hls.js") {
     res.writeHead(200, { "content-type": TYPES[".js"] });

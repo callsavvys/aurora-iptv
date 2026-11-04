@@ -9,6 +9,7 @@ import * as F from "./focus.js";
 import { prefs, myList, progress, slim } from "./store.js";
 import { makeSource, testXtream } from "./sources.js";
 import * as U from "./ui.js";
+import { enrich, seasonEpisodes, collection, person as tmdbPerson, scores, norm, cleanTitle } from "./tmdb.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const stage = $(".stage"), screenEl = $("#screen"), bar = $(".bar");
@@ -72,6 +73,7 @@ const SCREENS = {
   search: { tab: "search", render: renderSearch },
   settings: { tab: "settings", render: renderSettings },
   detail: { bar: false, render: renderDetail },
+  person: { bar: false, render: renderPerson },
 };
 
 function go(name, params = {}, { root = false, focus = "content" } = {}) {
@@ -83,6 +85,7 @@ function go(name, params = {}, { root = false, focus = "content" } = {}) {
 }
 
 function back(key) {
+  if (trailer) return closeTrailer();
   if (player) return player.back();
   if (dialogOpen()) return closeDialog();
   if (stack[stack.length - 1]?.name === "search" && key === "Backspace" && searchState.query) {
@@ -215,18 +218,22 @@ function startHero(el, items) {
     const h = items[index];
     const saved = myList.has(h);
     copy.innerHTML = `<div class="badges">${U.badge(h.badge)}${index === 0 ? '<span class="badge b-plain">Featured</span>' : ""}</div>
-      <h1>${esc(h.title)}</h1>
+      <h1 dir="auto">${esc(h.title)}</h1>
       <div class="meta">${h.rating ? `<span class="star">★ ${esc(h.rating)}</span>` : ""}${h.year ? `<span class="dot">${esc(h.year)}</span>` : ""}<span class="dot">${U.kindLabel(h)}</span><span class="dot">4K</span></div>
-      <p>${esc(h.overview)}</p>
+      <p dir="auto">${esc(h.overview)}</p>
       <div class="actions">
         <button class="btn primary" data-f data-start data-key="hero|play">${U.icons.play}Play</button>
         <button class="btn" data-f data-key="hero|info">${U.icons.info}More info</button>
         <button class="btn icon ${saved ? "on" : ""}" data-f data-key="hero|list" aria-label="My List">${saved ? U.icons.check : U.icons.plus}</button>
       </div>`;
-    source.logo(h).then((logo) => {
-      if (!logo || items[index] !== h) return;
+    // TMDB's title art and backdrop, for a provider's title as much as a demo one
+    enrich(h).then((m) => {
+      if (!m || items[index] !== h) return;
       const h1 = copy.querySelector("h1");
-      if (h1) { const im = new Image(); im.className = "logo"; im.alt = h.title; im.src = logo; im.onload = () => h1.isConnected && h1.replaceWith(im); }
+      if (m.logo && h1) { const im = new Image(); im.className = "logo"; im.alt = h.title; im.src = m.logo; im.onload = () => h1.isConnected && h1.replaceWith(im); }
+      const bg = hero.querySelector(`.art img[data-i="${index}"]`);
+      if (m.backdrop && bg && bg.classList.contains("poster-only")) { bg.src = m.backdrop; bg.classList.remove("poster-only"); }
+      if (m.overview && !h.overview) { const p = copy.querySelector("p"); if (p) p.textContent = m.overview; }
     }).catch(() => {});
     hero.querySelectorAll(".art img").forEach((im, i) => im.classList.toggle("on", i === index));
     hero.querySelectorAll(".pager i").forEach((d, i) => d.classList.toggle("on", i === index));
@@ -401,7 +408,7 @@ async function renderSearch(el) {
 
 // typing anywhere searches: a letter on any screen opens Search with it
 document.addEventListener("keydown", (e) => {
-  if (e.metaKey || e.ctrlKey || e.altKey || F.isTyping() || player || dialogOpen()) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || F.isTyping() || player || trailer || dialogOpen()) return;
   if (e.key === "?") { e.preventDefault(); return openHelp(); }
   if (e.key === " " && stack[stack.length - 1]?.name !== "search") return;
   const ch = e.key.length === 1 && /[\p{L}\p{N} ]/u.test(e.key) ? e.key.toLowerCase() : null;
@@ -412,45 +419,91 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ============================== a title ==============================
+/* Two halves meet here. The source says what you can play: the film, the
+   seasons and episodes your line actually has. TMDB says everything else: the
+   logo, the age rating, the scores, who made it and who is in it, what comes
+   next, the trailer, the collection it belongs to. Either half can be missing
+   and the page still stands. */
 async function renderDetail(el, params) {
   const base = params.item;
   el.innerHTML = `<div class="detail page" data-page data-anchor="110"><div class="scroller">
     <section class="top-area" data-section><div class="backdrop">${base.backdrop ? `<img src="${esc(base.backdrop)}" alt="">` : ""}</div>
-      <div class="copy"><div class="badges">${U.badge(base.badge)}</div><h1>${esc(base.title)}</h1><div class="loading" style="padding:0">Loading…</div></div></section></div></div>`;
-  const item = await source.detail(base);
+      <div class="copy"><div class="badges">${U.badge(base.badge)}</div><h1 dir="auto">${esc(base.title)}</h1><div class="loading" style="padding:0">Loading…</div></div></section></div></div>`;
+
+  // a title known only from TMDB — a recommendation, an actor's film — is
+  // looked for on your line first; if the line does not have it, it can still
+  // be read about, but not played
+  let item = base, onLine = true;
+  if (base.tmdbOnly) {
+    const found = await source.locate(base).catch(() => null);
+    if (found) item = found; else onLine = false;
+  }
+  const provider = onLine ? await source.detail(item).catch((e) => { if (source.kind === "demo") throw e; return item; }) : item;
+  const meta = await enrich(onLine ? provider : { ...base, source: "demo" }).catch(() => null);
   const page = el.querySelector(".detail");
-  const saved = myList.has(item);
-  const resume = findResume(item);
-  if (item.backdrop && !base.backdrop) page.querySelector(".backdrop").innerHTML = `<img src="${esc(item.backdrop)}" alt="">`;
-  const play = resume ? `${U.icons.play}Resume${resume.episode ? ` S${resume.episode.season} E${resume.episode.number}` : ""}` : `${U.icons.play}${item.kind === "series" ? "Play S1 E1" : "Play"}`;
-  // the tab bar is hidden on a title page, so the way out has to be on it
-  page.querySelector(".top-area").insertAdjacentHTML("beforeend",
-    `<button class="btn back-btn" data-f data-key="d:back">${U.icons.back}Back</button>`);
+  const preferMeta = meta && (prefs.lang !== "en" || item.source === "demo" || !provider.overview);
+  const t = {
+    ...provider,
+    title: meta?.title || provider.title,
+    overview: (preferMeta ? meta.overview : provider.overview) || meta?.overview || "",
+    backdrop: meta?.backdrop || provider.backdrop || provider.poster,
+    rating: meta?.rating || provider.rating,
+    year: meta?.year || provider.year,
+    runtime: provider.kind === "series" ? (provider.runtime || (meta?.seasonsCount ? `${meta.seasonsCount} seasons` : "")) : (meta?.runtime || provider.runtime),
+    genres: meta?.genres?.length ? meta.genres : provider.genres || [],
+  };
+  if (t.backdrop && t.backdrop !== base.backdrop) page.querySelector(".backdrop").innerHTML = `<img src="${esc(t.backdrop)}" alt="">`;
+  page.querySelector(".top-area").insertAdjacentHTML("beforeend", `<button class="btn back-btn" data-f data-key="d:back">${U.icons.back}Back</button>`);
   on("d:back", () => back());
+
+  const saved = onLine && myList.has(provider);
+  const resume = onLine ? findResume(provider) : null;
+  const play = resume ? `${U.icons.play}Resume${resume.episode ? ` S${resume.episode.season} E${resume.episode.number}` : ""}` : `${U.icons.play}${provider.kind === "series" ? "Play S1 E1" : "Play"}`;
+  const cert = meta?.certification;
+  const next = meta?.nextEpisode && meta.nextEpisode.date >= new Date().toISOString().slice(0, 10) ? meta.nextEpisode : null;
+  const when = (d) => new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+  const status = meta?.type === "tv" ? (next ? `New episode ${when(next.date)}` : meta.status === "Ended" ? "Ended" : meta.status === "Returning Series" ? "Returning series" : "") : "";
+  const credit = [meta?.directors?.length ? `<b>${meta.type === "tv" ? "Created by" : "Directed by"}</b> ${esc(meta.directors.join(", "))}` : "",
+    meta?.cast?.length ? `<b>Starring</b> ${esc(meta.cast.slice(0, 4).map((c) => c.name).join(", "))}` : (provider.cast ? `<b>Starring</b> ${esc(provider.cast)}` : "")].filter(Boolean);
+
   page.querySelector(".copy").innerHTML = `
-    <div class="badges">${U.badge(item.badge)}${item.genres?.slice(0, 3).map((g) => `<span class="badge b-plain">${esc(g)}</span>`).join("") || ""}</div>
-    ${item.logo ? `<img class="logo" src="${esc(item.logo)}" alt="${esc(item.title)}">` : `<h1>${esc(item.title)}</h1>`}
-    <div class="meta">${item.rating ? `<span class="star">★ ${esc(item.rating)}</span>` : ""}${item.year ? `<span class="dot">${esc(item.year)}</span>` : ""}${item.runtime ? `<span class="dot">${esc(item.runtime)}</span>` : ""}<span class="dot">HD</span></div>
-    <p class="overview">${esc(item.overview || "No description from the provider.")}</p>
-    ${item.cast ? `<div class="cast"><b>Starring</b> ${esc(item.cast)}</div>` : ""}
+    <div class="badges">${U.badge(provider.badge)}${cert ? `<span class="badge b-cert" title="Rated in ${esc(cert.country)}">${esc(cert.cert)}</span>` : ""}${t.genres.slice(0, 3).map((g) => `<span class="badge b-plain">${esc(g)}</span>`).join("")}${onLine ? "" : '<span class="badge b-off">Not on your line</span>'}</div>
+    ${meta?.logo ? `<img class="logo" src="${esc(meta.logo)}" alt="${esc(t.title)}">` : `<h1 dir="auto">${esc(t.title)}</h1>`}
+    <div class="meta">${t.rating ? `<span class="star">★ ${esc(t.rating)}</span>` : ""}<span class="scores"></span>${t.year ? `<span class="dot">${esc(t.year)}</span>` : ""}${t.runtime ? `<span class="dot">${esc(t.runtime)}</span>` : ""}${status ? `<span class="dot ${next ? "soon" : ""}">${esc(status)}</span>` : ""}</div>
+    ${meta?.tagline ? `<div class="tagline" dir="auto">${esc(meta.tagline)}</div>` : ""}
+    <p class="overview" dir="auto">${esc(t.overview || "No description from the provider.")}</p>
+    ${credit.length ? `<div class="cast">${credit.join('<span class="sep"></span>')}</div>` : ""}
+    ${meta?.networks?.some((n) => n.logo) ? `<div class="nets">${meta.networks.filter((n) => n.logo).slice(0, 3).map((n) => `<img src="${esc(n.logo)}" alt="${esc(n.name)}" title="${esc(n.name)}">`).join("")}</div>` : ""}
     <div class="actions" data-zone="actions" data-lock="x">
-      <button class="btn primary" data-f data-start data-key="d:play">${play}</button>
+      ${onLine ? `<button class="btn primary" data-f data-start data-key="d:play">${play}</button>` : ""}
       ${resume ? `<button class="btn" data-f data-key="d:restart">Start over</button>` : ""}
-      <button class="btn ${saved ? "on" : ""}" data-f data-key="d:list">${saved ? U.icons.check : U.icons.plus}My List</button>
+      ${meta?.trailer ? `<button class="btn" data-f ${onLine ? "" : "data-start"} data-key="d:trailer">${U.icons.film}Trailer</button>` : ""}
+      ${onLine ? `<button class="btn ${saved ? "on" : ""}" data-f data-key="d:list">${saved ? U.icons.check : U.icons.plus}My List</button>` : ""}
+      ${!onLine && !meta?.trailer ? `<button class="btn" data-f data-start data-key="d:back">${U.icons.back}Back</button>` : ""}
     </div>`;
-  on("d:play", () => resume ? resumePlay(resume) : item.kind === "series" ? playFirstEpisode(item) : playItem(item));
-  on("d:restart", () => resume.episode ? playEpisode(item, resume.episode, 0) : playItem(item, 0));
+  if (meta?.imdbId) scores(meta.imdbId).then((s) => {
+    const box = page.querySelector(".scores");
+    if (!s || !box) return;
+    box.innerHTML = [s.imdb && `<span class="dot sc imdb">IMDb ${esc(s.imdb)}</span>`, s.rt && `<span class="dot sc rt">🍅 ${esc(s.rt)}</span>`, s.mc && `<span class="dot sc mc">MC ${esc(s.mc)}</span>`].filter(Boolean).join("");
+  });
+  on("d:play", () => resume ? resumePlay(resume) : provider.kind === "series" ? playFirstEpisode(provider) : playItem(provider));
+  on("d:restart", () => resume.episode ? playEpisode(provider, resume.episode, 0) : playItem(provider, 0));
+  on("d:trailer", () => openTrailer(meta.trailer, t.title));
   on("d:list", (btn) => {
-    const added = myList.toggle(item);
+    const added = myList.toggle(provider);
     btn.classList.toggle("on", added); btn.innerHTML = `${added ? U.icons.check : U.icons.plus}My List`;
     toast(added ? `Added to My List` : `Removed from My List`);
   });
+
   const scroller = page.querySelector(".scroller");
-  if (item.kind === "series" && item.seasons?.length) {
-    const first = resume?.episode?.season || item.seasons[0].number;
+  const cleanups = [];
+
+  // ---- episodes: the line's, dressed in TMDB's names and pictures ----
+  if (onLine && provider.kind === "series" && provider.seasons?.length) {
+    const first = resume?.episode?.season || provider.seasons[0].number;
     scroller.insertAdjacentHTML("beforeend", `<section class="block" data-section>
-      <div class="head"><div><h2>Episodes</h2><p>${esc(item.seasons.length)} season${item.seasons.length === 1 ? "" : "s"}</p></div></div>
-      <div class="chips-row seasons" data-zone="seasons" data-lock="x" data-track="x" data-prefer=".chip.on"><div class="track">${item.seasons.map((s) =>
+      <div class="head"><div><h2>Episodes</h2><p>${esc(provider.seasons.length)} season${provider.seasons.length === 1 ? "" : "s"} on your line</p></div></div>
+      <div class="chips-row seasons" data-zone="seasons" data-lock="x" data-track="x" data-prefer=".chip.on"><div class="track">${provider.seasons.map((s) =>
         `<button class="chip ${s.number === first ? "on" : ""}" data-f data-key="season:${s.number}">${esc(s.name || `Season ${s.number}`)}</button>`).join("")}</div></div>
       <div class="row" data-zone="row" data-lock="x" data-track="x" style="margin-top:20px"><div class="track episodes"><div class="loading">Loading episodes…</div></div></div></section>`);
     const epTrack = scroller.querySelector(".episodes");
@@ -458,39 +511,118 @@ async function renderDetail(el, params) {
     const showSeason = async (n) => {
       if (shown === n) return; shown = n;
       scroller.querySelectorAll(".seasons .chip").forEach((c) => c.classList.toggle("on", c.dataset.key === `season:${n}`));
-      const eps = await source.episodes(item, n);
+      const [eps, extra] = await Promise.all([source.episodes(provider, n), meta?.type === "tv" ? seasonEpisodes(meta.tmdbId, n) : Promise.resolve(new Map())]);
       if (shown !== n) return;
-      item.queue = item.queue || {}; item.queue[n] = eps;
+      const generic = (ep) => !ep.title || /^(episode|ep\.?|e)\s*\d+$/i.test(ep.title.trim()) || norm(ep.title).includes(norm(cleanTitle(provider.title)));
+      const dressed = eps.map((ep) => {
+        const x = extra.get(ep.number);
+        if (!x) return ep;
+        return { ...ep, title: generic(ep) || prefs.lang !== "en" ? x.title || ep.title : ep.title, overview: (prefs.lang !== "en" ? x.overview : ep.overview) || x.overview || ep.overview,
+          still: x.still || ep.still, runtime: ep.runtime || x.runtime };
+      });
+      provider.queue = provider.queue || {}; provider.queue[n] = dressed;
       epTrack.parentElement.dataset.at = 0; epTrack.style.transform = "";
-      epTrack.innerHTML = eps.map((ep) => {
+      epTrack.innerHTML = dressed.map((ep) => {
         const key = `ep:${ep.id}`;
-        on(key, () => playEpisode(item, ep));
-        const pct = U.pctOf(epId(item, ep));
+        on(key, () => playEpisode(provider, ep));
+        const pct = U.pctOf(epId(provider, ep));
         return `<button class="card episode" data-f data-key="${esc(key)}"><div class="art">${ep.still ? `<img src="${esc(ep.still)}" alt="" loading="lazy" data-fallback="${esc(ep.title)}">` : `<div class="fallback">${esc(ep.title)}</div>`}
-          <span class="ep">E${ep.number}</span>${pct ? `<div class="meter"><i style="width:${pct}%"></i></div>` : ""}<span class="play" style="opacity:0"></span></div>
-          <div class="t">${ep.number}. ${esc(ep.title)}</div><div class="m">${esc(ep.runtime || "")}</div><div class="o">${esc(ep.overview)}</div></button>`;
+          <span class="ep">E${ep.number}</span>${pct ? `<div class="meter"><i style="width:${pct}%"></i></div>` : ""}</div>
+          <div class="t" dir="auto">${ep.number}. ${esc(ep.title)}</div><div class="m">${esc(ep.runtime || "")}</div><div class="o" dir="auto">${esc(ep.overview)}</div></button>`;
       }).join("") || `<div class="loading">No episodes listed for this season.</div>`;
     };
-    for (const s of item.seasons) on(`season:${s.number}`, () => { const e = epTrack.querySelector(".episode"); if (e) F.focus(e); });
-    // landing on a season shows it; there is no need to press OK first
+    for (const s of provider.seasons) on(`season:${s.number}`, () => { const e = epTrack.querySelector(".episode"); if (e) F.focus(e); });
     let dwell;
-    const onMove = (e) => {
-      const k = e.detail.el.dataset.key || "";
-      if (k.startsWith("season:")) { clearTimeout(dwell); dwell = setTimeout(() => showSeason(Number(k.slice(7))), 220); }
-    };
+    const onMove = (e) => { const k = e.detail.el.dataset.key || ""; if (k.startsWith("season:")) { clearTimeout(dwell); dwell = setTimeout(() => showSeason(Number(k.slice(7))), 220); } };
     document.addEventListener("focus:moved", onMove);
+    cleanups.push(() => { document.removeEventListener("focus:moved", onMove); clearTimeout(dwell); });
     await showSeason(first);
-    item._cleanup = () => { document.removeEventListener("focus:moved", onMove); clearTimeout(dwell); };
   }
-  if (item.more?.length) {
-    scroller.insertAdjacentHTML("beforeend", U.row({ id: "more", title: "More like this", line: item.kind === "series" ? "Series in the same vein." : "Films in the same vein." },
-      item.more.map((x) => P(x, "more")).join("")));
+
+  // ---- the people in it ----
+  if (meta?.cast?.length) {
+    scroller.insertAdjacentHTML("beforeend", U.row({ id: "cast", title: "Cast", line: meta.type === "tv" ? "Who is in it, and who they play." : "Who is in it, and who they play." },
+      meta.cast.map((c) => { on(`cast:${c.id}`, () => go("person", { id: c.id, name: c.name })); return U.personCard(c); }).join("")));
+  }
+
+  // ---- the rest of the saga ----
+  if (meta?.collection) {
+    scroller.insertAdjacentHTML("beforeend", `<div class="collection-slot"></div>`);
+    collection(meta.collection.id).then((parts) => {
+      const slot = scroller.querySelector(".collection-slot");
+      if (!slot || parts.length < 2) return slot?.remove();
+      slot.outerHTML = U.row({ id: "collection", title: meta.collection.name, line: `${parts.length} films, in the order they came out.` },
+        parts.map((x) => P(x, "collection")).join(""));
+    });
+  }
+
+  // ---- more like it ----
+  const more = meta?.recommendations?.length ? meta.recommendations : provider.more || [];
+  if (more.length) scroller.insertAdjacentHTML("beforeend", U.row({ id: "more", title: "More like this", line: provider.kind === "series" ? "Series in the same vein." : "Films in the same vein." }, more.map((x) => P(x, "more")).join("")));
+
+  // ---- the details, as TMDB has them ----
+  if (meta) {
+    const rows = [
+      ["Original title", meta.originalTitle !== t.title ? meta.originalTitle : ""],
+      ["Released", meta.released ? new Date(meta.released + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) : ""],
+      ["Age rating", cert ? `${cert.cert} (${cert.country})` : ""],
+      ["Languages", meta.languages.join(", ")],
+      ["Written by", meta.writers.join(", ")],
+      [meta.type === "tv" ? "Network" : "Studios", (meta.type === "tv" ? meta.networks : meta.studios).map((s) => s.name).join(", ")],
+      ["Also streaming on", meta.providers.map((p) => p.name).join(", ")],
+    ].filter(([, v]) => v);
+    scroller.insertAdjacentHTML("beforeend", `<section class="block" data-section><div class="head"><div><h2>Details</h2><p>From TMDB.</p></div></div>
+      <button class="info-card" data-f data-key="d:info"><dl>${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd dir="auto">${esc(v)}</dd></div>`).join("")}</dl>
+      ${meta.keywords.length ? `<div class="kw">${meta.keywords.map((k) => `<span>${esc(k)}</span>`).join("")}</div>` : ""}</button></section>`);
   }
   scroller.insertAdjacentHTML("beforeend", `<div style="height:80px"></div>`);
-  detailItem = item;
-  return { cleanup: () => { item._cleanup?.(); detailItem = null; } };
+  return { cleanup: () => cleanups.forEach((f) => f()) };
 }
-let detailItem = null;
+
+// ============================== a person ==============================
+async function renderPerson(el, params) {
+  el.innerHTML = `<div class="detail page person-page" data-page data-anchor="110"><div class="scroller"><section class="top-area person-top" data-section>
+    <button class="btn back-btn" data-f data-key="d:back">${U.icons.back}Back</button><div class="copy"><h1 dir="auto">${esc(params.name || "")}</h1><div class="loading" style="padding:0">Loading…</div></div></section></div></div>`;
+  on("d:back", () => back());
+  const p = await tmdbPerson(params.id);
+  if (!p) throw new Error("TMDB has nothing on this person.");
+  const top = el.querySelector(".person-top");
+  const age = p.born ? Math.floor((Date.now() - new Date(p.born)) / 3.15576e10) : 0;
+  top.insertAdjacentHTML("afterbegin", p.photo ? `<img class="portrait" src="${esc(p.photo)}" alt="">` : `<div class="portrait none">${esc(p.name.split(" ").map((w) => w[0]).slice(0, 2).join(""))}</div>`);
+  top.querySelector(".copy").innerHTML = `<div class="badges"><span class="badge b-plain">${esc(p.dept || "Acting")}</span></div><h1 dir="auto">${esc(p.name)}</h1>
+    <div class="meta">${p.born ? `<span>Born ${esc(new Date(p.born + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }))}${age ? ` (${age})` : ""}</span>` : ""}${p.place ? `<span class="dot">${esc(p.place)}</span>` : ""}</div>
+    <p class="overview bio" dir="auto">${esc(p.bio || "No biography on TMDB yet.")}</p>
+    <div class="actions"><button class="btn primary" data-f data-start data-key="p:known">${U.icons.film}Their titles</button></div>`;
+  on("p:known", () => { const c = el.querySelector('[data-id="known"] .card'); if (c) F.focus(c); });
+  const scroller = el.querySelector(".scroller");
+  const known = p.known.slice(0, 40);
+  scroller.insertAdjacentHTML("beforeend", U.row({ id: "known", title: "Known for", line: source.kind === "demo" ? "Their most watched films and series." : "Marked when your line has it." },
+    known.map((x) => P({ ...x, badge: x.kind }, "known")).join("")) + `<div style="height:120px"></div>`);
+  // mark the ones on your line, as they are found
+  if (source.kind !== "demo") {
+    for (const x of known) source.locate(x).then((hit) => {
+      if (!hit) return;
+      const card = el.querySelector(`[data-key="${CSS.escape(U.keyOf(x, "known"))}"] .art`);
+      if (card && !card.querySelector(".b-online")) card.insertAdjacentHTML("beforeend", '<span class="badge b-online">On your line</span>');
+    }).catch(() => {});
+  }
+}
+
+// ============================== a trailer ==============================
+let trailer = null;
+function openTrailer(t, title) {
+  if (!t) return;
+  trailer = document.createElement("div");
+  trailer.className = "trailer";
+  // the video is YouTube's; focus stays on this layer, so Back always works
+  trailer.innerHTML = `<iframe tabindex="-1" allow="autoplay; encrypted-media" src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(t.key)}?autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1"></iframe>
+    <div class="trailer-bar"><b dir="auto">${esc(title)}</b><span>${esc(t.name || "Trailer")}</span><button class="btn" data-f data-start data-key="tr:close">${U.icons.back}Back</button></div>`;
+  stage.appendChild(trailer);
+  on("tr:close", closeTrailer);
+  F.pushLayer(trailer);
+}
+function closeTrailer() { if (!trailer) return; const t = trailer; trailer = null; F.popLayer(t); t.remove(); }
+
 
 const epId = (item, ep) => `${item.source || "demo"}:ep:${ep.id}`;
 const filmId = (item) => `${item.source || "demo"}:${item.kind}:${item.id}`;
@@ -523,7 +655,7 @@ async function renderSettings(el, params) {
   const pane = params.pane || "look";
   el.innerHTML = `<div class="settings">
     <div class="side list" data-zone="side" data-lock="y" data-leave="up" data-prefer=".cat-item.on">
-      ${[["look", "Appearance"], ["source", "Source"], ["keys", "Keyboard & remote"], ["about", "About"]].map(([id, label]) =>
+      ${[["look", "Appearance"], ["lang", "Language & region"], ["source", "Source"], ["keys", "Keyboard & remote"], ["about", "About"]].map(([id, label]) =>
         `<button class="cat-item ${id === pane ? "on" : ""}" data-f data-key="set:${id}" ${id === pane ? "data-start" : ""}><span>${label}</span></button>`).join("")}
     </div><div class="pane"></div></div>`;
   const paneEl = el.querySelector(".pane");
@@ -537,6 +669,14 @@ async function renderSettings(el, params) {
         <div data-zone="toggles">
           <button class="toggle ${prefs.motion ? "on" : ""}" data-f data-key="tg:motion"><span>Motion<small>Rows and pages glide. Off: they move in one step, which is kinder to slow televisions.</small></span><i class="sw"></i></button>
           <button class="toggle ${prefs.titles ? "on" : ""}" data-f data-key="tg:titles"><span>Titles under posters<small>Off: only the focused poster shows its name, as on Apple TV.</small></span><i class="sw"></i></button></div>`;
+    } else if (id === "lang") {
+      const opt = (group, value, label, current) => `<button class="chip ${value === current ? "on" : ""}" data-f data-key="opt:${group}:${value}" ${group === "lang" && value === "ar" ? 'dir="rtl"' : ""}>${label}</button>`;
+      paneEl.innerHTML = `<h2>Language &amp; region</h2>
+        <p>Titles, plots, episode names and biographies come from TMDB in the language you choose. Where a title has no translation yet, it falls back to English.</p>
+        <div class="opt-group" data-zone="lang" data-lock="x" data-prefer=".chip.on"><b>Titles and plots</b><div class="opts">${opt("lang", "en", "English", prefs.lang)}${opt("lang", "ar", "العربية", prefs.lang)}</div></div>
+        <div class="opt-group" data-zone="region" data-lock="x" data-prefer=".chip.on"><b>Country</b><small>Whose age ratings to show, and which services a title is also streaming on.</small><div class="opts">${
+          [["EG", "Egypt"], ["SA", "Saudi Arabia"], ["AE", "UAE"], ["KW", "Kuwait"], ["QA", "Qatar"], ["MA", "Morocco"], ["US", "United States"], ["GB", "United Kingdom"]]
+            .map(([v, l]) => opt("region", v, l, prefs.region)).join("")}</div></div>`;
     } else if (id === "source") {
       const s = prefs.source;
       paneEl.innerHTML = `<h2>Source</h2><p>Now reading from <b>${esc(source.name)}</b>. The demo uses TMDB's catalogue with a public test stream; connect your own Xtream line to test with real channels and films.</p>
@@ -562,12 +702,19 @@ async function renderSettings(el, params) {
         <p class="note">Film and series data and images from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. Test stream: Big Buck Bunny, © Blender Foundation, CC BY 3.0.</p>`;
     }
   };
-  for (const id of ["look", "source", "keys", "about"]) on(`set:${id}`, () => { const first = F.focusables(paneEl)[0]; if (first) F.focus(first); });
+  for (const id of ["look", "lang", "source", "keys", "about"]) on(`set:${id}`, () => { const first = F.focusables(paneEl)[0]; if (first) F.focus(first); });
   for (const t of THEMES) on(`theme:${t.id}`, (btn) => {
     prefs.theme = t.id; applyLook();
     paneEl.querySelectorAll(".theme").forEach((b) => b.classList.toggle("on", b === btn));
     toast(`${t.name} it is`);
   });
+  for (const [group, values] of [["lang", ["en", "ar"]], ["region", ["EG", "SA", "AE", "KW", "QA", "MA", "US", "GB"]]]) {
+    for (const v of values) on(`opt:${group}:${v}`, (btn) => {
+      prefs[group] = v;
+      btn.parentElement.querySelectorAll(".chip").forEach((c) => c.classList.toggle("on", c === btn));
+      toast(group === "lang" ? (v === "ar" ? "العناوين والقصص بالعربية" : "Titles and plots in English") : `Ratings and services for ${btn.textContent}`);
+    });
+  }
   on("tg:motion", (b) => { prefs.motion = !prefs.motion; applyLook(); b.classList.toggle("on", prefs.motion); });
   on("tg:titles", (b) => { prefs.titles = !prefs.titles; applyLook(); b.classList.toggle("on", prefs.titles); });
   on("src:demo", () => { prefs.source = { kind: "demo" }; source = makeSource(prefs.source); toast("Using the demo catalogue"); go("home", {}, { root: true }); });

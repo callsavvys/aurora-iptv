@@ -8,8 +8,7 @@
    An item is { id, kind: movie|series|live, title, year, rating, overview,
    poster, backdrop, still, badge, source, category }. */
 
-const CFG = window.AURORA_CONFIG || {};
-const img = (size, p) => (p ? `https://image.tmdb.org/t/p/${size}${p}` : "");
+import { tmdb, img, cleanTitle, norm, yearOf } from "./tmdb.js";
 // Big Buck Bunny, Blender Foundation (CC BY 3.0) — a public test stream
 const TEST_STREAM = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
@@ -26,7 +25,6 @@ async function getJson(url) {
 }
 
 // ============================== demo (TMDB) ==============================
-const tmdb = (path, q = "") => getJson(`https://api.themoviedb.org/3${path}?api_key=${CFG.tmdb}&language=en-US${q}`);
 
 function badgeFor(x, kind) {
   if ((x.genre_ids || []).includes(16) && (x.origin_country || []).includes("JP")) return "anime";
@@ -132,6 +130,7 @@ const demo = {
     return l ? img("w500", l.file_path) : "";
   },
   stream() { return { url: TEST_STREAM, hls: true, proxied: false }; },
+  async locate(x) { return { ...x, source: "demo", tmdbOnly: false }; },
 };
 
 export const GENRES = [
@@ -174,14 +173,14 @@ function xtream(cfg) {
       const category = vm.get(String(x.category_id)) || "Other";
       return { id: x.stream_id, kind: "movie", source: "xtream", title: x.name, year: yearOf(x.year || x.releaseDate || x.name), rating: rate(x.rating),
         poster: x.stream_icon || "", backdrop: "", still: "", overview: "", category, categoryId: String(x.category_id), ext: x.container_extension || "mp4",
-        added: Number(x.added) || 0, badge: badgeOf(category, "movie") };
+        added: Number(x.added) || 0, badge: badgeOf(category, "movie"), tmdb: Number(x.tmdb || x.tmdb_id) || 0 };
     });
     const series = (ss || []).map((x) => {
       const category = sm.get(String(x.category_id)) || "Other";
       const bd = Array.isArray(x.backdrop_path) ? x.backdrop_path[0] || "" : "";
       return { id: x.series_id, kind: "series", source: "xtream", title: x.name, year: yearOf(x.releaseDate || x.name), rating: rate(x.rating),
         poster: x.cover || "", backdrop: bd, still: bd, overview: x.plot || "", category, categoryId: String(x.category_id),
-        added: Number(x.last_modified) || 0, badge: badgeOf(category, "series") };
+        added: Number(x.last_modified) || 0, badge: badgeOf(category, "series"), tmdb: Number(x.tmdb || x.tmdb_id) || 0 };
     });
     const count = (items) => { const m = new Map(); for (const x of items) m.set(x.categoryId, (m.get(x.categoryId) || 0) + 1); return m; };
     lib = { live, movies, series, lc: lc || [], vc: vc || [], sc: sc || [], vcount: count(movies), scount: count(series), lcount: count(live) };
@@ -256,7 +255,7 @@ function xtream(cfg) {
         return { ...item, overview: i.plot || i.description || item.overview, backdrop: bd || item.backdrop || "", still: bd || "",
           runtime: i.duration || "", genres: String(i.genre || "").split(/[,/]/).map((s) => s.trim()).filter(Boolean).slice(0, 3),
           cast: i.cast || i.actors || "", rating: rate(i.rating) || item.rating, year: yearOf(i.releasedate || i.release_date) || item.year,
-          ext: r.movie_data?.container_extension || item.ext, more: withArt(L.movies.filter((x) => x.categoryId === item.categoryId && x.id !== item.id)).slice(0, 20) };
+          ext: r.movie_data?.container_extension || item.ext, tmdb: Number(i.tmdb_id || i.tmdb) || item.tmdb || 0, more: withArt(L.movies.filter((x) => x.categoryId === item.categoryId && x.id !== item.id)).slice(0, 20) };
       }
       const r = await api("get_series_info", `&series_id=${item.id}`);
       const i = r.info || {};
@@ -267,7 +266,7 @@ function xtream(cfg) {
       const L = await load();
       return { ...item, overview: i.plot || item.overview, backdrop: bd || item.backdrop, still: bd || item.still, cast: i.cast || "",
         genres: String(i.genre || "").split(/[,/]/).map((s) => s.trim()).filter(Boolean).slice(0, 3), rating: rate(i.rating) || item.rating,
-        runtime: `${seasons.length} season${seasons.length === 1 ? "" : "s"}`, seasons, rawEpisodes: eps,
+        runtime: `${seasons.length} season${seasons.length === 1 ? "" : "s"}`, seasons, rawEpisodes: eps, tmdb: Number(i.tmdb || i.tmdb_id) || item.tmdb || 0,
         more: withArt(L.series.filter((x) => x.categoryId === item.categoryId && x.id !== item.id)).slice(0, 20) };
     },
     async episodes(item, season) {
@@ -277,6 +276,24 @@ function xtream(cfg) {
         ext: e.container_extension || "mp4" }));
     },
     async logo() { return ""; },
+    /* A title TMDB knows — a recommendation, a film an actor was in — found on
+       this line, by its cleaned name and year. Null when the line does not
+       have it, so the screen can say so instead of offering Play. */
+    async locate(x) {
+      const L = await load();
+      if (!L.index) {
+        L.index = new Map();
+        for (const it of [...L.movies, ...L.series]) {
+          const k = `${it.kind}|${norm(cleanTitle(it.title))}`;
+          if (!L.index.has(k)) L.index.set(k, []);
+          L.index.get(k).push(it);
+        }
+      }
+      const hits = L.index.get(`${x.kind}|${norm(x.title)}`) || [];
+      if (!hits.length) return null;
+      const y = Number(x.year);
+      return hits.find((h) => !y || !yearOf(h) || Math.abs(Number(yearOf(h)) - y) <= 1) || null;
+    },
     stream(item, episode) {
       if (item.kind === "live") return { url: `${server}/live/${u}/${p}/${item.id}.m3u8`, hls: true, proxied: true, live: true };
       if (episode) return { url: `${server}/series/${u}/${p}/${episode.id}.${episode.ext || "mp4"}`, hls: false };
