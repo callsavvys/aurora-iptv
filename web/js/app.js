@@ -423,6 +423,10 @@ async function renderDetail(el, params) {
   const resume = findResume(item);
   if (item.backdrop && !base.backdrop) page.querySelector(".backdrop").innerHTML = `<img src="${esc(item.backdrop)}" alt="">`;
   const play = resume ? `${U.icons.play}Resume${resume.episode ? ` S${resume.episode.season} E${resume.episode.number}` : ""}` : `${U.icons.play}${item.kind === "series" ? "Play S1 E1" : "Play"}`;
+  // the tab bar is hidden on a title page, so the way out has to be on it
+  page.querySelector(".top-area").insertAdjacentHTML("beforeend",
+    `<button class="btn back-btn" data-f data-key="d:back">${U.icons.back}Back</button>`);
+  on("d:back", () => back());
   page.querySelector(".copy").innerHTML = `
     <div class="badges">${U.badge(item.badge)}${item.genres?.slice(0, 3).map((g) => `<span class="badge b-plain">${esc(g)}</span>`).join("") || ""}</div>
     ${item.logo ? `<img class="logo" src="${esc(item.logo)}" alt="${esc(item.title)}">` : `<h1>${esc(item.title)}</h1>`}

@@ -233,6 +233,10 @@ section.block { padding-bottom: 64px; }
    slices through the heading below */
 .detail .top-area { position: relative; height: 1000px; overflow: hidden; }
 .detail .copy { position: absolute; left: var(--safe-x); top: 150px; width: 1000px; }
+.detail .back-btn { position: absolute; z-index: 3; left: var(--safe-x); top: var(--safe-y); height: 64px; padding: 0 30px 0 20px; gap: 10px; font-size: var(--t-callout);
+  background: rgba(20,22,30,.6); }
+.detail .back-btn svg { width: 28px; height: 28px; }
+.detail .back-btn:focus { background: #fff; color: #000; }
 .detail .logo { max-width: 680px; max-height: 240px; margin-bottom: 28px; filter: drop-shadow(0 8px 30px rgba(0,0,0,.6)); }
 .detail h1 { margin: 0 0 22px; font-size: var(--t-title1); font-weight: 800; letter-spacing: -.035em; line-height: 1; }
 .detail .overview { -webkit-line-clamp: 4 !important; }
