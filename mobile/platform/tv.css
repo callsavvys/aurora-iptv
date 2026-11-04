@@ -15,42 +15,52 @@
 }
 
 /* ---- type and air ---- */
-.platform-tv body { font-size: 18px; }
+.platform-tv body { font-size: 28px; }
 
 .platform-tv aside {
   /* no window chrome on a TV, so nothing has to clear the traffic lights */
   padding: 20px 18px 18px;
   border-radius: 20px 0 0 20px;
 }
-.platform-tv .brand { font-size: 30px; padding: 0 12px 28px; }
-.platform-tv .brand > span { width: 44px; height: 44px; border-radius: 13px; font-size: 17px; }
-.platform-tv .nav-label { font-size: 13px; padding: 0 14px 10px; }
-.platform-tv aside nav button { height: 58px; font-size: 19px; border-radius: 14px; }
+/* The mark is the face and nothing else.
+   At a readable size the five menu buttons grew until the group started at
+   x=244, and the mark — a name, so as wide as whatever the account is called —
+   reached x=377. They overlapped, and pressing left out of the menu stopped
+   reaching the mark at all: the navigation measures between facing edges, and
+   the mark was no longer in front of the menu, it was under it. Measured in
+   the harness the travel was -133px, so it was correctly rejected as behind.
+   The face alone is a fixed 44px however long the name is, which the rail
+   layout already does for the same reason. */
+.platform-tv .brand { font-size: 44px; padding: 0 12px 28px; max-width: 160px; }
+.platform-tv .brand b, .platform-tv .brand > b { display: none; }
+.platform-tv .brand > span { width: 44px; height: 44px; border-radius: 13px; font-size: 28px; }
+.platform-tv .nav-label { font-size: 22px; padding: 0 14px 10px; }
+.platform-tv aside nav button { height: 58px; font-size: 32px; border-radius: 14px; }
 .platform-tv aside nav button .icon { width: 26px; height: 26px; }
-.platform-tv .source-pill { padding: 14px; font-size: 16px; }
+.platform-tv .source-pill { padding: 14px; font-size: 28px; }
 
 .platform-tv .workspace > header { height: 96px; flex: 0 0 96px; padding: 0 36px; }
 .platform-tv .search { height: 58px; border-radius: 16px; width: min(640px, 55%); }
-.platform-tv .search input { font-size: 20px; }
-.platform-tv .compact { height: 56px; padding: 0 24px; font-size: 18px; }
+.platform-tv .search input { font-size: 32px; }
+.platform-tv .compact { height: 56px; padding: 0 24px; font-size: 28px; }
 .platform-tv .nav-steps button { min-width: 52px; height: 52px; }
 
 .platform-tv .page { padding: 40px 42px 64px; }
 .platform-tv .page-title h1 { font-size: 46px; }
-.platform-tv .page-title > span { font-size: 15px; }
-.platform-tv .shelf-head h2 { font-size: 28px; }
-.platform-tv .chip { height: 48px; padding: 0 20px; font-size: 17px; border-radius: 14px; }
+.platform-tv .page-title > span { font-size: 24px; }
+.platform-tv .shelf-head h2 { font-size: 44px; }
+.platform-tv .chip { height: 48px; padding: 0 20px; font-size: 28px; border-radius: 14px; }
 
 /* Fewer, larger posters: six columns of a 1080p line are smaller on a TV than
    six columns of a Mac window are at arm's length. */
 .platform-tv .grid,
 .platform-tv .vgrid-inner { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 40px 22px; }
 .platform-tv .vgrid-inner.wide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.platform-tv .card-copy h3 { font-size: 17px; }
-.platform-tv .card-copy p { font-size: 14px; }
-.platform-tv .fallback { font-size: 40px; }
-.platform-tv .empty h2 { font-size: 28px; }
-.platform-tv .empty p { font-size: 19px; }
+.platform-tv .card-copy h3 { font-size: 28px; }
+.platform-tv .card-copy p { font-size: 24px; }
+.platform-tv .fallback { font-size: 52px; }
+.platform-tv .empty h2 { font-size: 44px; }
+.platform-tv .empty p { font-size: 32px; }
 
 /* ---- focus ----
    Remote focus is set in code, so :focus-visible never fires for it; the ring
@@ -124,48 +134,48 @@
    Big enough to read from the sofa and to land on with four arrows. */
 .platform-tv .chrome-top { padding: 28px 40px 56px; }
 .platform-tv .chrome-bottom { padding: 64px 40px 32px; gap: 14px; }
-.platform-tv .now strong { font-size: 26px; }
-.platform-tv .now small { font-size: 16px; }
+.platform-tv .now strong { font-size: 40px; }
+.platform-tv .now small { font-size: 28px; }
 .platform-tv .ghost { min-width: 64px; height: 64px; padding: 0 14px; border-radius: 14px; }
 .platform-tv .ghost .icon { width: 32px; height: 32px; }
 .platform-tv .transport { gap: 10px; }
-.platform-tv .clock { font-size: 18px; }
-.platform-tv .live-pill { font-size: 15px; padding: 5px 12px; }
+.platform-tv .clock { font-size: 28px; }
+.platform-tv .live-pill { font-size: 24px; padding: 5px 12px; }
 .platform-tv .timeline { padding: 18px 0; }
 .platform-tv .timeline .track { height: 10px; border-radius: 5px; }
 /* the knob and the volume slider only appeared on hover; with a remote they
    have to be there all the time */
 .platform-tv .timeline .knob { width: 26px; height: 26px; margin: -13px 0 0 -13px; transform: scale(1); }
 .platform-tv .volume input { width: 180px; opacity: 1; margin-left: 8px; }
-.platform-tv .track-select select { font-size: 17px; height: 56px; }
-.platform-tv .bubble { font-size: 16px; bottom: 42px; padding: 7px 12px; }
+.platform-tv .track-select select { font-size: 28px; height: 56px; }
+.platform-tv .bubble { font-size: 28px; bottom: 42px; padding: 7px 12px; }
 .platform-tv .episodes-panel { width: min(520px, calc(42 * var(--tv-vw, 1vw))); }
-.platform-tv .panel-episode { padding: 16px 18px; font-size: 18px; }
-.platform-tv .up-next { padding: 24px 28px; font-size: 19px; }
-.platform-tv .shortcuts { font-size: 18px; }
+.platform-tv .panel-episode { padding: 16px 18px; font-size: 28px; }
+.platform-tv .up-next { padding: 24px 28px; font-size: 32px; }
+.platform-tv .shortcuts { font-size: 28px; }
 
 /* ---- modals and toasts ---- */
-.platform-tv .modal-card { font-size: 18px; }
-.platform-tv .modal-card h2 { font-size: 30px; }
-.platform-tv .modal-card input { height: 56px; font-size: 19px; }
-.platform-tv .toast { font-size: 19px; padding: 16px 24px; }
+.platform-tv .modal-card { font-size: 28px; }
+.platform-tv .modal-card h2 { font-size: 44px; }
+.platform-tv .modal-card input { height: 56px; font-size: 32px; }
+.platform-tv .toast { font-size: 32px; padding: 16px 24px; }
 
 /* ---- 720p ----
    Same layout, dialled back: at 1280x720 the figures above eat the screen. */
 @media (max-width: 1500px) {
   .platform-tv .app { grid-template-columns: 248px minmax(0, 1fr); }
-  .platform-tv body { font-size: 16px; }
-  .platform-tv .brand { font-size: 25px; }
-  .platform-tv aside nav button { height: 50px; font-size: 17px; }
+  .platform-tv body { font-size: 28px; }
+  .platform-tv .brand { font-size: 40px; }
+  .platform-tv aside nav button { height: 50px; font-size: 28px; }
   .platform-tv .workspace > header { height: 82px; flex: 0 0 82px; padding: 0 28px; }
   .platform-tv .page { padding: 30px 30px 48px; }
-  .platform-tv .page-title h1 { font-size: 36px; }
+  .platform-tv .page-title h1 { font-size: 48px; }
   .platform-tv .grid,
   .platform-tv .vgrid-inner { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 18px; }
   .platform-tv .ghost { min-width: 56px; height: 56px; }
   .platform-tv .ghost .icon { width: 28px; height: 28px; }
   .platform-tv .chrome-bottom { padding: 48px 28px 24px; }
-  .platform-tv .now strong { font-size: 22px; }
+  .platform-tv .now strong { font-size: 32px; }
 }
 
 /* A shelf moves in one step, because a shelf that slides loses the mark.
@@ -222,28 +232,28 @@
    gone — every page built this way is read from the same sofa. */
 .platform-tv .settings { max-width: min(1180px, 100%); }
 .platform-tv .settings .panel { padding: 30px; gap: 20px; border-radius: 20px; }
-.platform-tv .settings .panel h2 { font-size: 28px; }
-.platform-tv .settings .panel header p { font-size: 19px; max-width: 70ch; }
-.platform-tv .settings .row-note { font-size: 19px; }
+.platform-tv .settings .panel h2 { font-size: 44px; }
+.platform-tv .settings .panel header p { font-size: 32px; max-width: 70ch; }
+.platform-tv .settings .row-note { font-size: 32px; }
 .platform-tv .settings .panel p,
-.platform-tv .settings .panel label { font-size: 19px; }
+.platform-tv .settings .panel label { font-size: 32px; }
 .platform-tv .settings .panel button,
-.platform-tv .settings .panel .small { font-size: 19px; }
+.platform-tv .settings .panel .small { font-size: 32px; }
 .platform-tv .settings .panel input,
-.platform-tv .settings .panel select { height: 58px; font-size: 20px; border-radius: 14px; }
-.platform-tv .settings h1 { font-size: 52px; }
-.platform-tv .settings .eyebrow { font-size: 18px; letter-spacing: .22em; }
+.platform-tv .settings .panel select { height: 58px; font-size: 32px; border-radius: 14px; }
+.platform-tv .settings h1 { font-size: 64px; }
+.platform-tv .settings .eyebrow { font-size: 28px; letter-spacing: .22em; }
 .platform-tv .friend-row { gap: 22px; }
 .platform-tv .friend-row .account-avatar,
-.platform-tv .friend-row:has(.friend-code) .account-avatar { width: 64px; height: 64px; font-size: 26px; }
-.platform-tv .friend-row strong { font-size: 24px; }
-.platform-tv .friend-row small { font-size: 17px; margin-top: 5px; }
+.platform-tv .friend-row:has(.friend-code) .account-avatar { width: 64px; height: 64px; font-size: 40px; }
+.platform-tv .friend-row strong { font-size: 40px; }
+.platform-tv .friend-row small { font-size: 28px; margin-top: 5px; }
 .platform-tv .friend-row .row-actions { gap: 12px; }
 .platform-tv .friend-row .small,
 .platform-tv #friend-form .small,
 .platform-tv .settings .panel-foot .small,
-.platform-tv .party-invite .small { height: 60px; padding: 0 28px; border-radius: 14px; font-size: 19px; }
-.platform-tv .friend-row input { height: 60px; width: min(420px, 100%); font-size: 22px; border-radius: 14px; }
+.platform-tv .party-invite .small { height: 60px; padding: 0 28px; border-radius: 14px; font-size: 32px; }
+.platform-tv .friend-row input { height: 60px; width: min(420px, 100%); font-size: 32px; border-radius: 14px; }
 
 /* your own row: avatar and name on top, the code across the full width below,
    the buttons under that, so nothing competes with the code for the line */
@@ -258,17 +268,17 @@
   letter-spacing: .26em;
 }
 
-.platform-tv #friend-form #friend-code { height: 72px; width: min(520px, 100%); font-size: 36px; letter-spacing: .24em; border-radius: 16px; padding: 0 22px; }
-.platform-tv #friend-form #friend-code::placeholder { font-size: 20px; }
-.platform-tv .keys label { font-size: 17px; width: min(560px, 100%); }
-.platform-tv .form-error, .platform-tv .account-notice { font-size: 18px; }
+.platform-tv #friend-form #friend-code { height: 72px; width: min(520px, 100%); font-size: 48px; letter-spacing: .24em; border-radius: 16px; padding: 0 22px; }
+.platform-tv #friend-form #friend-code::placeholder { font-size: 32px; }
+.platform-tv .keys label { font-size: 28px; width: min(560px, 100%); }
+.platform-tv .form-error, .platform-tv .account-notice { font-size: 28px; }
 
 /* three across instead of four-plus: a title wraps to two lines at a size you
    can read, and the focused one is unmistakable */
 .platform-tv .shared-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
 .platform-tv .shared-title { min-height: 120px; padding: 20px 22px; border-radius: 16px; gap: 14px; transition: transform .14s ease; }
-.platform-tv .shared-title .shared-name { font-size: 23px; line-height: 1.25; }
-.platform-tv .shared-title small { font-size: 16px; }
+.platform-tv .shared-title .shared-name { font-size: 40px; line-height: 1.25; }
+.platform-tv .shared-title small { font-size: 28px; }
 .platform-tv .shared-title:hover { transform: none; box-shadow: none; border-color: var(--line); background: var(--fill-1); }
 .platform-tv .shared-title:focus {
   border-color: var(--accent);
@@ -286,10 +296,10 @@
    as big as every other player control */
 .platform-tv .party-strip,
 .platform-tv .player-shell:not(:fullscreen) .party-strip { top: 150px; left: 40px; gap: 6px 22px; padding: 10px 12px 10px 28px; border-width: 2px; }
-.platform-tv .party-who { font-size: 24px; gap: 14px; }
+.platform-tv .party-who { font-size: 40px; gap: 14px; }
 .platform-tv .party-who::before { width: 13px; height: 13px; box-shadow: 0 0 0 5px rgba(125, 247, 220, .22); }
-.platform-tv .party-state { font-size: 18px; }
-.platform-tv .party-strip .ghost { min-width: 72px; height: 60px; padding: 0 22px; font-size: 20px; border-width: 2px; border-radius: 999px; }
+.platform-tv .party-state { font-size: 28px; }
+.platform-tv .party-strip .ghost { min-width: 72px; height: 60px; padding: 0 22px; font-size: 32px; border-width: 2px; border-radius: 999px; }
 .platform-tv .party-strip .ghost:hover { background: transparent; }
 .platform-tv .party-strip .ghost:focus { background: rgba(255, 255, 255, .2); }
 .platform-tv .party-strip .ghost[data-party-leave]:hover { background: transparent; }
@@ -308,31 +318,31 @@
 }
 .platform-tv .party-invite::before { width: 16px; height: 16px; box-shadow: 0 0 0 6px var(--accent-glow); }
 .platform-tv .party-invite strong { font-size: 32px; }
-.platform-tv .party-invite small { font-size: 22px; margin-top: 6px; }
+.platform-tv .party-invite small { font-size: 32px; margin-top: 6px; }
 .platform-tv .party-invite-actions { gap: 14px; }
 
 @media (max-width: 1500px) {
-  .platform-tv .settings:has(.friend-row) .panel h2 { font-size: 24px; }
+  .platform-tv .settings:has(.friend-row) .panel h2 { font-size: 40px; }
   .platform-tv .settings:has(.friend-row) .panel header p,
-  .platform-tv .settings:has(.friend-row) .row-note { font-size: 17px; }
-  .platform-tv .friend-row small.friend-code { font-size: 62px; padding: 10px 24px 10px 28px; }
-  .platform-tv .friend-row strong { font-size: 21px; }
+  .platform-tv .settings:has(.friend-row) .row-note { font-size: 28px; }
+  .platform-tv .friend-row small.friend-code { font-size: 72px; padding: 10px 24px 10px 28px; }
+  .platform-tv .friend-row strong { font-size: 32px; }
   .platform-tv .friend-row .small,
   .platform-tv #friend-form .small,
   .platform-tv .settings:has(.friend-row) .panel-foot .small,
-  .platform-tv .party-invite .small { height: 52px; font-size: 17px; padding: 0 22px; }
-  .platform-tv #friend-form #friend-code { height: 60px; font-size: 30px; }
+  .platform-tv .party-invite .small { height: 52px; font-size: 28px; padding: 0 22px; }
+  .platform-tv #friend-form #friend-code { height: 60px; font-size: 44px; }
   .platform-tv .shared-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .platform-tv .shared-title { min-height: 100px; }
-  .platform-tv .shared-title .shared-name { font-size: 20px; }
+  .platform-tv .shared-title .shared-name { font-size: 32px; }
   .platform-tv .party-strip,
   .platform-tv .player-shell:not(:fullscreen) .party-strip { top: 120px; left: 28px; }
-  .platform-tv .party-who { font-size: 20px; }
-  .platform-tv .party-state { font-size: 16px; }
-  .platform-tv .party-strip .ghost { height: 52px; min-width: 60px; font-size: 18px; }
+  .platform-tv .party-who { font-size: 32px; }
+  .platform-tv .party-state { font-size: 28px; }
+  .platform-tv .party-strip .ghost { height: 52px; min-width: 60px; font-size: 28px; }
   .platform-tv .party-invite { bottom: calc(26 * var(--tv-vh, 1vh)); padding: 20px 26px 20px 34px; }
-  .platform-tv .party-invite strong { font-size: 26px; }
-  .platform-tv .party-invite small { font-size: 19px; }
+  .platform-tv .party-invite strong { font-size: 40px; }
+  .platform-tv .party-invite small { font-size: 32px; }
 }
 
 /* The sidebar gained a seventh item and ran out of room at 720p, where the
@@ -346,16 +356,16 @@
 /* tv.css had no rule for the app's small buttons, so Settings and the detail
    page kept desktop-sized controls that a remote cannot comfortably land on */
 .platform-tv .secondary.small,
-.platform-tv .primary.small { min-height: 52px; padding: 0 20px; font-size: 18px; border-radius: 12px; }
+.platform-tv .primary.small { min-height: 52px; padding: 0 20px; font-size: 28px; border-radius: 12px; }
 
 @media (max-width: 1500px) {
-  .platform-tv aside nav button { height: 46px; font-size: 16px; }
+  .platform-tv aside nav button { height: 46px; font-size: 28px; }
   .platform-tv aside nav button .icon { width: 22px; height: 22px; }
-  .platform-tv .nav-label { margin: 8px 0 4px; font-size: 11px; }
+  .platform-tv .nav-label { margin: 8px 0 4px; font-size: 22px; }
   .platform-tv .nav-label-lower { margin-top: 10px; }
-  .platform-tv .source-pill { padding: 10px; font-size: 14px; }
+  .platform-tv .source-pill { padding: 10px; font-size: 24px; }
   .platform-tv .secondary.small,
-  .platform-tv .primary.small { min-height: 46px; font-size: 16px; }
+  .platform-tv .primary.small { min-height: 46px; font-size: 28px; }
 }
 
 /* ---- the billboard on a television ----
@@ -364,13 +374,13 @@
    distance so the first poster never crowds the title. */
 .platform-tv .hero { height: auto; min-height: clamp(520px, calc(64 * var(--tv-vh, 1vh)), 760px); }
 .platform-tv .hero-copy { width: min(52%, 820px); padding: 40px 0 86px 88px; }
-.platform-tv .eyebrow { font-size: 14px; letter-spacing: .16em; }
+.platform-tv .eyebrow { font-size: 24px; letter-spacing: .16em; }
 .platform-tv .hero h1 { font-size: clamp(56px, calc(5.2 * var(--tv-vw, 1vw)), 92px); }
-.platform-tv .hero .meta { font-size: 16px; gap: 14px; }
-.platform-tv .hero p { font-size: 21px; line-height: 1.5; max-width: 760px; }
-.platform-tv .actions button { height: 60px; padding: 0 30px; font-size: 19px; border-radius: 10px; }
+.platform-tv .hero .meta { font-size: 28px; gap: 14px; }
+.platform-tv .hero p { font-size: 32px; line-height: 1.5; max-width: 760px; }
+.platform-tv .actions button { height: 60px; padding: 0 30px; font-size: 32px; border-radius: 10px; }
 .platform-tv .hero + .shelf, .platform-tv .hero + * > .shelf:first-child { margin-top: -48px; }
-.platform-tv .shelf-head span { font-size: 15px; }
+.platform-tv .shelf-head span { font-size: 24px; }
 .platform-tv .card.ranked .rank { font-size: clamp(96px, calc(8 * var(--tv-vw, 1vw)), 150px); -webkit-text-stroke-width: 4px; }
 
 /* ======================================================================
@@ -435,7 +445,7 @@
 /* the menu wrapper is what sits at the left edge now; the button inside it
    must stay in that wrapper's flow or it anchors to the wrong thing */
 .platform-tv .who-wrap { position: absolute; left: 88px; }
-.platform-tv .brand { position: static; padding: 0; font-size: 26px; }
+.platform-tv .brand { position: static; padding: 0; font-size: 40px; }
 .platform-tv .nav-label, .platform-tv .source-pill { display: none; }
 .platform-tv aside nav, .platform-tv .nav-lower { display: flex; flex-direction: row; gap: 4px; margin: 0; }
 
@@ -443,7 +453,7 @@
 .platform-tv aside nav button {
   height: 50px;
   padding: 0 22px;
-  font-size: 21px;
+  font-size: 32px;
   font-weight: 600;
   border-radius: 999px;
   background: none;
@@ -498,7 +508,7 @@
 .platform-tv .shelf { margin-top: 58px; padding-left: 88px; }
 .platform-tv .shelf:first-child { margin-top: 20px; }
 .platform-tv .shelf-head { margin-bottom: 22px; padding-right: 88px; }
-.platform-tv .shelf-head h2 { font-size: 23px; font-weight: 600; color: var(--text-2); letter-spacing: -.01em; }
+.platform-tv .shelf-head h2 { font-size: 40px; font-weight: 600; color: var(--text-2); letter-spacing: -.01em; }
 .platform-tv .shelf-head span { display: none; }
 
 /* a flex row, because one tile in it has to be able to grow */
@@ -556,7 +566,7 @@
   bottom: 18px;
   z-index: 2;
   font-family: var(--display);
-  font-size: 34px;
+  font-size: 48px;
   font-weight: 800;
   letter-spacing: -.035em;
   line-height: 1.03;
@@ -584,7 +594,7 @@
 .platform-tv .row-detail:empty { min-height: 74px; }
 .platform-tv .row-detail .line {
   font-family: var(--mono);
-  font-size: 16px;
+  font-size: 28px;
   color: var(--text-3);
   display: flex;
   gap: 14px;
@@ -592,7 +602,7 @@
 }
 .platform-tv .row-detail p {
   font-family: var(--body);
-  font-size: 19px;
+  font-size: 32px;
   line-height: 1.45;
   color: var(--text-2);
   margin: 0;
@@ -633,27 +643,27 @@
 
 /* The cliffhanger preview on a television: the spotlight tile is already
    showing its landscape artwork, so the preview takes that same frame. */
-.platform-tv .card.previewing .art:before { font-size: 13px; left: 14px; bottom: 12px; padding: 5px 10px; }
+.platform-tv .card.previewing .art:before { font-size: 22px; left: 14px; bottom: 12px; padding: 5px 10px; }
 .platform-tv .card.spotlit .preview-video { z-index: 2; }
 .platform-tv .card.spotlit.previewing .spotlight-title { z-index: 4; }
 
 /* ---- who is watching, on a television ---- */
 .platform-tv .chooser { min-height: calc(var(--tv-height, 100vh) - 124px); }
 .platform-tv .chooser-body { padding: 0 88px; width: min(900px, 90%); }
-.platform-tv .chooser-brand { font-size: 18px; }
-.platform-tv .chooser-head h1 { font-size: 64px; }
-.platform-tv .chooser-head p { font-size: 22px; margin-bottom: 40px; }
+.platform-tv .chooser-brand { font-size: 28px; }
+.platform-tv .chooser-head h1 { font-size: 72px; }
+.platform-tv .chooser-head p { font-size: 32px; margin-bottom: 40px; }
 .platform-tv .picks { gap: 30px 36px; }
 .platform-tv .pick, .platform-tv .pick-face { width: 150px; }
-.platform-tv .pick-face { height: 150px; border-radius: 20px; font-size: 44px; }
-.platform-tv .pick-face.add { font-size: 54px; }
+.platform-tv .pick-face { height: 150px; border-radius: 20px; font-size: 56px; }
+.platform-tv .pick-face.add { font-size: 64px; }
 .platform-tv .pick-face:focus { outline: 4px solid var(--accent); outline-offset: 4px; transform: scale(1.06); }
-.platform-tv .pick-name { font-size: 19px; margin-top: 14px; }
-.platform-tv .pick-edit { height: 52px; margin-top: 14px; font-size: 18px; gap: 10px; border-radius: 12px; }
+.platform-tv .pick-name { font-size: 32px; margin-top: 14px; }
+.platform-tv .pick-edit { height: 52px; margin-top: 14px; font-size: 28px; gap: 10px; border-radius: 12px; }
 .platform-tv .pick-edit .icon { width: 22px; height: 22px; }
 .platform-tv .pick-edit:focus { outline: none; background: var(--text); color: var(--bg); border-color: var(--text); }
-.platform-tv .chooser-foot { font-size: 16px; }
-.platform-tv .chooser-signin { height: 60px; padding: 0 30px; font-size: 19px; }
+.platform-tv .chooser-foot { font-size: 28px; }
+.platform-tv .chooser-signin { height: 60px; padding: 0 30px; font-size: 32px; }
 .platform-tv .app:has(.chooser) .scroll { padding-top: 0; }
 .platform-tv .chooser { min-height: var(--tv-height, 100vh); }
 
@@ -662,7 +672,7 @@
    billboard, shouting provider category names at the one place the eye should
    land first. They are a way through the library, not the headline. */
 .platform-tv .genre-strip { padding: 0 88px 10px; gap: 16px; margin-top: -18px; }
-.platform-tv .genre-chip { min-width: 0; height: 52px; font-size: 19px; border-radius: 999px; padding: 0 26px; }
+.platform-tv .genre-chip { min-width: 0; height: 52px; font-size: 32px; border-radius: 999px; padding: 0 26px; }
 .platform-tv .genre-chip:focus { outline: 4px solid var(--accent); outline-offset: 3px; transform: scale(1.04); }
 
 /* ---------- typing on a remote ----------
@@ -692,12 +702,12 @@
   background: var(--fill-1);
   color: var(--text);
   font-family: var(--display);
-  font-size: 26px;
+  font-size: 40px;
   font-weight: 600;
   cursor: pointer;
 }
-.platform-tv .key-space { flex: 3 1 0; font-size: 20px; }
-.platform-tv .key-back, .platform-tv .key-clear { flex: 1.4 1 0; font-size: 20px; }
+.platform-tv .key-space { flex: 3 1 0; font-size: 32px; }
+.platform-tv .key-back, .platform-tv .key-clear { flex: 1.4 1 0; font-size: 32px; }
 .platform-tv .key:focus {
   outline: none;
   background: var(--text);
@@ -722,7 +732,7 @@
 .platform-tv .series-info h2.has-logo .hero-logo { height: clamp(90px, calc(13 * var(--tv-vh, 1vh)), 170px); max-width: min(100%, 620px); }
 .platform-tv .series-actions { flex-direction: column; align-items: flex-start; gap: 12px; }
 .platform-tv .series-actions button,
-.platform-tv .series-actions .trailer { width: min(520px, 100%); justify-content: flex-start; height: 72px; font-size: 22px; padding: 0 28px; border-radius: 12px; }
+.platform-tv .series-actions .trailer { width: min(520px, 100%); justify-content: flex-start; height: 72px; font-size: 32px; padding: 0 28px; border-radius: 12px; }
 .platform-tv .series-actions button:focus, .platform-tv .series-actions .trailer:focus {
   outline: none; background: var(--text); color: var(--bg); transform: scale(1.02);
 }
@@ -734,8 +744,8 @@
 
 .platform-tv .chrome-top { align-items: flex-start; }
 .platform-tv .chrome-top .now { margin-left: auto; text-align: right; }
-.platform-tv .chrome-top .now strong { display: block; font-size: 30px; }
-.platform-tv .chrome-top .now small { font-size: 21px; color: var(--text-2); }
+.platform-tv .chrome-top .now strong { display: block; font-size: 44px; }
+.platform-tv .chrome-top .now small { font-size: 32px; color: var(--text-2); }
 
 /* transport and track share a line, the way a remote reads them */
 .platform-tv .chrome-bottom { display: flex; flex-direction: row; align-items: center; gap: 28px; }
@@ -760,7 +770,7 @@
   transform: scale(1.06);
 }
 
-.platform-tv .chrome-bottom .clock { font-size: 24px; font-variant-numeric: tabular-nums; }
+.platform-tv .chrome-bottom .clock { font-size: 40px; font-variant-numeric: tabular-nums; }
 .platform-tv .chrome-bottom .timeline .track { height: 12px; border-radius: 6px; }
 
 /* a focused control in the player says so plainly, from across a room */
@@ -784,15 +794,15 @@
    A still, the season and episode on it, then the title and what it is about,
    at a size a room reads. One column the remote walks top to bottom. */
 .platform-tv .episode { grid-template-columns: 420px minmax(0, 1fr); gap: 34px; padding: 18px; border-radius: 16px; }
-.platform-tv .episode-slug { font-size: 18px; padding: 6px 12px; border-radius: 8px; left: 14px; bottom: 12px; }
-.platform-tv .episode-copy strong { font-size: 30px; }
-.platform-tv .episode-copy em { font-size: 21px; -webkit-line-clamp: 3; margin-top: 10px; }
-.platform-tv .episode-copy small { font-size: 17px; margin-top: 14px; }
+.platform-tv .episode-slug { font-size: 28px; padding: 6px 12px; border-radius: 8px; left: 14px; bottom: 12px; }
+.platform-tv .episode-copy strong { font-size: 44px; }
+.platform-tv .episode-copy em { font-size: 32px; -webkit-line-clamp: 3; margin-top: 10px; }
+.platform-tv .episode-copy small { font-size: 28px; margin-top: 14px; }
 .platform-tv .episode-play { width: 80px; height: 80px; }
 .platform-tv .episode:focus { background: var(--fill-2); border-color: var(--accent); outline: 4px solid var(--accent); outline-offset: 2px; }
 .platform-tv .season-tab { min-height: 76px; padding: 12px 28px; border-radius: 14px; }
-.platform-tv .season-tab b { font-size: 24px; }
-.platform-tv .season-tab span { font-size: 17px; }
+.platform-tv .season-tab b { font-size: 40px; }
+.platform-tv .season-tab span { font-size: 28px; }
 .platform-tv .season-tab:focus { outline: none; background: var(--text); color: var(--bg); border-color: var(--text); }
 
 /* The episode header sticks to the top of the scroll container, and on a
@@ -800,7 +810,7 @@
    menu and covered the first episode. It stops below the strip instead. */
 .platform-tv .episodes-head { top: 124px; padding-top: 14px; }
 .platform-tv .episodes-pane { padding: 0 88px 40px; }
-.platform-tv .episodes-head h3 { font-size: 26px; margin-bottom: 16px; }
+.platform-tv .episodes-head h3 { font-size: 40px; margin-bottom: 16px; }
 
 /* Focus scrolls with block: nearest, which knows nothing about the fixed menu
    strip or a sticky episode header above it — so the row the remote landed on
@@ -818,26 +828,26 @@
 }
 
 /* ---- the face, and your own page, on a television ---- */
-.platform-tv .who-face { width: 56px; height: 56px; border-radius: 14px; font-size: 21px; }
-.platform-tv .brand b { font-size: 26px; }
+.platform-tv .who-face { width: 56px; height: 56px; border-radius: 14px; font-size: 32px; }
+.platform-tv .brand b { font-size: 40px; }
 .platform-tv .who-caret { width: 20px; height: 20px; }
 .platform-tv #who:focus { outline: 4px solid var(--accent); outline-offset: 4px; border-radius: 14px; }
-.platform-tv .who-face.big { width: 120px; height: 120px; border-radius: 26px; font-size: 42px; }
-.platform-tv .mine-head h1 { font-size: 52px; }
-.platform-tv .mine-head p { font-size: 21px; }
+.platform-tv .who-face.big { width: 120px; height: 120px; border-radius: 26px; font-size: 56px; }
+.platform-tv .mine-head h1 { font-size: 64px; }
+.platform-tv .mine-head p { font-size: 32px; }
 .platform-tv .mine-rows { max-width: 1100px; gap: 14px; margin-bottom: 48px; }
 .platform-tv .mine-row { grid-template-columns: 78px minmax(0, 1fr) 30px; padding: 22px 28px; border-radius: 16px; gap: 22px; }
 .platform-tv .mine-glyph { width: 78px; height: 78px; border-radius: 18px; }
 .platform-tv .mine-glyph .icon { width: 32px; height: 32px; }
-.platform-tv .mine-copy strong { font-size: 26px; }
-.platform-tv .mine-copy small { font-size: 17px; margin-top: 6px; }
+.platform-tv .mine-copy strong { font-size: 40px; }
+.platform-tv .mine-copy small { font-size: 28px; margin-top: 6px; }
 .platform-tv .mine-row:focus { background: var(--text); color: var(--bg); border-color: var(--text); }
 .platform-tv .mine-row:focus .mine-glyph { background: var(--bg); }
 .platform-tv .mine-row:focus .mine-copy small, .platform-tv .mine-row:focus .mine-go { color: var(--bg); opacity: .7; }
 
 /* the account menu, at a size a remote can land on */
 .platform-tv .who-menu { min-width: 380px; padding: 10px; border-radius: 18px; top: calc(100% + 12px); }
-.platform-tv .who-menu button { height: 72px; font-size: 22px; gap: 18px; padding: 0 20px; border-radius: 12px; }
+.platform-tv .who-menu button { height: 72px; font-size: 32px; gap: 18px; padding: 0 20px; border-radius: 12px; }
 .platform-tv .who-menu .icon { width: 26px; height: 26px; }
 .platform-tv .who-menu button:focus { background: var(--text); color: var(--bg); }
 
@@ -867,10 +877,10 @@
   border-width: 2px;
   box-shadow: 0 24px 70px rgba(0, 0, 0, .7);
 }
-.platform-tv .update-banner strong { font-size: 30px; }
-.platform-tv .update-banner small { font-size: 20px; margin-top: 8px; }
-.platform-tv .update-banner .primary { height: 60px; padding: 0 28px; font-size: 20px; border-radius: 12px; }
-.platform-tv .update-dismiss { font-size: 34px; padding: 0 10px; }
+.platform-tv .update-banner strong { font-size: 44px; }
+.platform-tv .update-banner small { font-size: 32px; margin-top: 8px; }
+.platform-tv .update-banner .primary { height: 60px; padding: 0 28px; font-size: 32px; border-radius: 12px; }
+.platform-tv .update-dismiss { font-size: 48px; padding: 0 10px; }
 .platform-tv .update-dismiss:focus { outline: 4px solid var(--accent); border-radius: 10px; }
 
 
@@ -909,23 +919,23 @@
   opacity: .45;
 }
 
-.platform-tv .series-info h2 { font-size: 62px; line-height: 1.04; margin: 6px 0 14px; }
-.platform-tv .series-meta { font-size: 21px; gap: 18px; }
-.platform-tv .series-info > p { font-size: 24px; line-height: 1.5; max-width: 980px; margin-bottom: 26px; }
-.platform-tv .series-info .eyebrow { font-size: 18px; letter-spacing: .22em; }
+.platform-tv .series-info h2 { font-size: 72px; line-height: 1.04; margin: 6px 0 14px; }
+.platform-tv .series-meta { font-size: 32px; gap: 18px; }
+.platform-tv .series-info > p { font-size: 40px; line-height: 1.5; max-width: 980px; margin-bottom: 26px; }
+.platform-tv .series-info .eyebrow { font-size: 28px; letter-spacing: .22em; }
 
 .platform-tv .ratings { padding: 0 88px; gap: 18px; }
 .platform-tv .ratings div { padding: 14px 22px; border-radius: 14px; }
-.platform-tv .ratings small { font-size: 15px; }
-.platform-tv .ratings strong { font-size: 30px; }
+.platform-tv .ratings small { font-size: 24px; }
+.platform-tv .ratings strong { font-size: 44px; }
 
 .platform-tv .credits {
   padding: 34px 88px 0;
   gap: 34px;
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
 }
-.platform-tv .credits small { font-size: 16px; letter-spacing: .14em; }
-.platform-tv .credits p { font-size: 22px; line-height: 1.5; }
+.platform-tv .credits small { font-size: 28px; letter-spacing: .14em; }
+.platform-tv .credits p { font-size: 32px; line-height: 1.5; }
 
 /* ---- the pages a sweep found, rather than a screenshot ----
    Three surfaces in a row turned out never to have been brought across: the
@@ -938,40 +948,40 @@
    a television throws away, and a long way inside the 88 everything else uses. */
 .platform-tv .page { padding: 34px 88px 60px; }
 .platform-tv .page-title h1 { font-size: 46px; }
-.platform-tv .page-title > span { font-size: 19px; }
-.platform-tv .eyebrow { font-size: 17px; letter-spacing: .2em; }
+.platform-tv .page-title > span { font-size: 32px; }
+.platform-tv .eyebrow { font-size: 28px; letter-spacing: .2em; }
 
 /* the number on a poster: eleven pixels is a smudge from a sofa */
-.platform-tv .score b { font-size: 19px; }
-.platform-tv .score em { font-size: 13px; }
+.platform-tv .score b { font-size: 32px; }
+.platform-tv .score em { font-size: 22px; }
 
 /* ---- Live TV ----
    The guide had none of this. The clock along the top was ten-pixel type and
    the channel names twelve, which is the size they are on a laptop a foot
    from your face. */
 .platform-tv .seg { padding: 5px; border-radius: 14px; }
-.platform-tv .seg button { height: 54px; padding: 0 28px; font-size: 19px; border-radius: 10px; }
-.platform-tv .guide-ticks i { font-size: 17px; }
-.platform-tv .guide-name { font-size: 19px; }
-.platform-tv .guide-corner .chip { height: 48px; font-size: 18px; padding: 0 22px; }
-.platform-tv .prog { font-size: 18px; padding: 10px 14px; }
-.platform-tv .prog b { font-size: 18px; }
-.platform-tv .prog span { font-size: 15px; }
-.platform-tv .panel-empty { font-size: 20px; }
+.platform-tv .seg button { height: 54px; padding: 0 28px; font-size: 32px; border-radius: 10px; }
+.platform-tv .guide-ticks i { font-size: 28px; }
+.platform-tv .guide-name { font-size: 32px; }
+.platform-tv .guide-corner .chip { height: 48px; font-size: 28px; padding: 0 22px; }
+.platform-tv .prog { font-size: 28px; padding: 10px 14px; }
+.platform-tv .prog b { font-size: 28px; }
+.platform-tv .prog span { font-size: 24px; }
+.platform-tv .panel-empty { font-size: 32px; }
 
 /* the last of the small print on Settings */
 .platform-tv .settings small,
-.platform-tv .settings .keys-note { font-size: 16px; }
+.platform-tv .settings .keys-note { font-size: 28px; }
 .platform-tv .settings .version,
-.platform-tv .settings .version b { font-size: 18px; }
-.platform-tv .guide-logo b { font-size: 18px; }
-.platform-tv .prog.blank span, .platform-tv .prog.loading span { font-size: 18px; }
-.platform-tv .row-note { font-size: 19px; }
+.platform-tv .settings .version b { font-size: 28px; }
+.platform-tv .guide-logo b { font-size: 28px; }
+.platform-tv .prog.blank span, .platform-tv .prog.loading span { font-size: 28px; }
+.platform-tv .row-note { font-size: 32px; }
 
 /* Watching together is a .settings straight inside the scroller, with no
    .page around it, so it never picked up the margin the others have. */
 .platform-tv #content > .settings { padding: 34px 88px 60px; max-width: min(1356px, 100%); }
-.platform-tv .ratings-hint { font-size: 17px; height: 54px; padding: 0 24px; border-radius: 14px; }
+.platform-tv .ratings-hint { font-size: 28px; height: 54px; padding: 0 24px; border-radius: 14px; }
 
 /* The channel column is 200 pixels because the names in it were twelve-point.
    At nineteen they truncate to "ALWAN SPO…", which tells you nothing about

@@ -14,13 +14,16 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
 const STRICT = process.argv.includes("--strict");
 
 /* What the measurements mean.
-   READABLE: the smallest type Netflix puts on a 1080p screen is around 20px.
-   Below 16 nothing is readable from a sofa, so that is the line.
+   READABLE: this stylesheet is drawn at 1920 and the television maps it one
+   to one onto 1080p, which at 320dpi is 960dp wide — so a pixel here is half
+   a dp, and 16px was 8sp. Material's smallest size is 11sp and its body text
+   is 14-16sp; this test passed a half-size interface for weeks because the
+   line was drawn in the wrong units. 22px is Material's floor, doubled.
    SAFE: televisions crop the edges. Every other surface moved to an 88px
    margin; anything that starts inside 40px is in the part that gets thrown
    away. Artwork is meant to bleed, so it is excluded by name.
    TARGET: a thing you aim at with a D-pad needs to be visible when focused. */
-const READABLE = 16;
+const READABLE = 22;
 const SAFE = 40;
 
 (async () => {

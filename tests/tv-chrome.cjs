@@ -147,8 +147,15 @@ check("and that floor is close to opaque", Number(alpha ? `0.${alpha[1]}` : 0) >
 console.log("\n— every page built out of panels is read from the same sofa —");
 check("the settings sizing is not gated to the together page",
   /\.platform-tv \.settings:has\(\.friend-row\) \{/.test(TV), false);
-check("and settings itself is sized for a television",
-  /\.platform-tv \.settings \.panel h2 \{ font-size: 28px/.test(TV), true);
+/* A floor, not an exact size. This asserted 28px and went on passing when the
+   whole interface was drawn at half scale — a pixel here is half a dp, so 28px
+   was 14sp for a panel heading. Material's Headline Small is 24sp, which is
+   48px here; 40px (20sp) is the lowest a heading may sit. */
+{
+  const h2 = TV.match(/\.platform-tv \.settings \.panel h2 \{[^}]*font-size:\s*(\d+)px/);
+  const px = h2 ? Number(h2[1]) : 0;
+  check("and settings itself is sized for a television", px >= 40 ? "readable" : px + "px", "readable");
+}
 
 console.log("\n— mixed directions keep to themselves —");
 check("the television isolates each part of a meta line",
