@@ -215,3 +215,12 @@ input, select, textarea { font-size: 16px !important; }
 .episode-copy strong { font-size: 14px; }
 .episode-copy em { font-size: 12px; -webkit-line-clamp: 2; }
 .episode-play { opacity: 1; width: 34px; height: 34px; }
+
+/* AirPlay: while the film is on the car or TV, the phone says so instead of
+   showing an empty black frame */
+#player-airplay.on { color: var(--accent); }
+.player-shell.casting::after {
+  content: "Playing on your car or TV";
+  position: absolute; inset: 0; z-index: 1; display: grid; place-items: center;
+  font-size: 17px; font-weight: 600; color: var(--text-2); pointer-events: none;
+}

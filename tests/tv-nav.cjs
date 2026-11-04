@@ -193,7 +193,9 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
      picking the line again restored the view you had left — so Back put you
      in a loop instead of taking you back a step. */
   console.log("\n— back goes back one step —");
-  await js(`(() => { navigate({ view: "home", query: "" }); return true })()`);
+  // the account menu opened above to be looked at is still open, and Back
+  // shuts the frontmost thing first — so shut it, as a person would have
+  await js(`(() => { document.getElementById("who-menu").classList.add("hidden"); navigate({ view: "home", query: "" }); return true })()`);
   await settle();
   await js(`(() => { navigate({ view: "settings", query: "" }); return true })()`);
   await settle();

@@ -1125,6 +1125,54 @@ function continueWatching() {
 }
 const watchHistory = () => [...state.progress.values()].sort((a, b) => b.updatedAt - a.updatedAt);
 
+/* ---------- AirPlay ----------
+   On an iPhone the film can go to a car's screen — CarPlay with AirPlay video,
+   iOS 26 and later, while parked — or to a television. WebKit only offers the
+   button where there is somewhere to send it, and the stream goes straight
+   from the provider to the car: on the phone nothing is in between that the
+   car would have to reach. On a Mac or a TV build this never appears. */
+(() => {
+  const video = document.getElementById("video");
+  const button = document.getElementById("player-airplay");
+  if (!video || !button || !window.WebKitPlaybackTargetAvailabilityEvent) return;
+  video.addEventListener("webkitplaybacktargetavailabilitychanged", (event) => {
+    button.hidden = event.availability !== "available";
+  });
+  video.addEventListener("webkitcurrentplaybacktargetiswirelesschanged", () => {
+    const away = Boolean(video.webkitCurrentPlaybackTargetIsWireless);
+    button.classList.toggle("on", away);
+    document.getElementById("player-shell")?.classList.toggle("casting", away);
+    showToast(away ? "Playing on your car or TV — this iPhone is the remote" : "Back on this iPhone");
+  });
+  button.addEventListener("click", () => video.webkitShowPlaybackTargetPicker());
+})();
+
+/* ---------- images that fail, and images that arrive ----------
+   The page's security policy is script-src 'self', which refuses inline event
+   handlers, and every image here used to carry one: onerror="this.remove()" on
+   posters, onload="this.dataset.ok=1" on channel logos. None of them ever ran.
+   A poster that failed stayed as a broken image instead of giving way to the
+   initials behind it, and every logo in the guide waited, invisible, for an
+   onload that was never allowed to happen. So an image now says what it wants
+   in data-fail or data-reveal, and one listener does it. Load and error do not
+   bubble, so it listens on the way down. */
+document.addEventListener("error", (event) => {
+  const image = event.target;
+  if (!(image instanceof HTMLImageElement)) return;
+  const how = image.dataset.fail;
+  if (how === "remove") image.remove();
+  else if (how === "hide") image.style.visibility = "hidden";
+  else if (how === "logo-text" && image.parentElement) {
+    const heading = image.parentElement;
+    heading.textContent = image.dataset.name || "";
+    heading.classList.remove("has-logo");
+  }
+}, true);
+document.addEventListener("load", (event) => {
+  const image = event.target;
+  if (image instanceof HTMLImageElement && image.hasAttribute("data-reveal")) image.dataset.ok = "1";
+}, true);
+
 /* ---------- library ---------- */
 
 async function loadEverything(quiet = false) {
@@ -1261,7 +1309,7 @@ function card(item, wide = false, rank = 0) {
   // caption is kept for anything with no artwork to speak for it, and for live
   // channels, where the name is the whole point.
   const named = art && item.type !== "live";
-  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""} ${named ? "has-art" : ""}" data-id="${escapeHtml(item.id)}" title="${escapeHtml(item.name)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" decoding="async" src="${escapeHtml(art)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(captionOf(item))}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
+  return `<article class="card ${wide ? "wide" : ""} ${rank ? "ranked" : ""} ${named ? "has-art" : ""}" data-id="${escapeHtml(item.id)}" title="${escapeHtml(item.name)}">${rank ? `<span class="rank">${rank}</span>` : ""}<div class="art ${opens}"${art ? "" : ` data-art-for="${escapeHtml(item.id)}"`}>${art ? `<img loading="lazy" decoding="async" src="${escapeHtml(art)}" data-fail="remove">` : ""}<div class="fallback">${escapeHtml(initials(item.name))}</div>${item.type === "live" ? '<span class="live">Live</span>' : ""}${(() => { const markup = scoreMarkup(item); return `<span class="score" data-score-for="${escapeHtml(item.id)}"${markup ? "" : " hidden"}>${markup}</span>` })()}<span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(item.name)}</h3><p>${escapeHtml(captionOf(item))}</p></div><button class="heart ${state.favorites.has(item.id) ? "saved" : ""}" title="My list">${icon(state.favorites.has(item.id) ? "heart-fill" : "heart")}</button></div></article>`;
 }
 
 function resumeCard(entry) {
@@ -1269,7 +1317,7 @@ function resumeCard(entry) {
   const bar = fresh ? 0 : percent(record);
   const left = fresh ? "Next episode" : record.duration > record.position ? `${clock(record.duration - record.position)} left` : "Ready";
   const target = entry.kind === "series" ? `data-show-play="${escapeHtml(entry.show.id)}"` : `data-resume="${escapeHtml(record.key)}"`;
-  return `<article class="card wide" ${target}><div class="art play-resume">${record.poster ? `<img loading="lazy" decoding="async" src="${escapeHtml(record.poster)}" onerror="this.remove()">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div><span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" \u2022 "))}</p></div><button class="forget" title="Remove from Continue watching">${icon("close")}</button></div></article>`;
+  return `<article class="card wide" ${target}><div class="art play-resume">${record.poster ? `<img loading="lazy" decoding="async" src="${escapeHtml(record.poster)}" data-fail="remove">` : ""}<div class="fallback">${escapeHtml(initials(record.title))}</div><span class="play-bubble">${icon("play")}</span>${bar > 1 ? `<span class="resume-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</div><div class="card-copy"><div><h3>${escapeHtml(record.title)}</h3><p>${escapeHtml([record.subtitle, left].filter(Boolean).join(" \u2022 "))}</p></div><button class="forget" title="Remove from Continue watching">${icon("close")}</button></div></article>`;
 }
 
 function rail(scroller) {
@@ -1654,7 +1702,7 @@ function historyEntries() {
 }
 
 function historyArt(poster, title, playAttr, label) {
-  return `<button class="history-art" ${playAttr} aria-label="${escapeHtml(label)}">${poster ? `<img loading="lazy" decoding="async" src="${escapeHtml(poster)}" alt="" onerror="this.remove()">` : ""}<span class="fallback">${escapeHtml(initials(title))}</span><span class="history-play">${icon("play")}</span></button>`;
+  return `<button class="history-art" ${playAttr} aria-label="${escapeHtml(label)}">${poster ? `<img loading="lazy" decoding="async" src="${escapeHtml(poster)}" alt="" data-fail="remove">` : ""}<span class="fallback">${escapeHtml(initials(title))}</span><span class="history-play">${icon("play")}</span></button>`;
 }
 
 function episodeStatus(record) {
@@ -1879,7 +1927,7 @@ function renderGuide() {
   }
 
   const rows = channels.map((item) => `<div class="guide-row" data-guide-for="${escapeHtml(item.id)}">
-      <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" decoding="async" src="${escapeHtml(item.logo)}" onerror="this.remove()" onload="this.dataset.ok=1">` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
+      <div class="guide-channel"><span class="guide-logo">${item.logo ? `<img loading="lazy" decoding="async" src="${escapeHtml(item.logo)}" data-fail="remove" data-reveal>` : ""}<b>${escapeHtml(initials(item.name))}</b></span><span class="guide-name">${escapeHtml(item.name)}</span></div>
       <div class="guide-progs" style="width:${width}px"><span class="prog loading"><span>Loading guide…</span></span></div>
     </div>`).join("");
 
@@ -2175,13 +2223,13 @@ function detailMetaBits(item, meta, info) {
 function detailHero({ backdrop, poster, eyebrow, name, meta, description, actions, logo }) {
   // the title's own lettering where there is any, the words where there is not
   const heading = logo
-    ? `<h2 class="has-logo"><img class="hero-logo" src="${escapeHtml(artUrl(logo, "w500"))}" alt="${escapeHtml(name)}" onerror="this.parentElement.textContent=${JSON.stringify(name)};this.parentElement.classList.remove('has-logo')"></h2>`
+    ? `<h2 class="has-logo"><img class="hero-logo" src="${escapeHtml(artUrl(logo, "w500"))}" alt="${escapeHtml(name)}" data-fail="logo-text" data-name="${escapeHtml(name)}"></h2>`
     : `<h2>${escapeHtml(name)}</h2>`;
   /* Without a backdrop the page is a black field with a column of text on it.
      The title's own poster, blurred out behind, is what the artwork would have
      been doing there, and every title that has a page at all has one. */
   const behind = backdrop || poster;
-  return `<section class="series-hero${backdrop ? "" : " no-backdrop"}">${behind ? `<img class="series-backdrop" src="${escapeHtml(behind)}" onerror="this.remove()">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" onerror="this.style.visibility='hidden'">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span>${heading}<div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
+  return `<section class="series-hero${backdrop ? "" : " no-backdrop"}">${behind ? `<img class="series-backdrop" src="${escapeHtml(behind)}" data-fail="remove">` : ""}${poster ? `<img class="series-poster" src="${escapeHtml(poster)}" data-fail="hide">` : '<div class="series-poster"></div>'}<div class="series-info"><span class="eyebrow">${escapeHtml(eyebrow)}</span>${heading}<div class="series-meta">${meta.filter(Boolean).map((entry) => (entry.icon ? `<span>${icon(entry.icon)}${escapeHtml(entry.text)}</span>` : `<span>${escapeHtml(entry)}</span>`)).join("")}</div><p>${escapeHtml(description)}</p><div class="series-actions">${actions}</div></div></section>`;
 }
 
 function mergedInfo(info, meta) {
@@ -2220,7 +2268,7 @@ function renderSeriesDetail() {
     const seen = finished(record);
     return `<button class="episode ${seen ? "watched" : ""}" data-episode-index="${index}">
       <span class="episode-still">
-        ${still ? `<img loading="lazy" decoding="async" src="${escapeHtml(still)}" onerror="this.remove()">` : ""}
+        ${still ? `<img loading="lazy" decoding="async" src="${escapeHtml(still)}" data-fail="remove">` : ""}
         <span class="episode-slug">S${escapeHtml(state.selectedSeason)}: E${escapeHtml(number)}</span>
         <span class="episode-play">${icon("play")}</span>
         ${bar > 1 && !seen ? `<span class="episode-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}
@@ -2589,7 +2637,7 @@ function renderEpisodesPanel() {
     const plot = episode.info?.plot || episode.info?.overview || "";
     const duration = shortDuration(episode.info);
     const status = finished(record) ? "Watched" : record && bar > 1 ? `${clock(record.duration - record.position)} left` : "";
-    return `<button class="panel-episode ${playing ? "playing" : ""} ${finished(record) ? "watched" : ""}" data-panel-index="${index}"><span class="panel-still">${still ? `<img loading="lazy" decoding="async" src="${escapeHtml(still)}" alt="" onerror="this.remove()">` : ""}<span class="panel-num">${escapeHtml(number)}</span>${playing ? '<span class="panel-now">Now playing</span>' : ""}${bar > 1 && !finished(record) ? `<span class="panel-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="panel-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml([duration, status].filter(Boolean).join(" \u2022 ") || `Season ${panelSeason}`)}</small>${plot ? `<p>${escapeHtml(plot)}</p>` : ""}</span></button>`;
+    return `<button class="panel-episode ${playing ? "playing" : ""} ${finished(record) ? "watched" : ""}" data-panel-index="${index}"><span class="panel-still">${still ? `<img loading="lazy" decoding="async" src="${escapeHtml(still)}" alt="" data-fail="remove">` : ""}<span class="panel-num">${escapeHtml(number)}</span>${playing ? '<span class="panel-now">Now playing</span>' : ""}${bar > 1 && !finished(record) ? `<span class="panel-bar"><i style="width:${bar.toFixed(1)}%"></i></span>` : ""}</span><span class="panel-copy"><strong>${escapeHtml(label)}</strong><small>${escapeHtml([duration, status].filter(Boolean).join(" \u2022 ") || `Season ${panelSeason}`)}</small>${plot ? `<p>${escapeHtml(plot)}</p>` : ""}</span></button>`;
   }).join("") || '<p class="episodes-empty">No episodes were returned for this season.</p>';
 }
 
@@ -2653,6 +2701,14 @@ function closeModal(id) {
    only stepping out of a detail page. */
 function handleBack(fromSystem = false) {
   if (!$("#shortcuts").classList.contains("hidden")) { $("#shortcuts").classList.add("hidden"); return true }
+  // an open account menu is the frontmost thing; Back used to leave the page
+  // underneath it instead, with the menu still open over wherever it landed
+  if (!$("#who-menu").classList.contains("hidden")) {
+    $("#who-menu").classList.add("hidden");
+    $("#who")?.setAttribute("aria-expanded", "false");
+    $("#who")?.focus();
+    return true;
+  }
   if (!$("#player-modal").classList.contains("hidden") && panelOpen()) { closeEpisodesPanel(); return true }
   if (!$("#up-next").classList.contains("hidden")) { upNextDismissed = true; $("#up-next").classList.add("hidden"); return true }
   for (const id of ["player-modal", "source-modal"]) {
@@ -2839,7 +2895,12 @@ document.addEventListener("click", (event) => {
     $("#who-menu").classList.add("hidden");
     return window.aurora?.exit?.() || window.close();
   }
-  if (!target.closest("#who-menu")) $("#who-menu")?.classList.add("hidden");
+  /* the menu closes when you leave it, and when you choose from it — it used
+     to stay open behind Settings, so Back shut the menu instead of going back */
+  if (!target.closest("#who-menu") || target.closest("#who-menu button")) {
+    $("#who-menu")?.classList.add("hidden");
+    $("#who")?.setAttribute("aria-expanded", "false");
+  }
 
   // the chooser: a face opens that line, the gear beside it edits it
   const face = target.closest("[data-pick]");
