@@ -153,11 +153,19 @@ function xtream(cfg) {
   const yearOf = (s) => String(s || "").match(/(19|20)\d\d/)?.[0] || "";
   const badgeOf = (category, kind) => /arab|عرب/i.test(category) ? "arabic" : /anime|انمي/i.test(category) ? "anime" : /turk|ترك/i.test(category) ? "turkish" : kind;
 
+  let loading = null;
+  const say = (text) => document.dispatchEvent(new CustomEvent("library:progress", { detail: text }));
   async function load() {
     if (lib) return lib;
-    const [lc, ls, vc, vs, sc, ss] = await Promise.all([
-      api("get_live_categories"), api("get_live_streams"), api("get_vod_categories"), api("get_vod_streams"), api("get_series_categories"), api("get_series"),
-    ]);
+    return (loading = loading || fetchAll().finally(() => { loading = null; }));
+  }
+  async function fetchAll() {
+    // a big line is tens of megabytes of lists; say which part is arriving
+    const step = async (label, p) => { say(label); return p; };
+    const [lc, ls] = await step("Loading live channels…", Promise.all([api("get_live_categories"), api("get_live_streams")]));
+    const [vc, vs] = await step(`Loading films… (${(ls || []).length.toLocaleString()} channels ready)`, Promise.all([api("get_vod_categories"), api("get_vod_streams")]));
+    const [sc, ss] = await step(`Loading series… (${((ls || []).length + (vs || []).length).toLocaleString()} items ready)`, Promise.all([api("get_series_categories"), api("get_series")]));
+    say(`Arranging ${((ls || []).length + (vs || []).length + (ss || []).length).toLocaleString()} items…`);
     const names = (cats) => new Map((cats || []).map((c) => [String(c.category_id), c.category_name]));
     const lm = names(lc), vm = names(vc), sm = names(sc);
     const live = (ls || []).map((x, i) => ({ id: x.stream_id, kind: "live", source: "xtream", title: x.name, poster: x.stream_icon || "", badge: "live",

@@ -164,8 +164,12 @@ let heroTimer = null;
 
 async function renderHome(el, params, entry, live) {
   el.innerHTML = `<div class="page" data-page data-anchor="96"><div class="scroller">
-    <section class="hero" data-section><div class="art"></div></section>${U.skeletonRow()}${U.skeletonRow()}</div></div>`;
-  const data = await source.home();
+    <section class="hero" data-section><div class="art"></div>${source.kind === "xtream" ? `<div class="copy"><div class="badges"><span class="badge b-plain">${esc(source.name)}</span></div>
+      <h1 style="font-size:var(--t-title2)">Getting your library</h1><p class="lib-status">Connecting…</p></div>` : ""}</section>${U.skeletonRow()}${U.skeletonRow()}</div></div>`;
+  const status = (e) => { const p = el.querySelector(".lib-status"); if (p) p.textContent = e.detail; };
+  document.addEventListener("library:progress", status);
+  let data;
+  try { data = await source.home(); } finally { document.removeEventListener("library:progress", status); }
   if (!live()) return;
   const sections = [];
   const resume = progress.recent().filter((p) => (p.item.source || "demo") === source.kind);
