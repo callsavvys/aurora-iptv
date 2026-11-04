@@ -38,7 +38,13 @@ async function proxy(req, res, target) {
   try {
     const upstream = await fetch(url, { headers, redirect: "follow", signal: controller.signal });
     const out = { "cache-control": "no-store" };
+    /* fetch() unpacks a gzipped reply, but its content-length is still the
+       packed size. Passing that on made the browser stop reading early: a
+       provider's login reply arrived cut off at 363 bytes, as "Unterminated
+       string in JSON". So the length only goes along when nothing was unpacked. */
+    const packed = !!upstream.headers.get("content-encoding");
     for (const h of ["content-type", "content-length", "content-range", "accept-ranges"]) {
+      if (packed && h === "content-length") continue;
       const v = upstream.headers.get(h); if (v) out[h] = v;
     }
     res.writeHead(upstream.status, out);
