@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora — Cinema</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  /* Direction 2 — cinema. Dense and loud: landscape cards that carry their own
+     details, a red that means "new" or "now", and the hero doing the selling.
+     Drawn at 1920x1080: 1px = 0.5dp on the television. */
+  :root { --bg: #0b0b0c; --card: #18181b; --line: rgba(255,255,255,.09); --text: #fafafa; --dim: #b4b4b8; --faint: #77777d; --red: #e5162d; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: "Inter Tight", Inter, system-ui, sans-serif; color: var(--text); }
+  .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--bg); overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  :focus { outline: none; }
+
+  .top { position: absolute; z-index: 20; left: 0; right: 0; top: 0; height: 150px; padding: 40px 96px 0; display: flex; align-items: flex-start; justify-content: space-between; }
+  .top::before { content: ""; position: absolute; inset: 0 0 -60px; z-index: -1; background: linear-gradient(180deg, var(--bg) 70%, rgba(11,11,12,0)); opacity: .5; transition: opacity .2s; }
+  .scrolled .top::before { opacity: 1; }
+  .mark { font-size: 56px; font-weight: 900; color: var(--red); letter-spacing: -.06em; line-height: 1; }
+  .nav { display: flex; gap: 4px; align-items: center; padding: 8px; border-radius: 16px; background: rgba(28,28,31,.92); border: 1px solid var(--line); }
+  .nav button { height: 58px; padding: 0 24px; border-radius: 10px; font-size: 27px; font-weight: 600; color: var(--dim); display: flex; align-items: center; gap: 12px; }
+  .nav button.on { color: var(--text); background: rgba(255,255,255,.08); }
+  .nav button:focus { background: var(--text); color: #000; }
+  .nav svg { width: 26px; height: 26px; }
+  .nav .sep { width: 1px; height: 34px; background: var(--line); margin: 0 6px; }
+
+  .page { position: absolute; inset: 0; overflow: hidden; }
+  .hero { position: relative; height: 900px; }
+  .hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .hero::after { content: ""; position: absolute; inset: 0; background:
+      linear-gradient(90deg, rgba(11,11,12,.95) 0%, rgba(11,11,12,.6) 34%, rgba(11,11,12,0) 64%),
+      linear-gradient(0deg, var(--bg) 2%, rgba(11,11,12,0) 38%); }
+  .copy { position: absolute; z-index: 2; left: 96px; bottom: 170px; width: 840px; }
+  .logo { max-width: 680px; max-height: 250px; display: block; margin-bottom: 26px; }
+  .rankline { display: inline-flex; align-items: center; gap: 14px; font-size: 28px; font-weight: 700; margin-bottom: 18px; }
+  .rankline i { font-style: normal; background: var(--red); color: #fff; border-radius: 6px; padding: 2px 10px; font-size: 20px; font-weight: 900; line-height: 1.25; text-align: center; }
+  .meta { display: flex; gap: 12px; font-size: 26px; color: var(--dim); font-weight: 600; margin-bottom: 18px; }
+  .meta span + span::before { content: "•"; margin-right: 12px; color: var(--faint); }
+  .meta .score { color: #ffd34d; }
+  .overview { font-size: 30px; line-height: 1.4; color: #dcdcdf; margin: 0 0 34px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .actions { display: flex; gap: 16px; }
+  .btn { height: 74px; padding: 0 40px; border-radius: 10px; font-size: 30px; font-weight: 800; display: inline-flex; align-items: center; gap: 14px; white-space: nowrap; background: rgba(110,110,118,.55); }
+  .btn.play { background: var(--text); color: #000; }
+  .btn:focus { box-shadow: 0 0 0 5px var(--red); }
+  .btn svg { width: 30px; height: 30px; }
+  .dots { position: absolute; z-index: 2; right: 96px; bottom: 190px; display: flex; gap: 10px; align-items: center; }
+  .dots i { width: 14px; height: 14px; border-radius: 7px; background: rgba(255,255,255,.3); }
+  .dots i.on { width: 46px; background: var(--text); }
+
+  section { padding: 0 0 50px; }
+  .head { display: flex; align-items: center; gap: 14px; padding: 0 96px; margin-bottom: 20px; }
+  h2 { margin: 0; font-size: 40px; font-weight: 800; letter-spacing: -.02em; }
+  .head svg { width: 30px; height: 30px; color: var(--faint); }
+  .row { display: flex; gap: 22px; padding: 22px 96px 26px; margin: -22px 0 -26px; overflow: hidden; }
+
+  .card { flex: 0 0 440px; }
+  .card .art { position: relative; width: 440px; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; background: var(--card); transition: transform .12s ease; }
+  .card .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card .flag { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); background: var(--red); color: #fff; font-size: 20px; font-weight: 800; padding: 4px 14px; border-radius: 6px 6px 0 0; white-space: nowrap; }
+  .card .chip { position: absolute; left: 0; top: 0; background: var(--red); color: #fff; font-weight: 900; font-size: 22px; line-height: 1.05; padding: 8px 12px 10px; border-radius: 0 0 10px 0; text-align: center; }
+  .card .chip small { display: block; font-size: 15px; }
+  .card .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; background: rgba(255,255,255,.2); }
+  .card .bar i { display: block; height: 100%; background: var(--red); }
+  .card .t { margin-top: 14px; font-size: 27px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--dim); }
+  .card .s { margin-top: 4px; font-size: 22px; color: var(--faint); display: flex; gap: 10px; }
+  .card .s b { color: #ffd34d; font-weight: 700; }
+  .card:focus .art { transform: scale(1.05); box-shadow: 0 0 0 4px var(--text), 0 24px 50px rgba(0,0,0,.6); }
+  .card:focus .t { color: var(--text); }
+
+  .poster { flex: 0 0 236px; }
+  .poster .art { aspect-ratio: 2/3; width: 236px; }
+
+  .providers { display: flex; gap: 22px; padding: 0 96px; }
+  .prov { flex: 0 0 auto; width: 190px; height: 190px; border-radius: 28px; display: grid; place-items: center; text-align: center; font-weight: 900; font-size: 32px; letter-spacing: -.03em; line-height: 1; padding: 16px; }
+  .prov small { display: block; font-size: 20px; font-weight: 700; opacity: .8; margin-top: 10px; letter-spacing: 0; }
+  .prov:focus { box-shadow: 0 0 0 5px var(--bg), 0 0 0 10px var(--text); transform: scale(1.04); }
+
+  .sheet { position: absolute; inset: 0; z-index: 40; background: var(--bg); }
+  .sheet > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .sheet::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(11,11,12,.97) 28%, rgba(11,11,12,.35) 70%), linear-gradient(0deg, var(--bg), rgba(11,11,12,0) 40%); }
+  .sheet .copy { top: 210px; bottom: auto; }
+  .sheet h1 { font-size: 96px; line-height: .95; letter-spacing: -.04em; margin: 0 0 26px; font-weight: 900; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="page" data-page id="page"></div>
+  <div class="top" data-chrome>
+    <div class="mark">AURORA</div>
+    <nav class="nav">
+      <button data-f class="on">Home</button><button data-f>Movies</button><button data-f>Shows</button><button data-f>Live</button><button data-f>My list</button>
+      <span class="sep"></span>
+      <button data-f aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+      <button data-f aria-label="Profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg></button>
+    </nav>
+  </div>
+  <div class="sheet" data-layer hidden id="sheet"></div>
+</div>
+<script src="shared.js"></script>
+<script>
+(async () => {
+  const { esc, load, start, focus } = Direction;
+  const d = await load();
+  const hero = d.heroes[0];
+  const play = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>';
+  const info = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>';
+  const chev = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m9 6 6 6-6 6"/></svg>';
+  const kind = (x) => (x.type === "tv" ? "Show" : "Movie");
+  const card = (x, extra = "") => `<button class="card" data-f data-id="${x.id}"><div class="art"><img src="${esc(x.still || x.backdrop)}" alt="">${extra}</div><div class="t">${esc(x.title)}</div><div class="s"><b>★ ${esc(x.rating)}</b><span>${esc(x.year)}</span><span>${kind(x)}</span></div></button>`;
+  const poster = (x) => `<button class="card poster" data-f data-id="${x.id}"><div class="art"><img src="${esc(x.poster)}" alt=""></div><div class="t">${esc(x.title)}</div><div class="s"><b>★ ${esc(x.rating)}</b><span>${esc(x.year)}</span></div></button>`;
+  const row = (title, items) => `<section data-section><div class="head"><h2>${esc(title)}</h2>${chev}</div><div class="row" data-row>${items.join("")}</div></section>`;
+  const all = [...d.movies, ...d.shows, ...d.top, ...d.arabic, ...d.animation];
+
+  document.getElementById("page").innerHTML = `
+    <section class="hero" data-section>
+      <img src="${esc(hero.backdrop)}" alt="">
+      <div class="copy">
+        ${hero.logo ? `<img class="logo" src="${esc(hero.logo)}" alt="${esc(hero.title)}">` : ""}
+        <div class="rankline"><i>TOP<br>10</i>#1 in films today</div>
+        <div class="meta"><span class="score">★ ${esc(hero.rating)}</span><span>${esc(hero.year)}</span><span>${kind(hero)}</span><span>Horror</span><span>4K</span></div>
+        <p class="overview">${esc(hero.overview)}</p>
+        <div class="actions"><button class="btn play" data-f data-start data-id="${hero.id}">${play}Play</button><button class="btn" data-f data-id="${hero.id}">${info}More info</button></div>
+      </div>
+      <div class="dots">${d.heroes.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>
+    </section>
+    ${row("Continue watching", d.shows.slice(3, 9).map((x, i) => card(x, `<div class="bar"><i style="width:${[72, 35, 88, 15, 54, 61][i]}%"></i></div>`)))}
+    ${row("Top 10 films on your line", d.movies.slice(0, 10).map((x, i) => card(x, `<div class="chip"><small>TOP</small>${i + 1}</div>`)))}
+    ${row("New episodes", d.shows.slice(0, 12).map((x, i) => card(x, i % 3 === 0 ? `<div class="flag">New season</div>` : `<div class="flag">New episode</div>`)))}
+    <section data-section><div class="head"><h2>Browse by category</h2>${chev}</div><div class="providers">${[
+      // the provider's own category names, in Aurora's colours rather than any brand's
+      ["Netflix", "Original", "#2a1416", "#fff"], ["Prime", "Video", "#13222e", "#fff"], ["HBO", "", "#1d1830", "#fff"], ["أفلام", "عربية", "#122a20", "#fff"],
+      ["Kids", "", "#14203a", "#fff"], ["Türk", "Dizi", "#2c1a12", "#fff"], ["Sports", "Live", "#221430", "#fff"], ["Anime", "", "#2e2410", "#fff"]]
+      .map(([a, b, bg, fg]) => `<button class="prov" data-f style="background:${bg};color:${fg}"><span>${esc(a)}<small>${esc(b)}</small></span></button>`).join("")}</div></section>
+    ${row("Popular series", d.shows.map(poster))}
+    ${row("Critically acclaimed", d.top.map((x) => card(x)))}
+    ${row("Arabic cinema", d.arabic.map(poster))}
+    ${row("Animation", d.animation.map((x) => card(x)))}
+    <div style="height:120px"></div>`;
+
+  const page = document.getElementById("page");
+  page.addEventListener("scroll", () => document.querySelector(".stage").classList.toggle("scrolled", page.scrollTop > 40));
+  const sheet = document.getElementById("sheet");
+  let opener = null;
+  page.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-id]"); if (!el) return;
+    const x = all.find((y) => String(y.id) === el.dataset.id) || hero;
+    opener = el;
+    sheet.innerHTML = `<img src="${esc(x.backdrop)}" alt=""><div class="copy"><div class="meta"><span class="score">★ ${esc(x.rating)}</span><span>${esc(x.year)}</span><span>${kind(x)}</span></div><h1>${esc(x.title)}</h1><p class="overview">${esc(x.overview)}</p><div class="actions"><button class="btn play" data-f>${play}Play</button><button class="btn" data-f>＋ My list</button><button class="btn" data-f>Trailer</button></div></div>`;
+    sheet.hidden = false; focus(sheet.querySelector("[data-f]"));
+  });
+  document.addEventListener("direction:back", () => { if (!sheet.hidden) { sheet.hidden = true; focus(opener); } });
+  start();
+})();
+</script>
+</body>
+</html>

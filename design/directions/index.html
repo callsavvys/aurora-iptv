@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora — three directions</title>
+<style>
+  :root { --bg: #0a0a0b; --card: #141416; --line: rgba(255,255,255,.08); --text: #f4f4f5; --dim: #a1a1aa; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 Inter, system-ui, sans-serif; padding: 48px 16px 80px; }
+  main { max-width: 1240px; margin: 0 auto; }
+  h1 { font-size: 34px; letter-spacing: -.02em; margin: 0 0 8px; }
+  .lede { color: var(--dim); margin: 0 0 36px; max-width: 760px; }
+  .dir { display: grid; grid-template-columns: 1.5fr 1fr; gap: 28px; padding: 24px; border: 1px solid var(--line); border-radius: 20px; background: var(--card); margin-bottom: 24px; }
+  .dir img { width: 100%; border-radius: 12px; display: block; }
+  .dir .pair { display: grid; gap: 10px; }
+  .dir h2 { margin: 0 0 6px; font-size: 26px; }
+  .dir .tag { color: var(--dim); font-size: 14px; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 14px; }
+  .dir ul { margin: 0 0 22px; padding-left: 18px; color: #d4d4d8; }
+  .dir li { margin-bottom: 6px; }
+  .dir a { display: inline-block; padding: 12px 22px; border-radius: 999px; background: var(--text); color: #000; font-weight: 700; text-decoration: none; }
+  .keys { color: var(--dim); font-size: 14px; margin-top: 12px; }
+  @media (max-width: 860px) { .dir { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Three directions for Aurora on the TV</h1>
+  <p class="lede">Each one is a working home screen at the television's real size, with readable TV type and the same remote navigation. Open one and drive it with the arrow keys: Enter opens a title, Backspace or Escape goes back. Pick one, or name the parts you want from each.</p>
+
+  <section class="dir">
+    <div class="pair"><img src="shots/basement-0.jpg" alt="Basement direction, home"><img src="shots/basement-1.jpg" alt="Basement direction, browsing"></div>
+    <div>
+      <div class="tag">From Basement</div>
+      <h2>1 · Basement</h2>
+      <ul>
+        <li>Black and white; the artwork is the only colour</li>
+        <li>Floating pill menu across the top, white pill buttons</li>
+        <li>Giant outlined Top 20 numerals that light up on focus</li>
+        <li>Category tiles and a genre word-strip</li>
+      </ul>
+      <a href="basement.html">Open Basement</a>
+    </div>
+  </section>
+
+  <section class="dir">
+    <div class="pair"><img src="shots/cinema-0.jpg" alt="Cinema direction, home"><img src="shots/cinema-1.jpg" alt="Cinema direction, browsing"></div>
+    <div>
+      <div class="tag">From Movy, Cinejoy, 7Movies</div>
+      <h2>2 · Cinema</h2>
+      <ul>
+        <li>Dense and loud: landscape cards with rating, year and type under each</li>
+        <li>Red means new or now: progress bars, "New episode", Top 10 chips</li>
+        <li>Compact menu in the top right; the hero does the selling</li>
+        <li>Coloured category tiles</li>
+      </ul>
+      <a href="cinema.html">Open Cinema</a>
+    </div>
+  </section>
+
+  <section class="dir">
+    <div class="pair"><img src="shots/aurora-0.jpg" alt="Aurora direction, home"><img src="shots/aurora-1.jpg" alt="Aurora direction, browsing"></div>
+    <div>
+      <div class="tag">Aurora's own, with Google TV's structure</div>
+      <h2>3 · Aurora</h2>
+      <ul>
+        <li>Keeps your mint and your mono type</li>
+        <li>A side rail that opens with labels when you press Left</li>
+        <li>A spotlight that becomes whatever you are on</li>
+        <li>Small dense rows underneath; Arabic categories set right-to-left</li>
+      </ul>
+      <a href="aurora.html">Open Aurora</a>
+    </div>
+  </section>
+  <p class="keys">Every page is drawn at 1920×1080 — the television's real pixel grid — and scaled to fit this window.</p>
+</main>
+</body>
+</html>

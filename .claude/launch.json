@@ -9,6 +9,20 @@
         "start"
       ],
       "port": 3000
+    },
+    {
+      "name": "design",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4173",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "design/directions"
+      ],
+      "port": 4173
     }
   ]
 }

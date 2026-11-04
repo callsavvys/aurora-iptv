@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora — Basement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif&display=swap" rel="stylesheet">
+<style>
+  /* Direction 1 — editorial. Black, white and grey; the artwork is the only
+     colour on the screen. Drawn at 1920x1080: 1px = 0.5dp on the television. */
+  :root { --bg: #070707; --panel: #121212; --line: rgba(255,255,255,.10); --text: #f5f5f4; --dim: #a3a3a3; --faint: #6b6b6b; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Inter, system-ui, sans-serif; color: var(--text); }
+  .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--bg); overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  :focus { outline: none; }
+
+  /* ---- the floating menu ---- */
+  .top { position: absolute; z-index: 20; left: 0; right: 0; top: 34px; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+  /* once the page has moved, a floor behind the menu so rows never slide under it */
+  .top::before { content: ""; position: absolute; left: 0; right: 0; top: -34px; height: 200px; z-index: -1; pointer-events: none;
+    background: linear-gradient(180deg, var(--bg) 72%, rgba(7,7,7,0)); opacity: 0; transition: opacity .2s ease; }
+  .scrolled .top::before { opacity: 1; }
+  .mark { position: absolute; left: 96px; display: flex; align-items: center; gap: 14px; font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
+  .mark i { width: 52px; height: 52px; border-radius: 14px; background: var(--text); color: #000; display: grid; place-items: center; font-style: normal; font-size: 26px; font-weight: 800; }
+  .pill { pointer-events: auto; display: flex; gap: 6px; padding: 8px; border-radius: 999px; background: rgba(22,22,22,.94); border: 1px solid var(--line); box-shadow: 0 18px 50px rgba(0,0,0,.55); }
+  .pill button { height: 60px; padding: 0 28px; border-radius: 999px; font-size: 28px; font-weight: 600; color: var(--dim); }
+  .pill button.on { color: var(--text); background: rgba(255,255,255,.08); }
+  .pill button:focus { background: var(--text); color: #000; }
+  .tools { position: absolute; right: 96px; display: flex; gap: 14px; pointer-events: auto; }
+  .tools button { width: 64px; height: 64px; border-radius: 999px; background: rgba(22,22,22,.94); border: 1px solid var(--line); display: grid; place-items: center; font-size: 26px; font-weight: 700; }
+  .tools button:focus { background: var(--text); color: #000; }
+  .tools svg { width: 28px; height: 28px; }
+
+  /* ---- the page ---- */
+  .page { position: absolute; inset: 0; overflow: hidden; }
+  .hero { position: relative; height: 860px; }
+  .hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .hero::after { content: ""; position: absolute; inset: 0; background:
+      linear-gradient(90deg, rgba(7,7,7,.92) 0%, rgba(7,7,7,.55) 38%, rgba(7,7,7,0) 70%),
+      linear-gradient(0deg, var(--bg) 0%, rgba(7,7,7,0) 42%); }
+  .hero-copy { position: absolute; z-index: 2; left: 96px; bottom: 150px; width: 820px; }
+  .hero-logo { max-width: 620px; max-height: 220px; display: block; margin-bottom: 34px; filter: drop-shadow(0 6px 30px rgba(0,0,0,.6)); }
+  .meta { display: flex; gap: 22px; align-items: center; font-size: 26px; font-weight: 600; color: var(--dim); margin-bottom: 20px; }
+  .meta b { color: var(--text); }
+  .overview { font-family: "Instrument Serif", Georgia, serif; font-size: 34px; line-height: 1.3; color: #d4d4d4; margin: 0 0 36px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .actions { display: flex; gap: 16px; }
+  .btn { height: 72px; padding: 0 38px; border-radius: 999px; font-size: 28px; font-weight: 700; display: inline-flex; align-items: center; gap: 14px; white-space: nowrap; border: 2px solid rgba(255,255,255,.25); }
+  .btn.primary { background: var(--text); color: #000; border-color: var(--text); }
+  .btn:focus { box-shadow: 0 0 0 4px var(--bg), 0 0 0 8px var(--text); }
+  .btn svg { width: 28px; height: 28px; }
+  .dots { position: absolute; z-index: 2; right: 96px; bottom: 170px; display: flex; gap: 10px; }
+  .dots i { width: 34px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.25); }
+  .dots i.on { width: 70px; background: var(--text); }
+
+  section { padding: 0 0 54px; }
+  .head { display: flex; align-items: baseline; justify-content: space-between; padding: 0 96px; margin-bottom: 22px; }
+  h2 { margin: 0; font-size: 44px; font-weight: 700; letter-spacing: -.02em; }
+  .head small { font-size: 24px; color: var(--faint); font-weight: 500; }
+  .row { display: flex; gap: 26px; padding: 26px 96px 30px; margin: -26px 0 -30px; overflow: hidden; }
+
+  /* poster */
+  .poster { flex: 0 0 248px; }
+  .poster .art { position: relative; width: 248px; aspect-ratio: 2/3; border-radius: 18px; overflow: hidden; background: var(--panel); }
+  .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .poster .t { margin-top: 14px; font-size: 24px; font-weight: 600; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .poster .badge { position: absolute; left: 12px; bottom: 12px; padding: 4px 12px; border-radius: 999px; background: rgba(0,0,0,.82); font-size: 22px; font-weight: 700; }
+  .poster:focus .art { box-shadow: 0 0 0 4px var(--bg), 0 0 0 8px var(--text); transform: scale(1.04); }
+  .poster:focus .t { color: var(--text); }
+  .poster .art { transition: transform .12s ease; }
+
+  /* landscape, for carrying on */
+  .wide { flex: 0 0 470px; text-align: left; }
+  .wide .art { position: relative; width: 470px; aspect-ratio: 16/9; border-radius: 18px; overflow: hidden; background: var(--panel); }
+  .wide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .wide .bar { position: absolute; left: 18px; right: 18px; bottom: 16px; height: 6px; border-radius: 3px; background: rgba(255,255,255,.25); }
+  .wide .bar i { display: block; height: 100%; border-radius: 3px; background: var(--text); }
+  .wide .t { margin-top: 14px; font-size: 26px; font-weight: 700; }
+  .wide .s { font-size: 22px; color: var(--faint); margin-top: 4px; }
+  .wide:focus .art { box-shadow: 0 0 0 4px var(--bg), 0 0 0 8px var(--text); }
+
+  /* the Top 20: an outlined numeral behind each poster */
+  .ranked { flex: 0 0 auto; display: flex; align-items: flex-end; }
+  .ranked .n { font-size: 230px; font-weight: 800; line-height: .78; letter-spacing: -.06em; color: transparent; -webkit-text-stroke: 4px #3a3a3a; margin-right: -26px; }
+  .ranked:focus .n { -webkit-text-stroke-color: var(--text); }
+  .ranked .poster { flex: 0 0 210px; }
+  .ranked .poster .art { width: 210px; }
+  .ranked:focus .poster .art { box-shadow: 0 0 0 4px var(--bg), 0 0 0 8px var(--text); }
+
+  /* categories, where theirs is "browse by service" */
+  .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 22px; padding: 0 96px; }
+  .tile { height: 200px; border-radius: 22px; background: linear-gradient(160deg, #1b1b1b, #0e0e0e); border: 1px solid var(--line); padding: 26px 28px; text-align: left; display: flex; flex-direction: column; justify-content: space-between; }
+  .tile b { font-size: 34px; font-weight: 800; letter-spacing: -.02em; }
+  .tile small { font-size: 22px; color: var(--faint); }
+  .tile:focus { background: var(--text); color: #000; }
+  .tile:focus small { color: #444; }
+
+  .genres { display: flex; gap: 14px; padding: 0 96px; flex-wrap: wrap; }
+  .genres button { font-size: 40px; font-weight: 600; color: #4a4a4a; padding: 6px 10px; border-radius: 12px; }
+  .genres button + button::before { content: "·"; margin-right: 24px; color: #2c2c2c; }
+  .genres button:focus { color: var(--text); }
+
+  /* details */
+  .sheet { position: absolute; inset: 0; z-index: 40; background: var(--bg); }
+  .sheet > img { position: absolute; right: 0; top: 0; width: 72%; height: 100%; object-fit: cover; opacity: .9; }
+  .sheet::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, var(--bg) 30%, rgba(7,7,7,.4) 62%, rgba(7,7,7,.2)); }
+  .sheet .copy { position: absolute; z-index: 2; left: 96px; top: 200px; width: 860px; }
+  .sheet h1 { font-size: 92px; line-height: 1; letter-spacing: -.04em; margin: 0 0 24px; }
+  .sheet .overview { -webkit-line-clamp: 5; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="page" data-page id="page"></div>
+  <div class="top" data-chrome>
+    <div class="mark"><i>A</i>Aurora</div>
+    <nav class="pill">
+      <button data-f class="on">Home</button><button data-f>Live TV</button><button data-f>Movies</button><button data-f>Series</button><button data-f>My Aurora</button>
+    </nav>
+    <div class="tools">
+      <button data-f aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+      <button data-f aria-label="Your account">ZE</button>
+    </div>
+  </div>
+  <div class="sheet" data-layer hidden id="sheet"></div>
+</div>
+<script src="shared.js"></script>
+<script>
+(async () => {
+  const { esc, load, start, focus } = Direction;
+  const d = await load();
+  const hero = d.heroes[0];
+  const play = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>';
+  const info = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg>';
+  const poster = (x) => `<button class="poster" data-f data-id="${x.id}"><div class="art"><img src="${esc(x.poster)}" alt=""><span class="badge">★ ${esc(x.rating)}</span></div><div class="t">${esc(x.title)}</div></button>`;
+  const row = (title, items, note = "") => `<section data-section><div class="head"><h2>${esc(title)}</h2><small>${esc(note)}</small></div><div class="row" data-row>${items.join("")}</div></section>`;
+  const all = [...d.movies, ...d.shows, ...d.top, ...d.arabic, ...d.animation];
+
+  document.getElementById("page").innerHTML = `
+    <section class="hero" data-section>
+      <img src="${esc(hero.backdrop)}" alt="">
+      <div class="hero-copy">
+        ${hero.logo ? `<img class="hero-logo" src="${esc(hero.logo)}" alt="${esc(hero.title)}">` : `<h1>${esc(hero.title)}</h1>`}
+        <div class="meta"><b>★ ${esc(hero.rating)}</b><span>${esc(hero.year)}</span><span>${hero.type === "tv" ? "Series" : "Film"}</span><span>4K</span></div>
+        <p class="overview">${esc(hero.overview)}</p>
+        <div class="actions"><button class="btn primary" data-f data-start data-id="${hero.id}">${play}Play</button><button class="btn" data-f data-id="${hero.id}">${info}Details</button></div>
+      </div>
+      <div class="dots">${d.heroes.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>
+    </section>
+    ${row("Continue watching", d.shows.slice(3, 9).map((x, i) => `<button class="wide" data-f data-id="${x.id}"><div class="art"><img src="${esc(x.still)}" alt=""><div class="bar"><i style="width:${[72, 35, 88, 15, 54, 61][i]}%"></i></div></div><div class="t">${esc(x.title)}</div><div class="s">S${i + 1} · E${(i * 3) % 9 + 2} · ${[22, 41, 8, 51, 30, 17][i]} min left</div></button>`), "on this TV")}
+    ${row("Top 20 today", d.movies.slice(0, 20).map((x, i) => `<button class="ranked" data-f data-id="${x.id}"><span class="n">${i + 1}</span>${poster(x).replace('class="poster" data-f', 'class="poster"').replace("<button", "<div").replace("</button>", "</div>")}</button>`))}
+    ${row("Series worth starting", d.shows.map(poster))}
+    <section data-section><div class="head"><h2>Browse your line</h2><small>categories from your provider</small></div>
+      <div class="tiles">${[["Netflix Original", "2,140 titles"], ["أفلام عربية", "1,860 أفلام"], ["HBO", "612 titles"], ["Prime Video", "1,034 titles"], ["Turkish Series", "388 series"], ["Kids", "940 titles"]]
+        .map(([a, b]) => `<button class="tile" data-f><b>${esc(a)}</b><small>${esc(b)}</small></button>`).join("")}</div></section>
+    ${row("Top rated, all time", d.top.map(poster))}
+    ${row("Arabic cinema", d.arabic.map(poster))}
+    <section data-section><div class="head"><h2>Genres</h2></div><div class="genres">${["Action", "Comedy", "Crime", "Drama", "Horror", "Mystery", "Romance", "Science fiction", "Thriller", "Documentary"].map((g) => `<button data-f>${g}</button>`).join("")}</div></section>
+    ${row("Animation", d.animation.map(poster))}
+    <div style="height:120px"></div>`;
+
+  const page = document.getElementById("page");
+  page.addEventListener("scroll", () => document.querySelector(".stage").classList.toggle("scrolled", page.scrollTop > 40));
+  const sheet = document.getElementById("sheet");
+  let opener = null;
+  document.getElementById("page").addEventListener("click", (e) => {
+    const el = e.target.closest("[data-id]"); if (!el) return;
+    const x = all.find((y) => String(y.id) === el.dataset.id) || hero;
+    opener = el;
+    sheet.innerHTML = `<img src="${esc(x.backdrop)}" alt=""><div class="copy"><div class="meta"><b>★ ${esc(x.rating)}</b><span>${esc(x.year)}</span><span>${x.type === "tv" ? "Series" : "Film"}</span></div><h1>${esc(x.title)}</h1><p class="overview">${esc(x.overview)}</p><div class="actions"><button class="btn primary" data-f>${play}Play</button><button class="btn" data-f>＋ My list</button><button class="btn" data-f>Trailer</button></div></div>`;
+    sheet.hidden = false; focus(sheet.querySelector("[data-f]"));
+  });
+  document.addEventListener("direction:back", () => { if (!sheet.hidden) { sheet.hidden = true; focus(opener); } });
+  start();
+})();
+</script>
+</body>
+</html>
