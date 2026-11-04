@@ -173,6 +173,14 @@ console.log("\n— the mark is never off the screen while a row moves —");
   const spotlight = NAV.match(/function spotlight\(card\) \{[\s\S]*?\n  \}/);
   check("the row detail is written without asking for a second scroll",
     /scrollIntoView/.test(spotlight ? spotlight[0] : "scrollIntoView"), false);
+  // and the same in the other direction: the page itself slid, so walking down
+  // lost the ring for up to 0.67s, 0.4s of it the slide
+  // there is more than one `.platform-tv .scroll` rule; this is the scrolling one
+  const page = TV.match(/\.platform-tv \.scroll \{([^}]*scroll-padding-top[^}]*)\}/);
+  check("the page itself arrives in one step too",
+    /scroll-behavior:\s*auto/.test(page ? page[1] : ""), true);
+  check("and it keeps the menu strip's height clear when it lands",
+    /scroll-padding-top:\s*230px/.test(page ? page[1] : ""), true);
 }
 
 console.log("\n— the television does not pay for a blur nobody can see —");

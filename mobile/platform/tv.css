@@ -782,7 +782,16 @@
    strip or a sticky episode header above it — so the row the remote landed on
    could end up underneath them. This reserves that space for every scroll the
    page makes, not just the ones I remembered to adjust. */
-.platform-tv .scroll { scroll-padding-top: 230px; scroll-padding-bottom: 80px; }
+.platform-tv .scroll {
+  scroll-padding-top: 230px;
+  scroll-padding-bottom: 80px;
+  /* And the page arrives in one step, for the reason the shelves do. The rails
+     were fixed and this was not, so walking down still lost the mark: filmed
+     on the television, up to 0.67s with no focus ring anywhere, 0.4s of it the
+     page sliding with the row it was taking me to still below the fold. The
+     ring has to be on the screen the whole way, in both directions. */
+  scroll-behavior: auto;
+}
 
 /* ---- the face, and your own page, on a television ---- */
 .platform-tv .who-face { width: 56px; height: 56px; border-radius: 14px; font-size: 21px; }
