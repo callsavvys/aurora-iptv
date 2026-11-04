@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora — streamXie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Direction 6 — after streamXie. A catalogue that explains itself: every
+     section has an uppercase title and a line saying why it is there, every
+     poster says what kind of thing it is in a coloured badge, and the Top 10
+     is a list of cards rather than a row. Drawn at 1920x1080. */
+  :root { --bg: #0b0d12; --panel: #12151c; --panel-2: #171b24; --line: rgba(255,255,255,.07); --text: #f1f3f7; --dim: #9aa3b2; --faint: #636c7b; --teal: #10cfa6; --gold: #f8d24e; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Manrope, system-ui, sans-serif; color: var(--text); }
+  .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--bg); overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  :focus { outline: none; }
+
+  .top { position: absolute; z-index: 20; left: 0; right: 0; top: 0; height: 128px; padding: 0 104px; display: flex; align-items: center; justify-content: space-between; }
+  .top::before { content: ""; position: absolute; inset: 0; z-index: -1; background: rgba(11,13,18,.97); border-bottom: 1px solid var(--line); opacity: 0; transition: opacity .2s; }
+  .scrolled .top::before { opacity: 1; }
+  .mark { display: flex; align-items: center; gap: 16px; font-size: 32px; font-weight: 800; }
+  .mark i { width: 54px; height: 54px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, #4ff3cd, var(--teal) 60%, #078b70); display: grid; place-items: center; }
+  .mark i::after { content: ""; border-left: 18px solid #062a22; border-top: 11px solid transparent; border-bottom: 11px solid transparent; margin-left: 5px; }
+  .links { display: flex; gap: 10px; }
+  .links button { height: 60px; padding: 0 24px; font-size: 27px; font-weight: 600; color: var(--dim); border-radius: 12px; position: relative; display: flex; align-items: center; gap: 8px; }
+  .links button.on { color: var(--teal); }
+  .links button.on::after { content: ""; position: absolute; left: 24px; right: 24px; bottom: 4px; height: 3px; border-radius: 2px; background: var(--teal); }
+  .links button:focus { background: var(--teal); color: #052b22; }
+  .links button:focus::after { display: none; }
+  .links svg { width: 22px; height: 22px; }
+  .tools { display: flex; gap: 14px; align-items: center; }
+  .search { height: 60px; width: 380px; padding: 0 12px 0 22px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); display: flex; align-items: center; gap: 14px; color: var(--faint); font-size: 25px; }
+  .search svg { width: 26px; height: 26px; }
+  .search kbd { margin-left: auto; font: 600 20px "Space Grotesk"; padding: 3px 10px; border-radius: 8px; border: 1px solid var(--line); color: var(--dim); }
+  .search:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(16,207,166,.3); color: var(--text); }
+  .me { height: 60px; padding: 0 26px; border-radius: 14px; background: var(--teal); color: #052b22; font-size: 26px; font-weight: 800; }
+  .me:focus { box-shadow: 0 0 0 4px var(--bg), 0 0 0 8px var(--text); }
+
+  .page { position: absolute; inset: 0; overflow: hidden; }
+  .hero { position: relative; height: 840px; }
+  .hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .hero::after { content: ""; position: absolute; inset: 0; background:
+      linear-gradient(90deg, rgba(11,13,18,.96) 0%, rgba(11,13,18,.7) 38%, rgba(11,13,18,.05) 72%), linear-gradient(0deg, var(--bg) 0%, rgba(11,13,18,0) 40%); }
+  .copy { position: absolute; z-index: 2; left: 104px; bottom: 150px; width: 860px; }
+  .tags { display: flex; gap: 10px; margin-bottom: 22px; }
+  .badge { font: 700 19px "Space Grotesk"; letter-spacing: .08em; text-transform: uppercase; padding: 5px 12px; border-radius: 7px; color: #fff; }
+  .b-movie { background: #2f6bff; } .b-series { background: #8a4dff; } .b-anime { background: #ff7a1a; } .b-drama { background: #e0384a; } .b-arabic { background: #0ea47a; } .b-classic { background: #a07a2c; }
+  .copy h1 { margin: 0 0 18px; font: 700 100px/1 "Space Grotesk"; letter-spacing: -.03em; }
+  .info { display: flex; gap: 14px; font-size: 26px; color: var(--dim); margin-bottom: 20px; font-weight: 600; }
+  .info b { color: var(--gold); }
+  .copy p { margin: 0 0 34px; font-size: 29px; line-height: 1.5; color: #c7ced9; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .actions { display: flex; gap: 16px; }
+  .btn { height: 76px; padding: 0 38px; border-radius: 16px; font-size: 29px; font-weight: 800; display: inline-flex; align-items: center; gap: 14px; white-space: nowrap; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); }
+  .btn.go { background: var(--teal); color: #052b22; border-color: var(--teal); }
+  .btn svg { width: 30px; height: 30px; }
+  .btn:focus { box-shadow: 0 0 0 4px var(--bg), 0 0 0 8px var(--text); }
+
+  section { padding: 0 0 60px; }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; padding: 0 104px; margin-bottom: 24px; }
+  h2 { margin: 0; font: 700 38px "Space Grotesk"; letter-spacing: .16em; text-transform: uppercase; }
+  .head p { margin: 6px 0 0; font-size: 24px; color: var(--faint); }
+  .nav { display: flex; gap: 10px; align-items: center; }
+  .nav i { width: 50px; height: 50px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; color: var(--dim); font-style: normal; font-size: 24px; }
+  .nav button { height: 50px; padding: 0 22px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); font-size: 23px; font-weight: 700; color: var(--dim); }
+  .nav button:focus { background: var(--teal); color: #052b22; }
+  .row { display: flex; gap: 26px; padding: 20px 104px 24px; margin: -20px 0 -24px; overflow: hidden; }
+
+  .poster { flex: 0 0 226px; }
+  .poster .art { position: relative; width: 226px; aspect-ratio: 2/3; border-radius: 16px; overflow: hidden; background: var(--panel); transition: transform .14s ease; }
+  .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .poster .badge { position: absolute; left: 12px; top: 12px; }
+  .poster .t { margin-top: 14px; font-size: 25px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .poster .m { margin-top: 4px; font-size: 22px; color: var(--faint); font-weight: 600; }
+  .poster .m b { color: var(--gold); }
+  .poster:focus .art { transform: translateY(-8px); box-shadow: 0 0 0 4px var(--teal), 0 22px 40px rgba(16,207,166,.18); }
+  .poster:focus .t { color: var(--teal); }
+
+  /* the Top 10 as a list of cards */
+  .tops { display: flex; gap: 22px; padding: 20px 104px 24px; margin: -20px 0 -24px; overflow: hidden; }
+  .topcard { flex: 0 0 470px; height: 196px; border-radius: 20px; background: var(--panel-2); border: 1px solid var(--line); display: flex; align-items: center; gap: 22px; padding: 0 26px 0 20px; }
+  .topcard .n { font: 700 104px/1 "Space Grotesk"; color: var(--teal); width: 74px; text-align: center; align-self: flex-end; margin-bottom: 10px; }
+  .topcard img { width: 108px; height: 156px; object-fit: cover; border-radius: 12px; flex: 0 0 auto; }
+  .topcard .t { font-size: 26px; font-weight: 800; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .topcard .m { font-size: 22px; color: var(--faint); margin-top: 8px; font-weight: 600; }
+  .topcard .m b { color: var(--gold); }
+  .topcard:focus { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal); background: #182620; }
+
+  .sheet { position: absolute; inset: 0; z-index: 40; background: var(--bg); }
+  .sheet > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .sheet::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(11,13,18,.97) 30%, rgba(11,13,18,.4) 70%), linear-gradient(0deg, var(--bg), rgba(11,13,18,0) 40%); }
+  .sheet .copy { top: 220px; bottom: auto; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="page" data-page data-keep="150" id="page"></div>
+  <div class="top" data-chrome>
+    <div class="mark"><i></i>aurora</div>
+    <nav class="links">
+      <button data-f class="on">Home</button>
+      <button data-f>Browse <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="m6 9 6 6 6-6"/></svg></button>
+      <button data-f>Live TV</button><button data-f>My List</button>
+    </nav>
+    <div class="tools">
+      <button class="search" data-f><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search titles…<kbd>OK</kbd></button>
+      <button class="me" data-f>Ziyad</button>
+    </div>
+  </div>
+  <div class="sheet" data-layer hidden id="sheet"></div>
+</div>
+<script src="shared.js"></script>
+<script>
+(async () => {
+  const { esc, load, start, focus } = Direction;
+  const d = await load();
+  const hero = d.heroes[0];
+  const tagged = (list, badge) => list.map((x) => ({ ...x, badge }));
+  const lists = {
+    movies: tagged(d.movies, "movie"), shows: tagged(d.shows, "series"), top: tagged(d.top, "classic"),
+    arabic: tagged(d.arabic, "arabic"), animation: tagged(d.animation, "anime"),
+  };
+  const all = [...d.heroes, ...Object.values(lists).flat()];
+  const labels = { movie: "Movies", series: "Series", classic: "Classic", arabic: "Arabic", anime: "Anime", drama: "Drama" };
+  const badge = (b) => `<span class="badge b-${b}">${labels[b]}</span>`;
+  const play = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l13-7.5z"/></svg>';
+  const plus = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>';
+  const poster = (x) => `<button class="poster" data-f data-id="${x.id}"><div class="art"><img src="${esc(x.poster)}" alt="">${badge(x.badge)}</div><div class="t">${esc(x.title)}</div><div class="m"><b>★ ${esc(x.rating)}</b> · ${esc(x.year)} · ${labels[x.badge]}</div></button>`;
+  const head = (title, line) => `<div class="head"><div><h2>${esc(title)}</h2><p>${esc(line)}</p></div><div class="nav"><i>‹</i><i>›</i><button data-f>See all ›</button></div></div>`;
+  const row = (title, line, items) => `<section data-section>${head(title, line)}<div class="row" data-row>${items.join("")}</div></section>`;
+
+  document.getElementById("page").innerHTML = `
+    <section class="hero" data-section>
+      <img src="${esc(hero.backdrop)}" alt="">
+      <div class="copy">
+        <div class="tags">${badge(hero.type === "tv" ? "series" : "movie")}<span class="badge b-drama">Featured</span></div>
+        <h1>${esc(hero.title)}</h1>
+        <div class="info"><b>★ ${esc(hero.rating)}</b><span>· ${esc(hero.year)}</span><span>· ${hero.type === "tv" ? "Series" : "Movie"}</span><span>· 4K</span></div>
+        <p>${esc(hero.overview)}</p>
+        <div class="actions"><button class="btn go" data-f data-start data-id="${hero.id}">${play}Watch now</button><button class="btn" data-f data-id="${hero.id}">${plus}My List</button></div>
+      </div>
+    </section>
+    ${row("Trending now", "High-velocity picks moving across your line right now.", lists.movies.map(poster))}
+    <section data-section>${head("Top 10 today", "The titles people on your line are watching most.")}
+      <div class="tops" data-row>${lists.movies.slice(0, 10).map((x, i) => `<button class="topcard" data-f data-id="${x.id}"><span class="n">${i + 1}</span><img src="${esc(x.poster)}" alt=""><div><div class="t">${esc(x.title)}</div><div class="m"><b>★ ${esc(x.rating)}</b> · ${esc(x.year)}</div></div></button>`).join("")}</div></section>
+    ${row("Series picks", "Long-form stories worth starting tonight.", lists.shows.map(poster))}
+    ${row("Arabic cinema", "From your provider's Arabic categories.", lists.arabic.map(poster))}
+    ${row("Anime & animation", "Large worlds, high energy, every episode.", lists.animation.map(poster))}
+    ${row("All-time classics", "The highest rated films, still worth the evening.", lists.top.map(poster))}
+    <div style="height:140px"></div>`;
+
+  const page = document.getElementById("page");
+  page.addEventListener("scroll", () => document.querySelector(".stage").classList.toggle("scrolled", page.scrollTop > 40));
+  const sheet = document.getElementById("sheet");
+  let opener = null;
+  page.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-id]"); if (!el) return;
+    const x = all.find((y) => String(y.id) === el.dataset.id) || hero; opener = el;
+    sheet.innerHTML = `<img src="${esc(x.backdrop)}" alt=""><div class="copy"><div class="tags">${badge(x.badge || (x.type === "tv" ? "series" : "movie"))}</div><h1>${esc(x.title)}</h1><div class="info"><b>★ ${esc(x.rating)}</b><span>· ${esc(x.year)}</span></div><p>${esc(x.overview)}</p><div class="actions"><button class="btn go" data-f>${play}Watch now</button><button class="btn" data-f>${plus}My List</button><button class="btn" data-f>Trailer</button></div></div>`;
+    sheet.hidden = false; focus(sheet.querySelector("[data-f]"));
+  });
+  document.addEventListener("direction:back", () => { if (!sheet.hidden) { sheet.hidden = true; focus(opener); } });
+  start();
+})();
+</script>
+</body>
+</html>

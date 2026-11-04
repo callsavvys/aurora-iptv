@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aurora — Flixnet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  /* Direction 5 — after Flixnet. The Netflix grammar played straight: a red
+     wordmark, plain-text links, a title set in type rather than art, and tight
+     rows where the focused poster grows out of the row. Drawn at 1920x1080. */
+  :root { --bg: #111111; --card: #1d1d1d; --text: #ffffff; --dim: #b3b3b3; --faint: #808080; --red: #e50914; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { font-family: Geist, system-ui, sans-serif; color: var(--text); }
+  .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--bg); overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  :focus { outline: none; }
+
+  .top { position: absolute; z-index: 20; left: 0; right: 0; top: 0; height: 130px; padding: 0 96px; display: flex; align-items: center; gap: 56px;
+    background: linear-gradient(180deg, rgba(0,0,0,.75), rgba(0,0,0,0)); transition: background .25s; }
+  .scrolled .top { background: #000; }
+  .mark { font-size: 54px; font-weight: 900; color: var(--red); letter-spacing: .02em; }
+  .links { display: flex; gap: 6px; flex: 1; }
+  .links button { height: 56px; padding: 0 20px; border-radius: 6px; font-size: 27px; font-weight: 500; color: #e5e5e5; }
+  .links button.on { font-weight: 700; color: var(--text); }
+  .links button:focus { background: var(--text); color: #000; }
+  .icons { display: flex; gap: 18px; align-items: center; }
+  .icons button { width: 60px; height: 60px; border-radius: 6px; display: grid; place-items: center; }
+  .icons svg { width: 34px; height: 34px; }
+  .icons .face { background: var(--red); font-weight: 800; font-size: 24px; }
+  .icons button:focus { box-shadow: 0 0 0 4px var(--text); }
+
+  .page { position: absolute; inset: 0; overflow: hidden; }
+  .hero { position: relative; height: 880px; overflow: hidden; }
+  .hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: zoom 24s ease-out forwards; }
+  @keyframes zoom { to { transform: scale(1.08); } }
+  .hero::after { content: ""; position: absolute; inset: 0; background:
+      linear-gradient(77deg, rgba(0,0,0,.75) 0%, rgba(0,0,0,0) 62%), linear-gradient(0deg, var(--bg) 0%, rgba(17,17,17,0) 30%); }
+  .copy { position: absolute; z-index: 2; left: 96px; bottom: 190px; width: 860px; }
+  .copy h1 { margin: 0 0 22px; font-size: 104px; font-weight: 800; line-height: 1; letter-spacing: -.03em; text-shadow: 0 4px 24px rgba(0,0,0,.5); }
+  .copy p { margin: 0 0 34px; font-size: 30px; line-height: 1.4; color: #e5e5e5; text-shadow: 0 2px 10px rgba(0,0,0,.6); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .actions { display: flex; gap: 16px; align-items: center; }
+  .btn { height: 76px; padding: 0 40px; border-radius: 6px; font-size: 30px; font-weight: 700; display: inline-flex; align-items: center; gap: 14px; white-space: nowrap; background: rgba(109,109,110,.7); }
+  .btn.play { background: var(--text); color: #000; }
+  .btn.round { width: 76px; padding: 0; justify-content: center; border-radius: 50%; border: 3px solid rgba(255,255,255,.6); background: rgba(42,42,42,.6); }
+  .btn svg { width: 32px; height: 32px; }
+  .btn:focus { box-shadow: 0 0 0 4px var(--bg), 0 0 0 8px var(--text); }
+  .maturity { position: absolute; z-index: 2; right: 0; bottom: 250px; padding: 10px 96px 10px 24px; background: rgba(51,51,51,.6); border-left: 4px solid #dcdcdc; font-size: 26px; }
+
+  section { padding: 0 0 46px; }
+  h2 { margin: 0 0 14px; padding: 0 96px; font-size: 34px; font-weight: 700; color: #e5e5e5; }
+  .row { display: flex; gap: 10px; padding: 40px 96px 46px; margin: -40px 0 -46px; overflow: hidden; }
+  .poster { flex: 0 0 220px; position: relative; z-index: 1; transition: transform .16s cubic-bezier(.3,.7,.4,1.2); }
+  .poster .art { width: 220px; aspect-ratio: 2/3; border-radius: 6px; overflow: hidden; background: var(--card); }
+  .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .poster .rate { position: absolute; right: 10px; top: 10px; padding: 3px 10px; border-radius: 4px; background: rgba(0,0,0,.8); font-size: 22px; font-weight: 700; opacity: 0; transition: opacity .15s; }
+  .poster:focus { transform: scale(1.14); z-index: 5; }
+  .poster:focus .art { box-shadow: 0 0 0 3px var(--text), 0 18px 50px rgba(229,9,20,.45); }
+  .poster:focus .rate { opacity: 1; }
+  .original { flex: 0 0 440px; }
+  .original .art { width: 440px; aspect-ratio: 16/9; }
+  .original .n { position: absolute; left: 14px; top: 10px; font-size: 30px; font-weight: 900; color: var(--red); letter-spacing: .04em; }
+  .original .t { position: absolute; left: 16px; bottom: 12px; right: 16px; font-size: 28px; font-weight: 800; text-shadow: 0 2px 10px #000; }
+
+  .sheet { position: absolute; inset: 0; z-index: 40; background: rgba(0,0,0,.72); display: grid; place-items: center; }
+  .sheet[hidden] { display: none; }
+  .modal { width: 1240px; border-radius: 10px; overflow: hidden; background: #181818; box-shadow: 0 30px 100px #000; }
+  .modal .top-art { position: relative; height: 560px; }
+  .modal .top-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .modal .top-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, #181818, rgba(24,24,24,0) 55%); }
+  .modal .copy { left: 56px; bottom: 40px; width: 900px; }
+  .modal .copy h1 { font-size: 76px; }
+  .modal .body { padding: 10px 56px 50px; display: grid; grid-template-columns: 2fr 1fr; gap: 40px; font-size: 26px; line-height: 1.5; color: #d2d2d2; }
+  .modal .body .meta { color: #46d369; font-weight: 700; margin-bottom: 12px; }
+  .modal .body small { font-size: 24px; color: var(--faint); }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="page" data-page data-keep="150" id="page"></div>
+  <div class="top" data-chrome>
+    <div class="mark">AURORA</div>
+    <nav class="links"><button data-f class="on">Home</button><button data-f>TV Shows</button><button data-f>Movies</button><button data-f>Live TV</button><button data-f>New &amp; Popular</button><button data-f>My List</button></nav>
+    <div class="icons">
+      <button data-f aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+      <button data-f class="face" aria-label="Profile">ZE</button>
+    </div>
+  </div>
+  <div class="sheet" data-layer hidden id="sheet"></div>
+</div>
+<script src="shared.js"></script>
+<script>
+(async () => {
+  const { esc, load, start, focus } = Direction;
+  const d = await load();
+  const hero = d.heroes[0];
+  const all = [...d.heroes, ...d.movies, ...d.shows, ...d.top, ...d.arabic, ...d.animation];
+  const play = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 4v16l14-8z"/></svg>';
+  const plus = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>';
+  const info = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 10.5v8M12 5.5v.5"/></svg>';
+  const poster = (x) => `<button class="poster" data-f data-id="${x.id}"><div class="art"><img src="${esc(x.poster)}" alt=""></div><span class="rate">★ ${esc(x.rating)}</span></button>`;
+  const row = (title, items) => `<section data-section><h2>${esc(title)}</h2><div class="row" data-row>${items.join("")}</div></section>`;
+
+  document.getElementById("page").innerHTML = `
+    <section class="hero" data-section>
+      <img src="${esc(hero.backdrop)}" alt="">
+      <div class="copy">
+        <h1>${esc(hero.title)}</h1>
+        <p>${esc(hero.overview)}</p>
+        <div class="actions"><button class="btn play" data-f data-start data-id="${hero.id}">${play}Play</button><button class="btn" data-f>${plus}My List</button><button class="btn round" data-f data-id="${hero.id}" aria-label="More info">${info}</button></div>
+      </div>
+      <div class="maturity">16+</div>
+    </section>
+    ${row("Continue Watching for Ziyad", d.shows.slice(3, 10).map((x) => `<button class="poster original" data-f data-id="${x.id}"><div class="art"><img src="${esc(x.still)}" alt=""></div><span class="n">A</span><span class="t">${esc(x.title)}</span></button>`))}
+    ${row("Trending Now", d.movies.map(poster))}
+    ${row("Top Rated", d.top.map(poster))}
+    ${row("Popular Series", d.shows.map(poster))}
+    ${row("Arabic Movies", d.arabic.map(poster))}
+    ${row("Animation", d.animation.map(poster))}
+    <div style="height:140px"></div>`;
+
+  const page = document.getElementById("page");
+  page.addEventListener("scroll", () => document.querySelector(".stage").classList.toggle("scrolled", page.scrollTop > 40));
+  const sheet = document.getElementById("sheet");
+  let opener = null;
+  page.addEventListener("click", (e) => {
+    const el = e.target.closest("[data-id]"); if (!el) return;
+    const x = all.find((y) => String(y.id) === el.dataset.id) || hero; opener = el;
+    sheet.innerHTML = `<div class="modal"><div class="top-art"><img src="${esc(x.backdrop)}" alt=""><div class="copy"><h1>${esc(x.title)}</h1><div class="actions"><button class="btn play" data-f>${play}Play</button><button class="btn round" data-f aria-label="Add to My List">${plus}</button></div></div></div>
+      <div class="body"><div><div class="meta">${Math.round(Number(x.rating) * 10)}% Match &nbsp;<span style="color:#bcbcbc;font-weight:500">${esc(x.year)} · HD</span></div>${esc(x.overview)}</div><div><small>Type:</small> ${x.type === "tv" ? "Series" : "Film"}<br><small>Rating:</small> ★ ${esc(x.rating)}</div></div></div>`;
+    sheet.hidden = false; focus(sheet.querySelector("[data-f]"));
+  });
+  document.addEventListener("direction:back", () => { if (!sheet.hidden) { sheet.hidden = true; focus(opener); } });
+  start();
+})();
+</script>
+</body>
+</html>
