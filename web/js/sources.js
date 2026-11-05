@@ -8,7 +8,7 @@
    An item is { id, kind: movie|series|live, title, year, rating, overview,
    poster, backdrop, still, badge, source, category }. */
 
-import { tmdb, img, cleanTitle, norm, yearOf } from "./tmdb.js";
+import { tmdb, img, cleanTitle, norm, yearOf, fromList, displayTitle } from "./tmdb.js";
 // Big Buck Bunny, Blender Foundation (CC BY 3.0) — a public test stream
 const TEST_STREAM = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
@@ -171,14 +171,14 @@ function xtream(cfg) {
       category: lm.get(String(x.category_id)) || "Other", categoryId: String(x.category_id), number: x.num || i + 1, now: "" }));
     const movies = (vs || []).map((x) => {
       const category = vm.get(String(x.category_id)) || "Other";
-      return { id: x.stream_id, kind: "movie", source: "xtream", title: x.name, year: yearOf(x.year || x.releaseDate || x.name), rating: rate(x.rating),
+      return { id: x.stream_id, kind: "movie", source: "xtream", title: displayTitle(x.name), raw: x.name, year: yearOf(x.year || x.releaseDate || x.name), rating: rate(x.rating),
         poster: x.stream_icon || "", backdrop: "", still: "", overview: "", category, categoryId: String(x.category_id), ext: x.container_extension || "mp4",
         added: Number(x.added) || 0, badge: badgeOf(category, "movie"), tmdb: Number(x.tmdb || x.tmdb_id) || 0 };
     });
     const series = (ss || []).map((x) => {
       const category = sm.get(String(x.category_id)) || "Other";
       const bd = Array.isArray(x.backdrop_path) ? x.backdrop_path[0] || "" : "";
-      return { id: x.series_id, kind: "series", source: "xtream", title: x.name, year: yearOf(x.releaseDate || x.name), rating: rate(x.rating),
+      return { id: x.series_id, kind: "series", source: "xtream", title: displayTitle(x.name), raw: x.name, year: yearOf(x.releaseDate || x.name), rating: rate(x.rating),
         poster: x.cover || "", backdrop: bd, still: bd, overview: x.plot || "", category, categoryId: String(x.category_id),
         added: Number(x.last_modified) || 0, badge: badgeOf(category, "series"), tmdb: Number(x.tmdb || x.tmdb_id) || 0 };
     });
@@ -188,6 +188,48 @@ function xtream(cfg) {
   }
   const recent = (items) => items.slice().sort((a, b) => b.added - a.added);
   const withArt = (items) => items.filter((x) => x.poster);
+
+  /* A title TMDB knows, found on this line by its cleaned name and year — or
+     by its original title, so an Egyptian film TMDB lists as "The Cell" is
+     still found when the provider calls it "الخلية". */
+  async function findOnLine(x) {
+    const L = await load();
+    if (!L.index) {
+      L.index = new Map();
+      for (const it of [...L.movies, ...L.series]) {
+        const k = `${it.kind}|${norm(cleanTitle(it.title))}`;
+        if (!L.index.has(k)) L.index.set(k, []);
+        L.index.get(k).push(it);
+      }
+    }
+    const y = Number(x.year);
+    for (const name of [x.title, x.original]) {
+      if (!name) continue;
+      const hits = L.index.get(`${x.kind}|${norm(name)}`) || [];
+      // h.year: inside this function yearOf is the provider's string reader, not the item one
+      const hit = hits.find((h) => !y || !h.year || Math.abs(Number(h.year) - y) <= 1);
+      if (hit) return hit;
+    }
+    return null;
+  }
+
+  /* What the world is watching, kept only where this line has it. TMDB's
+     lists are asked for in English whatever the language setting, because
+     that is what provider titles are written in. */
+  async function onLine(paths, kind) {
+    const seen = new Set(), found = [];
+    for (const [path, q] of paths) {
+      const r = await tmdb(path, q, { lang: false }).catch(() => null);
+      for (const x of r?.results || []) {
+        const t = fromList(x, kind === "series" ? "tv" : kind === "movie" ? "movie" : x.media_type === "tv" ? "tv" : "movie");
+        const hit = await findOnLine(t);
+        if (!hit || seen.has(hit.kind + hit.id)) continue;
+        seen.add(hit.kind + hit.id);
+        found.push({ ...hit, poster: hit.poster || t.poster, rating: hit.rating || t.rating, year: hit.year || t.year });
+      }
+    }
+    return found;
+  }
 
   return {
     kind: "xtream", name: cfg.name || "My IPTV",
@@ -206,13 +248,27 @@ function xtream(cfg) {
         .map(({ c }) => ({ id: `${kind}-${c.category_id}`, type: "posters", title: c.category_name, line: `${kind === "series" ? "Series" : "Films"} from this category on your line.`,
           items: withArt(recent(items.filter((x) => x.categoryId === String(c.category_id)))).slice(0, 30), browse: { kind, category: String(c.category_id) } }));
       const best = withArt(L.movies.filter((x) => Number(x.rating) >= 7)).sort((a, b) => b.added - a.added).slice(0, 10);
+      const [trending, trendingShows, greats, cinemas, arabic] = await Promise.all([
+        onLine([["/trending/movie/week", ""], ["/trending/movie/week", "&page=2"], ["/trending/movie/week", "&page=3"]], "movie"),
+        onLine([["/trending/tv/week", ""], ["/trending/tv/week", "&page=2"], ["/tv/popular", ""]], "series"),
+        onLine([["/movie/top_rated", ""], ["/movie/top_rated", "&page=2"], ["/movie/top_rated", "&page=3"]], "movie"),
+        onLine([["/movie/now_playing", ""], ["/movie/now_playing", "&page=2"], ["/movie/upcoming", ""]], "movie"),
+        onLine([["/discover/movie", "&with_original_language=ar&sort_by=popularity.desc"], ["/discover/tv", "&with_original_language=ar&sort_by=popularity.desc"]], "any"),
+      ]).catch(() => [[], [], [], [], []]);
+      const found = (id, title, line, items, type = "posters") => (items.length >= 4 ? [{ id, type, title, line, items }] : []);
+      const top = trending.length >= 5;
       return {
-        hero: heroPool,
+        hero: top ? [...trending.slice(0, 4), ...heroPool].slice(0, 6) : heroPool,
         sections: [
-          { id: "top10", type: "top10", title: "Top 10 on your line", line: "Highly rated and newly added.", items: best.length >= 5 ? best : films.slice(0, 10) },
+          top ? { id: "top10", type: "top10", title: "Top 10 on your line this week", line: "What the world is watching — only what your line has.", items: trending.slice(0, 10) }
+              : { id: "top10", type: "top10", title: "Top 10 on your line", line: "Highly rated and newly added.", items: best.length >= 5 ? best : films.slice(0, 10) },
+          ...found("trending-series", "Trending series on your line", "This week's most watched series that your line carries.", trendingShows),
           { id: "new-films", type: "posters", title: "Recently added films", line: "The newest films on your line.", items: films.slice(0, 30), browse: { kind: "movie" } },
           { id: "new-series", type: "posters", title: "Recently updated series", line: "Series with new episodes.", items: shows.slice(0, 30), browse: { kind: "series" } },
           { id: "live", type: "live", title: "Live now", line: "Channels on your line.", items: L.live.slice(0, 16) },
+          ...found("cinemas", "New in cinemas, on your line", "Recent releases your line already has.", cinemas),
+          ...found("arabic-hits", "Arabic hits on your line", "The most watched Arabic films and series that your line carries.", arabic),
+          ...found("greats", "All-time greats on your line", "The highest rated films ever made, ready to play.", greats),
           ...bigCats(L.vc, L.vcount, L.movies, "movie", 4),
           ...bigCats(L.sc, L.scount, L.series, "series", 3),
         ],
@@ -279,21 +335,7 @@ function xtream(cfg) {
     /* A title TMDB knows — a recommendation, a film an actor was in — found on
        this line, by its cleaned name and year. Null when the line does not
        have it, so the screen can say so instead of offering Play. */
-    async locate(x) {
-      const L = await load();
-      if (!L.index) {
-        L.index = new Map();
-        for (const it of [...L.movies, ...L.series]) {
-          const k = `${it.kind}|${norm(cleanTitle(it.title))}`;
-          if (!L.index.has(k)) L.index.set(k, []);
-          L.index.get(k).push(it);
-        }
-      }
-      const hits = L.index.get(`${x.kind}|${norm(x.title)}`) || [];
-      if (!hits.length) return null;
-      const y = Number(x.year);
-      return hits.find((h) => !y || !yearOf(h) || Math.abs(Number(yearOf(h)) - y) <= 1) || null;
-    },
+    locate: (x) => findOnLine(x),
     stream(item, episode) {
       if (item.kind === "live") return { url: `${server}/live/${u}/${p}/${item.id}.m3u8`, hls: true, proxied: true, live: true };
       if (episode) return { url: `${server}/series/${u}/${p}/${episode.id}.${episode.ext || "mp4"}`, hls: false };

@@ -52,6 +52,20 @@ export function cleanTitle(name, { keepPrefix = false } = {}) {
     .replace(/[_.]+/g, " ").replace(/\s{2,}/g, " ").trim()
     .replace(/\s+\b((?:19|20)\d{2})\b$/, (m, y) => (Number(y) <= new Date().getFullYear() + 2 ? "" : m)).trim();
 }
+/* The name to show on a card. Stricter than cleanTitle(): only an all-capitals
+   tag comes off the front ("EN|", "AR-OSN-", "|AR|", "4K -"), so a title that
+   genuinely starts "Troy: " keeps it, and the year and quality flags go,
+   because the line under the poster already says the year. */
+const SHOUTED_TAG = /^\s*[\[|(]?\s*[A-Z0-9]{2,4}\s*[\]|)]?\s*[|:\-–]\s*/u;
+export function displayTitle(name) {
+  let s = String(name || "");
+  for (let i = 0; i < 3 && SHOUTED_TAG.test(s); i++) s = s.replace(SHOUTED_TAG, "");
+  s = s.replace(/\s*[(\[]\s*(?:19|20)\d{2}\s*[)\]]\s*$/, "")
+    .replace(/\s+\b(4k|uhd|fhd|hd|sd|hevc|multi|vostfr)\b\s*$/gi, "")
+    .replace(/\s{2,}/g, " ").trim();
+  return s || String(name || "").trim();
+}
+
 export function yearOf(item) {
   if (item.year) return String(item.year);
   const limit = new Date().getFullYear() + 2;
@@ -117,7 +131,7 @@ export function fromList(x, forcedType) {
   const type = forcedType || (x.media_type === "tv" ? "tv" : "movie");
   return {
     id: x.id, kind: type === "tv" ? "series" : "movie", source: "demo", tmdbOnly: true,
-    title: x.title || x.name || "", year: String(x.release_date || x.first_air_date || "").slice(0, 4),
+    title: x.title || x.name || "", original: x.original_title || x.original_name || "", year: String(x.release_date || x.first_air_date || "").slice(0, 4),
     rating: x.vote_average ? x.vote_average.toFixed(1) : "", overview: x.overview || "",
     poster: img("w342", x.poster_path), backdrop: img("w1280", x.backdrop_path), still: img("w780", x.backdrop_path),
   };
