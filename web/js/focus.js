@@ -255,6 +255,27 @@ document.addEventListener("keydown", (e) => {
   }
 }, true);
 
+/* A mouse wheel or a trackpad moves the focus as the arrows do, one step per
+   notch: on a laptop people scroll before they reach for the keys, and a page
+   that ignores it feels broken. Small trackpad deltas add up to a step. */
+let wheelX = 0, wheelY = 0, lastWheel = 0;
+document.addEventListener("wheel", (e) => {
+  if (e.ctrlKey) return;                         // pinch zoom stays the browser's
+  e.preventDefault();
+  wheelX += e.deltaX; wheelY += e.deltaY;
+  const now = performance.now();
+  if (now - lastWheel < 90) return;
+  const STEP = 40;
+  let key = null;
+  if (Math.abs(wheelY) >= STEP && Math.abs(wheelY) >= Math.abs(wheelX)) key = wheelY > 0 ? "ArrowDown" : "ArrowUp";
+  else if (Math.abs(wheelX) >= STEP) key = wheelX > 0 ? "ArrowRight" : "ArrowLeft";
+  if (!key) return;
+  wheelX = 0; wheelY = 0; lastWheel = now;
+  const own = document.activeElement?.closest("[data-keys-own]");
+  if (own && own.dispatchEvent(new CustomEvent("own:key", { detail: key, cancelable: true })) === false) return;
+  move(key);
+}, { passive: false });
+
 document.addEventListener("keyup", (e) => {
   if (e.key !== "Enter" || isTyping()) return;
   const el = document.activeElement;

@@ -64,6 +64,10 @@ img { display: block; }
 
 .stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; background: var(--bg); overflow: hidden; transition: background .3s; }
 #app { position: absolute; inset: 0; }
+/* every screen is drawn into these, so they have to be the screen's size:
+   with no height of their own, "100%" inside them meant "as tall as the
+   content", and Live TV's lists ran off the bottom without ever moving */
+#screen, .screen-root { position: absolute; inset: 0; }
 
 /* ---------- the tab bar ---------- */
 .bar { position: absolute; z-index: 30; left: 0; right: 0; top: 0; height: 168px; padding: 0 var(--safe-x); display: flex; align-items: center; gap: 40px;
@@ -251,8 +255,11 @@ section.block { padding-bottom: 64px; }
 .episode .ep { position: absolute; z-index: 2; left: 14px; bottom: 14px; font: 700 var(--t-min) var(--mono); padding: 4px 12px; border-radius: 8px; background: rgba(0,0,0,.72); }
 
 /* ---------- Live TV ---------- */
-.live-page { display: grid; grid-template-columns: 420px 760px 1fr; gap: 40px; padding: 176px var(--safe-x) var(--safe-y); height: 100%; }
-.list { position: relative; overflow: hidden; }
+.live-page { display: grid; grid-template-columns: 420px 760px 1fr; gap: 40px; padding: 176px var(--safe-x) var(--safe-y); height: 100%;
+  /* one row, the height of the screen: without it the lists grew to fit every
+     category, believed they had nothing to scroll, and ran off the bottom */
+  grid-template-rows: minmax(0, 1fr); }
+.list { position: relative; overflow: hidden; min-height: 0; height: 100%; }
 .list .track { flex-direction: column; gap: 10px; padding: 8px 6px; width: auto; }
 .cat-item { height: 76px; padding: 0 28px; border-radius: 18px; display: flex; align-items: center; justify-content: space-between; font-size: var(--t-callout); font-weight: 600; color: var(--text-2); transition: transform var(--dur) var(--ease); }
 .cat-item.on { color: var(--text); background: var(--surface); }
