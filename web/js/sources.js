@@ -16,7 +16,16 @@ const cache = new Map();
 async function getJson(url) {
   if (cache.has(url)) return cache.get(url);
   const p = fetch(url).then(async (r) => {
-    if (!r.ok) throw new Error(`${r.status} from ${new URL(url, location.href).hostname}`);
+    if (!r.ok) {
+      /* say what the provider said, not where the proxy is: a provider's
+         refusal arrived as "401 from localhost" */
+      const body = await r.text().catch(() => "");
+      let said = "";
+      try { const j = JSON.parse(body); said = j.message || j.error || ""; } catch { said = body.slice(0, 120); }
+      const who = url.startsWith("/api/proxy") ? "Your provider" : new URL(url, location.href).hostname;
+      if (r.status === 401 || r.status === 403) throw new Error(`${who} refused the login${said ? `: “${said}”` : ""}. Check the username and password — the password is easy to mistype behind the dots.`);
+      throw new Error(`${who} answered ${r.status}${said ? `: “${said}”` : ""}`);
+    }
     return r.json();
   });
   cache.set(url, p);
