@@ -365,45 +365,51 @@ async function renderLive(el) {
 }
 
 // ============================== Search ==============================
+/* A real text box, not a grid of letters on the page: a television already has
+   its own keyboard (and a laptop has one under your hands), and a second one
+   drawn on the screen only takes the room the results should have. */
 const searchState = { query: "", type: () => {} };
 
 async function renderSearch(el) {
-  const keys = [..."abcdefghijklmnopqrstuvwxyz1234567890"];
   el.innerHTML = `<div class="search-page">
-    <div><div class="query">${U.icons.search}<span class="q" data-placeholder="Search films and series"></span><span class="caret"></span></div>
-      <div class="keys" data-zone="keys">${keys.map((k, i) => `<button class="key" data-f data-key="key:${k}" ${i === 0 ? "data-start" : ""}>${k}</button>`).join("")}
-        <button class="key wide2" data-f data-key="key:space">space</button><button class="key wide2" data-f data-key="key:del">⌫ delete</button><button class="key wide2" data-f data-key="key:clear">clear</button></div>
-      <div class="search-hint">Or just type on your keyboard. Backspace deletes; Escape goes back.</div></div>
+    <label class="query">${U.icons.search}<input type="search" data-f data-start data-key="search:box" placeholder="Search films and series" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></label>
     <div class="results" data-page data-anchor="0"><div class="scroller"><section data-section><div class="head"><div><h2>Top searches</h2><p>What people are looking for right now.</p></div></div>
       <div class="grid" data-zone="grid"></div></section></div></div></div>`;
-  const q = el.querySelector(".q"), grid = el.querySelector(".results .grid"), head = el.querySelector(".results .head");
+  const box = el.querySelector(".query input"), grid = el.querySelector(".results .grid"), head = el.querySelector(".results .head");
   let timer, seq = 0;
   const suggestions = (await source.home().catch(() => ({ sections: [] }))).sections.find((s) => s.type === "posters")?.items || [];
   const fill = (items, title, line) => {
     head.innerHTML = `<div><h2>${esc(title)}</h2><p>${esc(line)}</p></div>`;
     grid.innerHTML = items.length ? items.map((x) => P(x, "search")).join("") : `<div class="empty" style="padding:30px 0"><p>Nothing matches “${esc(searchState.query)}”. Try fewer letters.</p></div>`;
   };
-  fill(suggestions.slice(0, 16), "Top searches", "What people are looking for right now.");
-  searchState.query = "";
-  searchState.type = (ch) => {
-    if (ch === null) searchState.query = searchState.query.slice(0, -1);
-    else if (ch === "") searchState.query = "";
-    else searchState.query = (searchState.query + ch).slice(0, 40);
-    q.textContent = searchState.query;
+  fill(suggestions.slice(0, 18), "Top searches", "What people are looking for right now.");
+  const run = () => {
+    searchState.query = box.value.slice(0, 40);
     clearTimeout(timer);
     const mine = ++seq;
-    if (!searchState.query.trim()) { fill(suggestions.slice(0, 16), "Top searches", "What people are looking for right now."); return; }
+    if (!searchState.query.trim()) { fill(suggestions.slice(0, 18), "Top searches", "What people are looking for right now."); return; }
     timer = setTimeout(async () => {
       const r = await source.search(searchState.query).catch(() => []);
       if (mine !== seq) return;
       fill(r, `Results for “${searchState.query}”`, `${r.length} title${r.length === 1 ? "" : "s"}`);
     }, 260);
   };
-  for (const k of keys) on(`key:${k}`, () => searchState.type(k));
-  on("key:space", () => searchState.type(" "));
-  on("key:del", () => searchState.type(null));
-  on("key:clear", () => searchState.type(""));
-  return { cleanup: () => { searchState.type = () => {}; searchState.query = ""; } };
+  box.addEventListener("input", run);
+  // landing on the box is asking to type in it; Escape closes it, OK opens it again
+  const open = () => { box.readOnly = false; box.focus(); };
+  box.addEventListener("focus", () => { box.readOnly = false; });
+  on("search:box", open);
+  // OK on the keyboard sends you to what was found
+  box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); const first = grid.querySelector("[data-f]"); if (first) F.focus(first); } });
+  searchState.query = "";
+  // a letter typed while the remote is down in the results goes into the box
+  searchState.type = (ch) => {
+    if (ch === null) box.value = box.value.slice(0, -1);
+    else if (ch === "") box.value = "";
+    else box.value = (box.value + ch).slice(0, 40);
+    open(); run();
+  };
+  return { cleanup: () => { clearTimeout(timer); searchState.type = () => {}; searchState.query = ""; } };
 }
 
 // typing anywhere searches: a letter on any screen opens Search with it

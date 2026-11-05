@@ -285,21 +285,15 @@ section.block { padding-bottom: 64px; }
 .preview p { margin: 0 0 30px; font-size: var(--t-body); color: var(--text-2); }
 
 /* ---------- Search ---------- */
-.search-page { display: grid; grid-template-columns: 560px 1fr; gap: 40px; padding: 176px var(--safe-x) 0; height: 100%; }
-.query { height: 96px; border-radius: 24px; background: var(--surface); border: 1px solid var(--line); display: flex; align-items: center; gap: 18px; padding: 0 28px; font-size: 40px; font-weight: 700; margin-bottom: 26px; }
+.search-page { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 30px; padding: 176px var(--safe-x) 0; height: 100%; }
+.query { height: 96px; max-width: 1100px; border-radius: 24px; background: var(--surface); border: 2px solid var(--line); display: flex; align-items: center; gap: 18px; padding: 0 28px; transition: transform var(--dur) var(--ease); }
 .query svg { width: 36px; height: 36px; color: var(--text-3); flex: 0 0 auto; }
-.query .q { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.query .q:empty::before { content: attr(data-placeholder); color: var(--text-3); font-weight: 600; }
-.query .caret { width: 3px; height: 46px; background: var(--accent); animation: blink 1s steps(2) infinite; }
-@keyframes blink { 50% { opacity: 0; } }
-.keys { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
-.key { height: 80px; border-radius: 16px; background: var(--surface); display: grid; place-items: center; font-size: 32px; font-weight: 700; transition: transform var(--dur) var(--ease); }
-.key.wide2 { grid-column: span 2; font-size: var(--t-callout); }
-.key.wide3 { grid-column: span 3; font-size: var(--t-callout); }
-.key:focus { background: #fff; color: #000; transform: scale(1.1); }
-.search-hint { margin-top: 26px; font-size: var(--t-min); color: var(--text-3); line-height: 1.5; }
+.query input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; font-size: 40px; font-weight: 700; }
+.query input::placeholder { color: var(--text-3); font-weight: 600; }
+.query input::-webkit-search-cancel-button { display: none; }
+.query:focus-within { border-color: var(--accent); background: var(--surface-2); transform: scale(1.02); }
 .results { position: relative; overflow: hidden; height: 100%; }
-.results .grid { grid-template-columns: repeat(4, 260px); padding: 4px 0 120px 6px; }
+.results .grid { grid-template-columns: repeat(6, 260px); padding: 4px 0 120px 6px; }
 .results .head { padding: 0 0 0 6px; }
 
 /* ---------- Settings ---------- */
