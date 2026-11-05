@@ -292,9 +292,11 @@ section.block { padding-bottom: 64px; }
 .query input::placeholder { color: var(--text-3); font-weight: 600; }
 .query input::-webkit-search-cancel-button { display: none; }
 .query:focus-within { border-color: var(--accent); background: var(--surface-2); transform: scale(1.02); }
-.results { position: relative; overflow: hidden; height: 100%; }
-.results .grid { grid-template-columns: repeat(6, 260px); padding: 4px 0 120px 6px; }
-.results .head { padding: 0 0 0 6px; }
+/* the results run to the screen's edges, so a focused poster — which grows and
+   lifts — has the full safe margin to grow into instead of being cut off */
+.results { position: relative; overflow: hidden; height: 100%; margin: 0 calc(-1 * var(--safe-x)); }
+.results .grid { grid-template-columns: repeat(6, 260px); padding: 46px var(--safe-x) 120px; }
+.results .head { padding: 0 var(--safe-x); }
 
 /* ---------- Settings ---------- */
 .settings { display: grid; grid-template-columns: 460px 1fr; gap: 60px; padding: 176px var(--safe-x) 0; }
