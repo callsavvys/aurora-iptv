@@ -1,0 +1,4 @@
+# Every versionCode built for sideloading on the real TV, oldest first. One per line:
+# <version> <interface> [trace] <date>. build-android.sh refuses a code at or below the
+# last one here, and appends each new test build. Codes stay below the next release.
+0.38.90 web trace 2026-11-05

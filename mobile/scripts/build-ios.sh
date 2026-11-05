@@ -9,10 +9,10 @@ VERSION="$(node -p 'require("../package.json").version')"
 
 echo "Staging web assets for Aurora $VERSION"
 rm -rf www && cp -R ../app www
-cp platform/platform-native.js platform/mobile.css www/
-sed -i '' "s/__AURORA_VERSION__/$VERSION/" www/platform-native.js
-# the renderer is loaded by the platform shim once window.aurora exists
-sed -i '' 's#<script src="renderer.js"></script>#<script src="platform-native.js"></script>#' www/index.html
+cp platform/platform-core.js platform/platform-boot-app.js platform/mobile.css www/
+sed -i '' "s/__AURORA_VERSION__/$VERSION/" www/platform-core.js
+# the renderer is loaded by platform-boot-app.js once window.aurora exists
+sed -i '' 's#<script src="renderer.js"></script>#<script src="platform-core.js"></script><script src="platform-boot-app.js"></script>#' www/index.html
 sed -i '' 's#<link rel="stylesheet" href="series.css" />#<link rel="stylesheet" href="series.css" />\n  <link rel="stylesheet" href="mobile.css" />#' www/index.html
 sed -i '' 's#content="width=device-width,initial-scale=1"#content="width=device-width,initial-scale=1,viewport-fit=cover"#' www/index.html
 # the desktop placeholder is cut off at phone width
@@ -20,7 +20,7 @@ sed -i '' 's#placeholder="Search channels, movies and series"#placeholder="Searc
 # "Normal" does not fit the phone's speed control
 sed -i '' 's#<option value="1" selected>Normal</option>#<option value="1" selected>1\&times;</option>#' www/index.html
 sed -i '' 's#Stored only on this Mac and sent directly#Stored only on this iPhone and sent directly#' www/index.html
-grep -q 'platform-native.js' www/index.html || { echo "shim was not injected"; exit 1; }
+grep -q 'platform-core.js' www/index.html && grep -q 'platform-boot-app.js' www/index.html || { echo "shim was not injected"; exit 1; }
 grep -q 'mobile.css' www/index.html || { echo "mobile.css was not injected"; exit 1; }
 
 [ -d ios ] || npx cap add ios

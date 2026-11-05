@@ -7,14 +7,17 @@
   "scripts": {
     "start": "electron .",
     "package:mac": "bash scripts/build-mac.sh",
-    "test": "electron tests/local-sync.cjs && electron tests/signed-in.cjs && electron tests/tv-nav.cjs && electron tests/together.cjs && electron tests/cliffhanger.cjs && node tests/update-notice.cjs && electron tests/billboard.cjs && node tests/tv-scale.cjs && node tests/tv-chrome.cjs && electron tests/tv-sweep.cjs --strict",
+    "test": "electron tests/local-sync.cjs && electron tests/signed-in.cjs && electron tests/tv-nav.cjs && electron tests/together.cjs && electron tests/cliffhanger.cjs && node tests/update-notice.cjs && node tests/platform-core.cjs && electron tests/web-boot.cjs && node tests/tv-build.cjs && electron tests/billboard.cjs && node tests/tv-scale.cjs && node tests/tv-chrome.cjs && electron tests/tv-sweep.cjs --strict",
     "test:party": "electron tests/party-live.cjs",
     "test:sync": "bash tests/two-devices.sh",
     "test:updater": "electron tests/updater-app",
     "test:signed-in": "electron tests/signed-in.cjs",
     "package:tv": "bash mobile/scripts/build-android.sh",
     "tv": "electron scripts/tv-preview.cjs",
-    "web": "node web/server.cjs"
+    "web": "node web/server.cjs",
+    "test:tv:web": "node tests/platform-core.cjs && electron tests/web-boot.cjs && node tests/tv-build.cjs",
+    "test:tv:app": "electron tests/tv-nav.cjs && node tests/tv-scale.cjs && node tests/tv-chrome.cjs && electron tests/tv-sweep.cjs --strict",
+    "tv:web": "AURORA_STAGE_ONLY=1 AURORA_TV_UI=web bash mobile/scripts/build-android.sh && electron scripts/tv-preview.cjs"
   },
   "dependencies": {
     "hls.js": "^1.6.13"

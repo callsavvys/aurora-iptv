@@ -9,6 +9,7 @@ import * as F from "./focus.js";
 import { prefs, myList, progress, slim } from "./store.js";
 import { makeSource, testXtream } from "./sources.js";
 import * as U from "./ui.js";
+import * as Plat from "./platform.js";
 import { enrich, seasonEpisodes, collection, person as tmdbPerson, scores, norm, cleanTitle } from "./tmdb.js";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -100,9 +101,12 @@ function back(key) {
   // at the root of a tab: Back goes Home, and from Home to the tab bar
   if (stack[0]?.name !== "home") return go("home", {}, { root: true });
   if (!bar.contains(document.activeElement)) { F.focus(bar.querySelector(".tab.on")); return; }
+  if (Plat.native) return false;   // the remote's Back from Home leaves the app
   toast("You're at the start — that's as far back as it goes");
 }
 F.setBackHandler(back);
+// the television's Back button: true when the app used the press
+Plat.onBack(() => back("Back") !== false);
 
 async function show(entry, { focus = "content", key = null } = {}) {
   const token = ++renderToken;
@@ -780,7 +784,7 @@ async function attach(video, stream, { muted = false, startAt = 0 } = {}) {
     if (Hls?.isSupported()) {
       const hls = new Hls({
         enableWorker: true, lowLatencyMode: false, startPosition: startAt || -1,
-        ...(stream.proxied ? { xhrSetup: (xhr, url) => xhr.open("GET", `/api/proxy?u=${encodeURIComponent(url)}`, true) } : {}),
+        ...(stream.proxied && !Plat.native ? { xhrSetup: (xhr, url) => xhr.open("GET", Plat.streamUrl(url), true) } : {}),
       });
       hls.loadSource(stream.url); hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
