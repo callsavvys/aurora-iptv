@@ -56,14 +56,37 @@ export function cleanTitle(name, { keepPrefix = false } = {}) {
    tag comes off the front ("EN|", "AR-OSN-", "|AR|", "4K -"), so a title that
    genuinely starts "Troy: " keeps it, and the year and quality flags go,
    because the line under the poster already says the year. */
-const SHOUTED_TAG = /^\s*[\[|(]?\s*[A-Z0-9]{2,4}\s*[\]|)]?\s*[|:\-–]\s*/u;
+/* What real lines put in front of a name: "EN|", "AR-OSN-", "MULTI-SUB |",
+   "D+ -", "4k |", "NF:". An all-capitals token (letters, digits, "+", one
+   hyphenated part) or a quality flag, then a separator. "Troy: The Odyssey"
+   and "MAD MAX: Fury Road" do not fit it and keep their names. */
+const SHOUTED_TAG = /^\s*[\[|(]?\s*(?:[A-Z0-9+]{1,6}(?:-[A-Z0-9+]{2,6})?|4k|8k|uhd|fhd|hd|hevc)\s*[\]|)]?\s*[|:\-–]\s*/u;
+const INVISIBLE = /[\u200B-\u200F\u2060\uFEFF]/g;
 export function displayTitle(name) {
-  let s = String(name || "");
+  let s = String(name || "").replace(INVISIBLE, "");
   for (let i = 0; i < 3 && SHOUTED_TAG.test(s); i++) s = s.replace(SHOUTED_TAG, "");
   s = s.replace(/\s*[(\[]\s*(?:19|20)\d{2}\s*[)\]]\s*$/, "")
     .replace(/\s+\b(4k|uhd|fhd|hd|sd|hevc|multi|vostfr)\b\s*$/gi, "")
+    .replace(/(\w)_\s/g, "$1: ")          // "Fall 2_ Deadpoint": the colon a filename could not hold
     .replace(/\s{2,}/g, " ").trim();
-  return s || String(name || "").trim();
+  return s || String(name || "").replace(INVISIBLE, "").trim();
+}
+
+/* A provider's category name, without its decoration — the Mac app's
+   tidyCategory: symbols and emoji off, "|" and "/" as a dot, and a leading
+   language code dropped unless it is doing real work ("TV", "HBO", "4K"). */
+// and superscripts too (\u2070-\u209F): a line writes "4K | ENGLISH ⁴↑"
+const CATEGORY_FURNITURE = /[\u2000-\u209F\u2190-\u2BFF\uFE00-\uFE0F]|[\u{1F000}-\u{1FAFF}]/gu;
+export function tidyCategory(name) {
+  const raw = String(name || "").trim();
+  let text = raw.replace(CATEGORY_FURNITURE, " ").replace(/\s*[|/]\s*/g, " \u00b7 ").replace(/\s{2,}/g, " ").trim();
+  const KEEP = new Set(["TV", "HD", "4K", "ON", "MY", "NEW", "TOP", "OLD", "HBO"]);
+  const words = text.split(" ");
+  const lead = words[0] || "";
+  const coded = /^[a-z]{2,3}$/i.test(lead) || /^[a-z]{2,3}[-:]$/i.test(lead);
+  if (words.length > 1 && coded && !KEEP.has(lead.replace(/[-:]$/, "").toUpperCase())) text = words.slice(1).join(" ");
+  text = text.replace(/^[-:\s]+/, "").replace(/^[\s\u00b7-]+/, "").replace(/[\s\u00b7-]+$/, "").trim();
+  return text || raw;
 }
 
 export function yearOf(item) {

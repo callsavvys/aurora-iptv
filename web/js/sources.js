@@ -8,7 +8,7 @@
    An item is { id, kind: movie|series|live, title, year, rating, overview,
    poster, backdrop, still, badge, source, category }. */
 
-import { tmdb, img, cleanTitle, norm, yearOf, fromList, displayTitle } from "./tmdb.js";
+import { tmdb, img, cleanTitle, norm, yearOf, fromList, displayTitle, tidyCategory } from "./tmdb.js";
 // Big Buck Bunny, Blender Foundation (CC BY 3.0) — a public test stream
 const TEST_STREAM = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
@@ -174,6 +174,7 @@ function xtream(cfg) {
     const [vc, vs] = await step(`Loading films… (${(ls || []).length.toLocaleString()} channels ready)`, Promise.all([api("get_vod_categories"), api("get_vod_streams")]));
     const [sc, ss] = await step(`Loading series… (${((ls || []).length + (vs || []).length).toLocaleString()} items ready)`, Promise.all([api("get_series_categories"), api("get_series")]));
     say(`Arranging ${((ls || []).length + (vs || []).length + (ss || []).length).toLocaleString()} items…`);
+    for (const list of [lc, vc, sc]) for (const c of list || []) { c.raw_name = c.category_name; c.category_name = tidyCategory(c.category_name); }
     const names = (cats) => new Map((cats || []).map((c) => [String(c.category_id), c.category_name]));
     const lm = names(lc), vm = names(vc), sm = names(sc);
     const live = (ls || []).map((x, i) => ({ id: x.stream_id, kind: "live", source: "xtream", title: x.name, poster: x.stream_icon || "", badge: "live",
