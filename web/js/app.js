@@ -17,9 +17,14 @@ const stage = $(".stage"), screenEl = $("#screen"), bar = $(".bar");
 const esc = U.esc;
 
 // ---------- the stage: 1920x1080, scaled to the window ----------
+/* The window's real size is clientWidth/clientHeight. innerWidth is not: an
+   Android TV WebView grows it to fit the 1920-wide stage itself (a 960x540
+   screen reported 1920x1080), so scaling by it drew the stage at twice the
+   size with three quarters of it off the screen. */
 function fit() {
-  const s = Math.min(innerWidth / 1920, innerHeight / 1080);
-  stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px, ${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+  const w = document.documentElement.clientWidth, h = document.documentElement.clientHeight;
+  const s = Math.min(w / 1920, h / 1080);
+  stage.style.transform = `translate(${(w - 1920 * s) / 2}px, ${(h - 1080 * s) / 2}px) scale(${s})`;
   F.setScale(s);
 }
 addEventListener("resize", fit); fit();

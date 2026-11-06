@@ -79,6 +79,9 @@ const STUB = `(() => {
     check("it opens the line the old app was playing, straight out (no /api/proxy)", await js(`(() => { const f = window.__fetched; return [f.some((u) => u.startsWith("http://line.invalid:8080/player_api.php?username=alice")), f.some((u) => u.includes("/api/proxy"))]; })()`), [true, false]);
     check("it never writes the old app's keys", await js(`window.__sets.filter((k) => k === "prefs" || k === "secrets" || k.endsWith(".locked"))`), []);
     check("the screen shows the provider's failure without the password", await js(`document.body.innerText.includes("s3cret")`), false);
+    check("the 1920x1080 stage is drawn at half size in a 960x540 window", await js(`document.querySelector(".stage").style.transform.includes("scale(0.5)")`), true);
+    // A TV WebView inflated innerWidth to 1920 on a 960x540 screen: fake that and the stage must still fit.
+    check("…even when the WebView reports innerWidth 1920", await js(`(() => { Object.defineProperty(window, "innerWidth", { get: () => 1920, configurable: true }); Object.defineProperty(window, "innerHeight", { get: () => 1080, configurable: true }); dispatchEvent(new Event("resize")); return document.querySelector(".stage").style.transform.includes("scale(0.5)"); })()`), true);
 
     console.log("— the remote's Back —");
     await js(`document.querySelector(".bar .tab")?.focus(); true`);

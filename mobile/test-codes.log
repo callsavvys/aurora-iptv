@@ -2,3 +2,4 @@
 # <version> <interface> [trace] <date>. build-android.sh refuses a code at or below the
 # last one here, and appends each new test build. Codes stay below the next release.
 0.38.90 web trace 2026-11-05
+0.38.91 web trace 2026-11-05

@@ -135,7 +135,9 @@ function preferredIn(zone, fallback) {
 }
 function onScreen(el) {
   const r = el.getBoundingClientRect();
-  return r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight;
+  // the real window, not innerWidth, which a TV WebView inflates (see fit() in app.js)
+  const root = document.documentElement;
+  return r.right > 0 && r.left < root.clientWidth && r.bottom > 0 && r.top < root.clientHeight;
 }
 
 export function move(key) {
