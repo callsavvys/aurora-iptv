@@ -10,6 +10,9 @@ VERSION="$(node -p 'require("../package.json").version')"
 echo "Staging web assets for Aurora $VERSION"
 rm -rf www && cp -R ../app www
 cp platform/platform-core.js platform/platform-boot-app.js platform/mobile.css www/
+# the record rules shared with web/ (the Mac app's server serves it from web/js)
+cp ../web/js/sync-core.js www/
+grep -q 'src="sync-core.js"' www/index.html || { echo "sync-core.js was not staged"; exit 1; }
 sed -i '' "s/__AURORA_VERSION__/$VERSION/" www/platform-core.js
 # the renderer is loaded by platform-boot-app.js once window.aurora exists
 sed -i '' 's#<script src="renderer.js"></script>#<script src="platform-core.js"></script><script src="platform-boot-app.js"></script>#' www/index.html
