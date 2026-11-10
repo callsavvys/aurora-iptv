@@ -1,11 +1,13 @@
-/* What the web version remembers, in this browser only: your list, how far
-   you got in things, how it looks, and which source it reads from. A source
-   is a login, so the Xtream password is kept here too — this is a local test
-   build on your own machine, not something to deploy as it is. */
-const KEY = "aurora-web";
-const read = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
-let data = read();
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch { /* private mode: it still works, it just forgets */ } };
+/* What the web version remembers: your list, how far you got in things, how it
+   looks, and which source it reads from. Where it is kept is platform.js's
+   business: localStorage in a browser, the system's own storage on the
+   television (under this build's own key, never the old app's). A source is a
+   login, so the Xtream password is kept here too. */
+import { storage, STORE_KEY, legacySource } from "./platform.js";
+
+let data = storage.get(STORE_KEY) || {};
+/* private mode, a read-only start, a refused write: it still works, it just forgets */
+const save = () => { storage.set(STORE_KEY, data).catch(() => {}); };
 
 export const prefs = {
   get theme() { return data.theme || "teal"; },
@@ -14,7 +16,8 @@ export const prefs = {
   set motion(v) { data.motion = v; save(); },
   get titles() { return data.titles !== false; },
   set titles(v) { data.titles = v; save(); },
-  get source() { return data.source || { kind: "demo" }; },
+  // on the television, the line the old app was playing until one is chosen here
+  get source() { return data.source || legacySource() || { kind: "demo" }; },
   set source(v) { data.source = v; save(); },
   // the language TMDB answers in, for titles and plots; the country whose age
   // ratings and streaming services are shown

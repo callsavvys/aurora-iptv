@@ -6,12 +6,12 @@
 //   node tests/update-notice.cjs
 const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const ROOT = path.resolve(__dirname, "..");
-const SHIM = fs.readFileSync(path.join(ROOT, "mobile/platform/platform-native.js"), "utf8");
+const SHIM = fs.readFileSync(path.join(ROOT, "mobile/platform/platform-core.js"), "utf8");
 
 const VERSION = "0.31.0";
 const between = (from, to) => {
   const a = SHIM.indexOf(from), b = SHIM.indexOf(to);
-  if (a < 0 || b < 0 || b <= a) throw new Error(`platform-native.js no longer has the block from "${from}"`);
+  if (a < 0 || b < 0 || b <= a) throw new Error(`platform-core.js no longer has the block from "${from}"`);
   return SHIM.slice(a, b);
 };
 const SOURCE = (between("const newer =", "async function latestRelease") +

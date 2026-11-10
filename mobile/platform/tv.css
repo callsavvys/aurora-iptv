@@ -158,25 +158,49 @@
 .platform-tv .modal-card { font-size: 28px; }
 .platform-tv .modal-card h2 { font-size: 44px; }
 .platform-tv .modal-card input { height: 56px; font-size: 32px; }
+
+/* Connect a source, the first thing a new television shows.
+   The card kept its desktop width of 550px — 275dp — while its fields grew to
+   a readable size, and an input that is not told its width keeps the
+   browser's own, about twenty characters of whatever size its text is. Two of
+   those side by side are wider than the card, and a 1fr grid will not squeeze
+   an item below its own minimum, so the fields and the button ran straight out
+   of the right-hand side. Meanwhile the labels, the line under the title and
+   the note at the bottom are styled only for the Mac, so they stayed at 11px,
+   15px and 9px: 5.5sp, 7.5sp and 4.5sp on a television. */
+.platform-tv .source-modal-card { width: min(900px, calc(100% - 176px)); padding: 48px 52px 40px; }
+.platform-tv .source-modal-card h2 { font-size: 56px; margin: 0 0 12px; }
+.platform-tv .source-modal-card > p { font-size: 28px; margin: 0 0 36px; }
+.platform-tv .source-modal-card form { gap: 24px; }
+.platform-tv .source-modal-card label { gap: 10px; font-size: 24px; min-width: 0; }
+.platform-tv .source-modal-card input { width: 100%; min-width: 0; height: 72px; padding: 0 22px; font-size: 32px; border-radius: 14px; }
+.platform-tv .source-modal-card .form-grid { gap: 20px; }
+.platform-tv .source-modal-card .submit { height: 76px; font-size: 32px; margin-top: 8px; border-radius: 16px; }
+.platform-tv .source-modal-card .form-error { font-size: 24px; padding: 16px 20px; }
+.platform-tv .source-modal-card .privacy { font-size: 22px; margin-top: 28px; }
+.platform-tv .source-modal-card .close { right: 28px; top: 24px; font-size: 44px; }
 .platform-tv .toast { font-size: 32px; padding: 16px 24px; }
 
 /* ---- 720p ----
    Same layout, dialled back: at 1280x720 the figures above eat the screen. */
-@media (max-width: 1500px) {
-  .platform-tv .app { grid-template-columns: 248px minmax(0, 1fr); }
-  .platform-tv body { font-size: 28px; }
-  .platform-tv .brand { font-size: 40px; }
-  .platform-tv aside nav button { height: 50px; font-size: 28px; }
-  .platform-tv .workspace > header { height: 82px; flex: 0 0 82px; padding: 0 28px; }
-  .platform-tv .page { padding: 30px 30px 48px; }
-  .platform-tv .page-title h1 { font-size: 48px; }
-  .platform-tv .grid,
-  .platform-tv .vgrid-inner { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px 18px; }
-  .platform-tv .ghost { min-width: 56px; height: 56px; }
-  .platform-tv .ghost .icon { width: 28px; height: 28px; }
-  .platform-tv .chrome-bottom { padding: 48px 28px 24px; }
-  .platform-tv .now strong { font-size: 32px; }
-}
+/* This block was `@media (max-width: 1500px)`. The page is laid out at 1920
+   and zoomed to fit, but a media query measures the viewport, which on every
+   television is 960 — so it fired on all of them, always, and never in a test
+   window 1920 wide. It is the television's layout; it says so now. */
+.platform-tv .app { grid-template-columns: 248px minmax(0, 1fr); }
+.platform-tv body { font-size: 28px; }
+.platform-tv .brand { font-size: 40px; }
+.platform-tv aside nav button { height: 50px; font-size: 28px; }
+.platform-tv .workspace > header { height: 82px; flex: 0 0 82px; padding: 0 28px; }
+/* 30px was 15dp from the edge, inside the strip a television crops */
+.platform-tv .page { padding: 30px 88px 48px; }
+.platform-tv .page-title h1 { font-size: 48px; }
+.platform-tv .grid,
+.platform-tv .vgrid-inner { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 36px 22px; }
+.platform-tv .ghost { min-width: 56px; height: 56px; }
+.platform-tv .ghost .icon { width: 28px; height: 28px; }
+.platform-tv .chrome-bottom { padding: 48px 28px 24px; }
+.platform-tv .now strong { font-size: 32px; }
 
 /* A shelf moves in one step, because a shelf that slides loses the mark.
    Measured on the television: a press scrolled the row 248px over 300ms, and
@@ -321,29 +345,31 @@
 .platform-tv .party-invite small { font-size: 32px; margin-top: 6px; }
 .platform-tv .party-invite-actions { gap: 14px; }
 
-@media (max-width: 1500px) {
-  .platform-tv .settings:has(.friend-row) .panel h2 { font-size: 40px; }
-  .platform-tv .settings:has(.friend-row) .panel header p,
-  .platform-tv .settings:has(.friend-row) .row-note { font-size: 28px; }
-  .platform-tv .friend-row small.friend-code { font-size: 72px; padding: 10px 24px 10px 28px; }
-  .platform-tv .friend-row strong { font-size: 32px; }
-  .platform-tv .friend-row .small,
-  .platform-tv #friend-form .small,
-  .platform-tv .settings:has(.friend-row) .panel-foot .small,
-  .platform-tv .party-invite .small { height: 52px; font-size: 28px; padding: 0 22px; }
-  .platform-tv #friend-form #friend-code { height: 60px; font-size: 44px; }
-  .platform-tv .shared-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .platform-tv .shared-title { min-height: 100px; }
-  .platform-tv .shared-title .shared-name { font-size: 32px; }
-  .platform-tv .party-strip,
-  .platform-tv .player-shell:not(:fullscreen) .party-strip { top: 120px; left: 28px; }
-  .platform-tv .party-who { font-size: 32px; }
-  .platform-tv .party-state { font-size: 28px; }
-  .platform-tv .party-strip .ghost { height: 52px; min-width: 60px; font-size: 28px; }
-  .platform-tv .party-invite { bottom: calc(26 * var(--tv-vh, 1vh)); padding: 20px 26px 20px 34px; }
-  .platform-tv .party-invite strong { font-size: 40px; }
-  .platform-tv .party-invite small { font-size: 32px; }
-}
+/* This block was `@media (max-width: 1500px)`. The page is laid out at 1920
+   and zoomed to fit, but a media query measures the viewport, which on every
+   television is 960 — so it fired on all of them, always, and never in a test
+   window 1920 wide. It is the television's layout; it says so now. */
+.platform-tv .settings:has(.friend-row) .panel h2 { font-size: 40px; }
+.platform-tv .settings:has(.friend-row) .panel header p,
+.platform-tv .settings:has(.friend-row) .row-note { font-size: 28px; }
+.platform-tv .friend-row small.friend-code { font-size: 72px; padding: 10px 24px 10px 28px; }
+.platform-tv .friend-row strong { font-size: 32px; }
+.platform-tv .friend-row .small,
+.platform-tv #friend-form .small,
+.platform-tv .settings:has(.friend-row) .panel-foot .small,
+.platform-tv .party-invite .small { height: 52px; font-size: 28px; padding: 0 22px; }
+.platform-tv #friend-form #friend-code { height: 60px; font-size: 44px; }
+.platform-tv .shared-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.platform-tv .shared-title { min-height: 100px; }
+.platform-tv .shared-title .shared-name { font-size: 32px; }
+.platform-tv .party-strip,
+.platform-tv .player-shell:not(:fullscreen) .party-strip { top: 120px; left: 28px; }
+.platform-tv .party-who { font-size: 32px; }
+.platform-tv .party-state { font-size: 28px; }
+.platform-tv .party-strip .ghost { height: 52px; min-width: 60px; font-size: 28px; }
+.platform-tv .party-invite { bottom: calc(26 * var(--tv-vh, 1vh)); padding: 20px 26px 20px 34px; }
+.platform-tv .party-invite strong { font-size: 40px; }
+.platform-tv .party-invite small { font-size: 32px; }
 
 /* The sidebar gained a seventh item and ran out of room at 720p, where the
    lower "Source" label started sitting on top of it. Everything below is about
@@ -358,15 +384,17 @@
 .platform-tv .secondary.small,
 .platform-tv .primary.small { min-height: 52px; padding: 0 20px; font-size: 28px; border-radius: 12px; }
 
-@media (max-width: 1500px) {
-  .platform-tv aside nav button { height: 46px; font-size: 28px; }
-  .platform-tv aside nav button .icon { width: 22px; height: 22px; }
-  .platform-tv .nav-label { margin: 8px 0 4px; font-size: 22px; }
-  .platform-tv .nav-label-lower { margin-top: 10px; }
-  .platform-tv .source-pill { padding: 10px; font-size: 24px; }
-  .platform-tv .secondary.small,
-  .platform-tv .primary.small { min-height: 46px; font-size: 28px; }
-}
+/* This block was `@media (max-width: 1500px)`. The page is laid out at 1920
+   and zoomed to fit, but a media query measures the viewport, which on every
+   television is 960 — so it fired on all of them, always, and never in a test
+   window 1920 wide. It is the television's layout; it says so now. */
+.platform-tv aside nav button { height: 46px; font-size: 28px; }
+.platform-tv aside nav button .icon { width: 22px; height: 22px; }
+.platform-tv .nav-label { margin: 8px 0 4px; font-size: 22px; }
+.platform-tv .nav-label-lower { margin-top: 10px; }
+.platform-tv .source-pill { padding: 10px; font-size: 24px; }
+.platform-tv .secondary.small,
+.platform-tv .primary.small { min-height: 46px; font-size: 28px; }
 
 /* ---- the billboard on a television ----
    Read from across a room: the copy sits further in from the edge, the body
@@ -378,7 +406,16 @@
 .platform-tv .hero h1 { font-size: clamp(56px, calc(5.2 * var(--tv-vw, 1vw)), 92px); }
 .platform-tv .hero .meta { font-size: 28px; gap: 14px; }
 .platform-tv .hero p { font-size: 32px; line-height: 1.5; max-width: 760px; }
-.platform-tv .actions button { height: 60px; padding: 0 30px; font-size: 32px; border-radius: 10px; }
+/* A button says what it does on one line or it is not a button. At a
+   readable size the hero's three — View episodes, Play something, My list —
+   came to about 900px in a column capped at 820, so they shrank, and their
+   labels wrapped onto two lines inside a box one line tall and were cut off
+   top and bottom. The column is wider now, the buttons keep their own width,
+   and if they still do not fit they move to a second row instead. */
+.platform-tv .hero-copy { width: min(62%, 1120px); }
+.platform-tv .actions { flex-wrap: wrap; gap: 16px; }
+.platform-tv .actions button { flex: 0 0 auto; white-space: nowrap; height: 72px; padding: 0 34px; font-size: 32px; border-radius: 14px; }
+.platform-tv .actions button .icon { width: 30px; height: 30px; }
 .platform-tv .hero + .shelf, .platform-tv .hero + * > .shelf:first-child { margin-top: -48px; }
 .platform-tv .shelf-head span { font-size: 24px; }
 .platform-tv .card.ranked .rank { font-size: clamp(96px, calc(8 * var(--tv-vw, 1vw)), 150px); -webkit-text-stroke-width: 4px; }
@@ -626,8 +663,15 @@
   overflow: hidden;
   transition: width .2s ease;
 }
+/* The field lies over the whole circle, invisible, so there is something for
+   the remote to land on. It used to be 0px wide until it had focus, and the
+   remote only offers things it can see — so it could never be given focus,
+   and from bbb05c4 on there was no way to search from a remote at all. */
+.platform-tv .workspace > header .search { position: relative; }
 .platform-tv .workspace > header .search input {
-  width: 0;
+  position: absolute;
+  inset: 0;
+  width: 100%;
   min-width: 0;
   padding: 0;
   opacity: 0;
@@ -638,7 +682,7 @@
   justify-content: flex-start;
   padding: 0 20px;
 }
-.platform-tv .workspace > header .search:focus-within input { width: 100%; opacity: 1; padding-left: 12px; }
+.platform-tv .workspace > header .search:focus-within input { position: static; width: 100%; opacity: 1; padding-left: 12px; }
 .platform-tv .workspace > header .search:focus-within { outline: 4px solid var(--accent); }
 
 /* The cliffhanger preview on a television: the spotlight tile is already
@@ -1018,3 +1062,6 @@
 /* the detail under a row, which is the only thing that now says what a tile
    is, sits clear of the posters rather than against them */
 .platform-tv .row-detail { margin-top: 18px; }
+
+/* The note above the guide is styled only for the Mac: 14px, 7sp. */
+.platform-tv .guide-note { font-size: 28px; padding: 18px 24px; border-radius: 16px; margin-bottom: 22px; }

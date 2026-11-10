@@ -2,9 +2,11 @@
 
      npm run web          then open http://localhost:5174
 
-   Besides the files in web/, it does three things the browser cannot:
-   - /config.js hands the page the TMDB key the app already ships, read from
-     app/renderer.js so there is one copy of it;
+   Besides the files in web/, it does what the browser cannot:
+   - /config.js hands the page the TMDB, OMDb and Supabase keys the app already
+     ships, read from app/renderer.js by scripts/extract-keys.cjs so there is one
+     copy of each (the TV build writes the same file at build time);
+   - /vendor/supabase.js serves the accounts library the app already ships;
    - /vendor/hls.js serves the HLS player the app already ships;
    - /api/proxy?u=<url> fetches from an IPTV provider on the page's behalf. On
      the television every request goes out through native HTTP, which has no
@@ -23,9 +25,7 @@ const PORT = Number(process.env.PORT) || 5174;
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".woff2": "font/woff2", ".ico": "image/x-icon" };
 
-const builtIn = (name, pattern) => {
-  try { return fs.readFileSync(path.join(REPO, "app", "renderer.js"), "utf8").match(pattern)[1]; } catch { return ""; }
-};
+const { extractKeys, configJs } = require("../scripts/extract-keys.cjs");
 
 async function proxy(req, res, target) {
   let url;
@@ -60,8 +60,14 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
   if (url.pathname === "/api/proxy") return proxy(req, res, url.searchParams.get("u") || "");
   if (url.pathname === "/config.js") {
+    let keys;
+    try { keys = extractKeys(); } catch (error) { res.writeHead(500, { "content-type": "text/plain" }); return res.end(error.message); }
     res.writeHead(200, { "content-type": TYPES[".js"], "cache-control": "no-store" });
-    return res.end(`window.AURORA_CONFIG = ${JSON.stringify({ tmdb: builtIn("tmdb", /tmdb: "([0-9a-f]{32})"/), omdb: builtIn("omdb", /omdb: "([0-9a-f]+)"/) })};`);
+    return res.end(configJs(keys));
+  }
+  if (url.pathname === "/vendor/supabase.js") {
+    res.writeHead(200, { "content-type": TYPES[".js"] });
+    return fs.createReadStream(path.join(REPO, "app", "vendor", "supabase.js")).pipe(res);
   }
   if (url.pathname === "/vendor/hls.js") {
     res.writeHead(200, { "content-type": TYPES[".js"] });

@@ -9,6 +9,7 @@ import * as F from "./focus.js";
 import { prefs, myList, progress, slim } from "./store.js";
 import { makeSource, testXtream } from "./sources.js";
 import * as U from "./ui.js";
+import * as Plat from "./platform.js";
 import { enrich, seasonEpisodes, collection, person as tmdbPerson, scores, norm, cleanTitle } from "./tmdb.js";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -16,9 +17,14 @@ const stage = $(".stage"), screenEl = $("#screen"), bar = $(".bar");
 const esc = U.esc;
 
 // ---------- the stage: 1920x1080, scaled to the window ----------
+/* The window's real size is clientWidth/clientHeight. innerWidth is not: an
+   Android TV WebView grows it to fit the 1920-wide stage itself (a 960x540
+   screen reported 1920x1080), so scaling by it drew the stage at twice the
+   size with three quarters of it off the screen. */
 function fit() {
-  const s = Math.min(innerWidth / 1920, innerHeight / 1080);
-  stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px, ${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+  const w = document.documentElement.clientWidth, h = document.documentElement.clientHeight;
+  const s = Math.min(w / 1920, h / 1080);
+  stage.style.transform = `translate(${(w - 1920 * s) / 2}px, ${(h - 1080 * s) / 2}px) scale(${s})`;
   F.setScale(s);
 }
 addEventListener("resize", fit); fit();
@@ -100,9 +106,12 @@ function back(key) {
   // at the root of a tab: Back goes Home, and from Home to the tab bar
   if (stack[0]?.name !== "home") return go("home", {}, { root: true });
   if (!bar.contains(document.activeElement)) { F.focus(bar.querySelector(".tab.on")); return; }
+  if (Plat.native) return false;   // the remote's Back from Home leaves the app
   toast("You're at the start — that's as far back as it goes");
 }
 F.setBackHandler(back);
+// the television's Back button: true when the app used the press
+Plat.onBack(() => back("Back") !== false);
 
 async function show(entry, { focus = "content", key = null } = {}) {
   const token = ++renderToken;
@@ -780,7 +789,7 @@ async function attach(video, stream, { muted = false, startAt = 0 } = {}) {
     if (Hls?.isSupported()) {
       const hls = new Hls({
         enableWorker: true, lowLatencyMode: false, startPosition: startAt || -1,
-        ...(stream.proxied ? { xhrSetup: (xhr, url) => xhr.open("GET", `/api/proxy?u=${encodeURIComponent(url)}`, true) } : {}),
+        ...(stream.proxied && !Plat.native ? { xhrSetup: (xhr, url) => xhr.open("GET", Plat.streamUrl(url), true) } : {}),
       });
       hls.loadSource(stream.url); hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));

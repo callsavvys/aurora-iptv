@@ -179,6 +179,9 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
      the comparison the mark is unreachable — which is what "I press my name
      and nothing happens" looks like from the sofa. */
   console.log("\n— the mark is somewhere the remote can get to —");
+  /* the account menu opened above is still open, and an open menu keeps the
+     remote to itself (tv-nav.js MODALS), so shut it as Back would first */
+  await js(`(() => { document.getElementById("who-menu").classList.add("hidden"); document.getElementById("who").setAttribute("aria-expanded", "false"); return true })()`);
   await js(`(() => { state.view = "home"; state.items = Array.from({ length: 40 }, (_, i) => ({ id: "m" + i, type: "movie", name: "Film " + i, category: "Cat " + (i % 6) })); render(); return true })()`);
   await settle();
   await js(`(() => { document.querySelector("aside nav button").focus(); return true })()`);
@@ -306,10 +309,12 @@ const TV_NAV = fs.readFileSync(path.join(ROOT, "mobile/platform/tv-nav.js"), "ut
   await js(`window.__seeks = 0; window.nudge = () => { window.__seeks += 1 }; true`);
   await js(`document.getElementById("player-modal").classList.remove("hidden"); document.activeElement.blur(); true`);
   await press("ArrowRight");
-  check("the first press lands inside the player, not on the page behind", await js(`(() => {
+  /* and not on the close cross: it comes first in the markup, and a fresh
+     television's first press used to land on a 16px cross in the corner */
+  check("the first press lands inside the player, not on the page behind or its close cross", await js(`(() => {
     const node = document.activeElement;
-    return [Boolean(node.closest("#player-modal")), node.dataset.close || node.id];
-  })()`), [true, "player-modal"]);
+    return [Boolean(node.closest("#player-modal")), node.matches(".close, [data-close]")];
+  })()`), [true, false]);
   await press("ArrowRight");
   check("right crosses the title to the button on the far side", await where(), "#favorite-player");
   await press("ArrowDown");
