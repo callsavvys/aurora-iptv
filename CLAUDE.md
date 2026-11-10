@@ -9,3 +9,7 @@ Key routing rules:
 - Ship/deploy/PR → invoke /ship
 
 Do not suggest or auto-invoke other gstack skills: they run when the user types them, or when a running skill hands off to them (`gstack-config set proactive all` routes every skill).
+
+## Testing
+
+Run every suite with `npm test` (the chain in package.json: Electron and node tests, including the TV build staging). No Android SDK needed. A real APK is a separate step: see docs/tv-build.md.

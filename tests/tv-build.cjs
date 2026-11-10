@@ -45,10 +45,15 @@ check("--help lists every setting", ["AURORA_TV_UI", "AURORA_TEST_VERSION", "AUR
 console.log("— a test code is used once, and Android never sees an older one —");
 const before = fs.existsSync(LEDGER) ? fs.readFileSync(LEDGER, "utf8") : null;
 try {
-  fs.writeFileSync(LEDGER, (before || "") + "0.38.93 web test-fixture 2026-11-05\n");
-  const r = build({ AURORA_TEST_VERSION: "0.38.92", AURORA_STAGE_ONLY: "1" });
-  check("an older code than the last one built is refused", [r.code, r.err.includes("already used or older"), r.err.includes("AURORA_TEST_VERSION=0.38.94")], [2, true, true]);
-  check("so is the same code again", build({ AURORA_TEST_VERSION: "0.38.93", AURORA_STAGE_ONLY: "1" }).code, 2);
+  // the real ledger keeps growing as test builds are made, so the fixture sits
+  // one past whatever it holds now (the codes stop at 0.38.99)
+  const used = (before || "").split("\n").map((l) => /^0\.38\.(9\d)\s/.exec(l)?.[1]).filter(Boolean).map(Number);
+  const fixture = Math.max(91, ...used) + 1;
+  if (fixture > 98) throw new Error(`the ledger has used test codes up to 0.38.${fixture - 1}; this check needs two free codes`);
+  fs.writeFileSync(LEDGER, (before || "") + `0.38.${fixture} web test-fixture 2026-11-05\n`);
+  const r = build({ AURORA_TEST_VERSION: `0.38.${fixture - 1}`, AURORA_STAGE_ONLY: "1" });
+  check("an older code than the last one built is refused", [r.code, r.err.includes("already used or older"), r.err.includes(`AURORA_TEST_VERSION=0.38.${fixture + 1}`)], [2, true, true]);
+  check("so is the same code again", build({ AURORA_TEST_VERSION: `0.38.${fixture}`, AURORA_STAGE_ONLY: "1" }).code, 2);
 } finally {
   if (before === null) fs.rmSync(LEDGER, { force: true }); else fs.writeFileSync(LEDGER, before);
 }

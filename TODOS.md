@@ -1,5 +1,21 @@
 # TODOS
 
+## Re-trace Live TV on the TV with the faster arrow keys (0.38.94)
+- **What:** Install `mobile/dist/Aurora-TV-0.38.94.apk` on the Google TV and record the held-arrow Live TV trace (docs/tv-build.md, Trace it). Record press-to-frame p50/p95 and whether a held arrow keeps 60 fps.
+- **Why:** PR 1's kill rule (plan decision #20) needs the numbers. 0.38.91 measured 61 ms of script per press; the focus.js change cut a press from roughly 3x908 box measurements and thousands of ancestor checks to 910 and about 40 (identical focus walks), but it has not been measured on the TV.
+- **Context:** The Mac was off the home Wi-Fi when 0.38.94 was built, so it was never installed.
+- **Effort:** human S / CC+gstack S
+- **Priority:** P1
+- **Depends on:** the Mac and the TV on the same network.
+
+## Old-interface (main) vs web/ Live TV trace
+- **What:** Install an app/ trace build (next free test code), record the same held-arrow Live TV trace, then reinstall the web/ build.
+- **Why:** The plan's PR 1 trace compares old and new interleaved, so PR 2 starts with a baseline. Deferred by the owner at ship time (2026-11-06).
+- **Context:** Deferred from plan: docs/plans/web-ui-to-tv.md (Eng review, perf REALITY item). Peak memory, the other deferred item, was measured on 0.38.93: 223 MB at the first library load, settling at 110 MB.
+- **Effort:** human S / CC+gstack S
+- **Priority:** P1
+- **Depends on:** the Mac and the TV on the same network.
+
 ## TV crash and error reporter
 - **What:** Record uncaught errors and stream failures on the TV build somewhere the owner can read them.
 - **Why:** On the TV, a broken screen today is only known if someone reports it. There are no logs to reconstruct what happened.
