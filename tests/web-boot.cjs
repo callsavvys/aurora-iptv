@@ -69,7 +69,11 @@ const STUB = `(() => {
     check("it offers Try again, Continue without saving and Details", await js(`[...document.querySelectorAll(".boot-banner button")].map((b) => b.textContent)`), ["Try again", "Continue without saving", "Details"]);
     check("the app still starts behind it", await js(`!!document.querySelector("#screen").children.length`), true);
     check("nothing was written", await js(`window.__sets`), []);
+    // the TV has no pointer: the remote has to reach the banner's buttons
+    check("the remote starts on the banner and can move along its buttons", await js(`(() => { const inBanner = () => !!document.activeElement?.closest(".boot-banner"); const start = [inBanner(), document.activeElement?.textContent]; document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })); return [...start, document.activeElement?.textContent]; })()`), [true, "Try again", "Continue without saving"]);
     check("Details opens, names the timeout and carries no password", await js(`(() => { [...document.querySelectorAll(".boot-banner button")].find((b) => b.textContent === "Details").click(); const d = document.querySelector(".boot-banner .detail"); return [!d.hidden, d.textContent.startsWith("E_BOOT_STORAGE_TIMEOUT waited"), d.textContent.includes("s3cret")]; })()`), [true, true, false]);
+
+    check("Continue without saving hands the remote back to the app", await js(`(async () => { [...document.querySelectorAll(".boot-banner button")].find((b) => b.textContent.startsWith("Continue")).click(); await new Promise((r) => setTimeout(r, 300)); return [!!document.querySelector(".boot-banner"), !!document.activeElement?.closest("#app")]; })()`), [false, true]);
 
     console.log("— a normal start on the old app's saved data —");
     await win.loadURL(`${origin}/?stub=ok`);

@@ -60,9 +60,9 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://localhost");
   if (url.pathname === "/api/proxy") return proxy(req, res, url.searchParams.get("u") || "");
   if (url.pathname === "/config.js") {
-    res.writeHead(200, { "content-type": TYPES[".js"], "cache-control": "no-store" });
     let keys;
     try { keys = extractKeys(); } catch (error) { res.writeHead(500, { "content-type": "text/plain" }); return res.end(error.message); }
+    res.writeHead(200, { "content-type": TYPES[".js"], "cache-control": "no-store" });
     return res.end(configJs(keys));
   }
   if (url.pathname === "/vendor/supabase.js") {

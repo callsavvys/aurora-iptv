@@ -30,12 +30,14 @@ function readOnlyBanner(detail) {
   const actions = banner.querySelector(".actions");
   const button = (label, fn) => { const b = document.createElement("button"); b.className = "btn"; b.setAttribute("data-f", ""); b.textContent = label; b.addEventListener("click", fn); actions.appendChild(b); return b; };
   if (tries < BOOT_RETRIES) button("Try again", () => { sessionStorage.setItem(TRIES, String(tries + 1)); location.reload(); });
-  button("Continue without saving", () => banner.remove());
+  button("Continue without saving", async () => { (await import("./focus.js")).popLayer(banner); banner.remove(); });
   button("Details", () => { const d = banner.querySelector(".detail"); d.textContent = detail; d.hidden = !d.hidden; });
   document.body.appendChild(banner);
+  return banner;
 }
 
 const storage = await waitForStorage();
+let banner = null;
 const platform = await import("./platform.js");
 if (storage.ok) {
   sessionStorage.removeItem(TRIES);
@@ -44,6 +46,9 @@ if (storage.ok) {
 } else {
   const detail = `E_BOOT_STORAGE_TIMEOUT ${storage.result === "failed" ? "storage failed" : `waited ${storage.waited}ms`} on Preferences.get(secrets, prefs); capacitor ${window.Capacitor?.version || "unknown"}; build ${document.documentElement.dataset.version || "web"}`;
   platform.setReadOnly(detail);
-  readOnlyBanner(platform.redact(detail));
+  banner = readOnlyBanner(platform.redact(detail));
 }
 await import("./app.js");
+// the remote reaches only the focus engine's top layer: the banner becomes it,
+// over whatever the first screen focused, until Continue removes it
+if (banner) (await import("./focus.js")).pushLayer(banner);

@@ -371,6 +371,9 @@ section.block { padding-bottom: 64px; }
 .toast.on { transform: translate(-50%, 0); opacity: 1; }
 .dialog { position: absolute; inset: 0; z-index: 80; background: rgba(0,0,0,.72); display: grid; place-items: center; }
 .dialog[hidden] { display: none; }
+/* the hidden attribute hides, whatever display a class sets (.btn is inline-flex):
+   the player's Next and skip buttons were drawn, and reachable by the remote */
+[hidden] { display: none !important; }
 .dialog .box { width: 1100px; padding: 54px 60px; border-radius: 32px; background: var(--bg-2); border: 1px solid var(--line-2); box-shadow: var(--lift); }
 .dialog h2 { margin: 0 0 30px; font-size: var(--t-title3); letter-spacing: -.02em; }
 

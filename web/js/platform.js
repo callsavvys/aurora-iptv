@@ -72,7 +72,10 @@ export function legacySource() {
 /* Back on the remote. The handler returns true when it used the press; false
    lets the television leave the app. */
 export function onBack(handler) {
-  if (aurora?.onBack) aurora.onBack(handler);
+  if (aurora?.onBack) return aurora.onBack(handler);
+  // a read-only start: platform-core may still finish later, and its Back
+  // listener leaves the app whenever no handler is attached, so attach then
+  window.auroraReady?.then?.(() => window.aurora?.onBack?.(handler), () => {});
 }
 export const version = async () => (aurora?.version ? aurora.version() : "web");
 
