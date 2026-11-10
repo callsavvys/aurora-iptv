@@ -140,6 +140,48 @@ function onScreen(el) {
   return r.right > 0 && r.left < root.clientWidth && r.bottom > 0 && r.top < root.clientHeight;
 }
 
+/* Every focusable that is drawn, each measured once. A press on the TV used to
+   re-measure and re-check all of them two or three times (908 on Live TV: 61 ms
+   a press on the Google TV, so a held arrow queued up and froze the screen).
+   `near` keeps only boxes within a screen of the focused one; the box test runs
+   first because it is cheap, and display:none ([hidden], .is-hidden) measures 0. */
+function candidates(root, near) {
+  const out = [];
+  for (const el of root.querySelectorAll("[data-f]")) {
+    if (el.disabled) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 2 || r.height <= 2 || (near && !near(r))) continue;
+    out.push({ el, r, zone: zoneOf(el) });
+  }
+  return out;
+}
+// within a screen of the focused box, not of the window: a row or page that is
+// still sliding (its transform animates) measures where it was, so during a
+// quick run of presses the focused item can be a screen or more off the window
+function nearWindow(from) {
+  const w = document.documentElement.clientWidth, h = document.documentElement.clientHeight;
+  return (r) => r.right > from.left - w && r.left < from.right + w && r.bottom > from.top - h && r.top < from.bottom + h;
+}
+
+function pick(items, current, from, fromZone, dir, way) {
+  // a zone can close itself along an axis: the tab bar does not spill sideways
+  // into the page, and a row does not spill sideways into the bar. A list can
+  // still be left in one named direction once there is nothing further inside
+  // it that way — up, off the top of Live TV's categories, to the tab bar.
+  const locked = fromZone?.dataset.lock?.includes(dir.axis);
+  const inZone = locked && items.some((c) => c.el !== current && c.zone === fromZone && rank(from, c.r, dir) !== null);
+  const sealed = locked && (inZone || !fromZone.dataset.leave?.includes(way));
+  let best = null, score = Infinity;
+  for (const { el, r, zone } of items) {
+    if (el === current) continue;
+    if (sealed && zone !== fromZone) continue;
+    if (zone && zone !== fromZone && zone.dataset.enter && !zone.dataset.enter.includes(way)) continue;
+    const s = rank(from, r, dir);
+    if (s !== null && s < score) { score = s; best = el; }
+  }
+  return { best, locked: !!locked, inZone: !!inZone };
+}
+
 export function move(key) {
   const dir = MOVES[key];
   const root = layerRoot();
@@ -148,22 +190,12 @@ export function move(key) {
   const from = current.getBoundingClientRect();
   const fromZone = zoneOf(current);
   const way = key.replace("Arrow", "").toLowerCase();
-  // a zone can close itself along an axis: the tab bar does not spill sideways
-  // into the page, and a row does not spill sideways into the bar. A list can
-  // still be left in one named direction once there is nothing further inside
-  // it that way — up, off the top of Live TV's categories, to the tab bar.
-  const locked = fromZone?.dataset.lock?.includes(dir.axis);
-  const inZone = locked && focusables(root).some((el) => el !== current && zoneOf(el) === fromZone && rank(from, el.getBoundingClientRect(), dir) !== null);
-  const sealed = locked && (inZone || !fromZone.dataset.leave?.includes(way));
-  let best = null, score = Infinity;
-  for (const el of focusables(root)) {
-    if (el === current) continue;
-    if (sealed && zoneOf(el) !== fromZone) continue;
-    const zone = zoneOf(el);
-    if (zone && zone !== fromZone && zone.dataset.enter && !zone.dataset.enter.includes(way)) continue;
-    const s = rank(from, el.getBoundingClientRect(), dir);
-    if (s !== null && s < score) { score = s; best = el; }
-  }
+  // the nearest target is almost always within a screen; look further only
+  // when nothing near qualifies, or when a locked zone looked empty nearby
+  // (its next member may sit further off, and leaving it then would be wrong)
+  let found = pick(candidates(root, nearWindow(from)), current, from, fromZone, dir, way);
+  if (!found.best || (found.locked && !found.inZone)) found = pick(candidates(root), current, from, fromZone, dir, way);
+  let { best } = found;
   if (!best) { nudge(current, dir); return; }
   // a zone can name where leaving it lands: down out of the tab bar enters the
   // page at its start, not on whatever happens to sit under the button
