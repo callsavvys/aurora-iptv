@@ -1,7 +1,6 @@
 /* The pieces every screen is made of. Each focusable thing carries data-f
    (the remote can land on it) and data-key (what it is, so focus can be put
    back after a re-render or a Back). */
-import { progress } from "./store.js";
 
 export const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
@@ -89,10 +88,12 @@ export function skeletonRow(n = 7) {
 }
 
 export function continueCard(p, where) {
-  const pct = (p.position / p.duration) * 100;
+  // the episode after a finished one has not started: no bar, no time left
+  const pct = p.duration ? (p.position / p.duration) * 100 : 0;
   const mins = Math.max(1, Math.round((p.duration - p.position) / 60));
-  const sub = p.episode ? `S${p.episode.season} · E${p.episode.number} — ${mins} min left` : `${mins} min left`;
+  const left = p.duration ? `${mins} min left` : "Next episode";
+  const sub = p.episode ? `S${p.episode.season} · E${p.episode.number} — ${left}` : left;
   return wideCard({ ...p.item, still: p.episode?.still || p.item.still || p.item.backdrop }, where, { sub, pct, key: `${where}|resume:${p.id}` });
 }
 
-export const pctOf = (id) => { const p = progress.get(id); return p && p.duration ? (p.position / p.duration) * 100 : 0; };
+export const pctOf = (p) => (p && p.duration ? Math.min(100, (p.position / p.duration) * 100) : 0);

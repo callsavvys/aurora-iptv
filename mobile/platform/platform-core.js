@@ -15,15 +15,13 @@ window.auroraReady = (async () => {
   const store = window.Capacitor?.Plugins?.Preferences;
   const config = window.AURORA_CONFIG || {};
 
-  /* The new interface, until it owns the store (the plan's second PR), never
-     writes the old app's keys: a build of it can go on the television and come
-     off again without touching anyone's sources, list or sign-in. A trace build
-     goes further and writes nothing outside its own key, not even the
-     .locked copy below. */
-  const WEB_UI = root.classList.contains("ui-web");
+  /* Both interfaces read and write the same `prefs` and `secrets`, in the old
+     app's shape, so either can be installed over the other and find the same
+     sources, list and progress. A trace build writes nothing outside its own
+     key, not even the .locked copy below: it can go on a television and come
+     off again without touching anyone's data. */
   const TRACE = !!config.trace;
-  const LEGACY_KEYS = new Set(["prefs", "secrets"]);
-  const writable = (key) => !(WEB_UI && LEGACY_KEYS.has(key)) && !(TRACE && key !== "web.trace");
+  const writable = (key) => !(TRACE && key !== "web.trace");
 
   /* Every write goes through one queue, one at a time, so two writes that
      overlap across an await can never leave one of them half-applied. */
@@ -89,7 +87,7 @@ window.auroraReady = (async () => {
   let secretsLock = storedSecrets?.unreadable ? storedSecrets : null;
   let secrets = secretsLock ? null : storedSecrets;
   const storedPrefs = await read("prefs");
-  const prefs = !storedPrefs || storedPrefs.unreadable ? {} : storedPrefs;
+  let prefs = !storedPrefs || storedPrefs.unreadable ? {} : storedPrefs;
   const unsupported = { state: "unsupported" };
 
   let onBack = null;
@@ -122,7 +120,10 @@ window.auroraReady = (async () => {
       read: (key) => (key === "prefs" ? prefs : key === "secrets" ? secretsLock || secrets : cache[key] ?? null),
       async write(key, value) {
         if (unreadableKeys.has(key)) return false;
-        cache[key] = value;
+        // what every later read answers, saved or not: the session goes on with it
+        if (key === "prefs") { prefs = value; window.aurora.prefs = value; }
+        else if (key === "secrets") { secrets = value; cache.secrets = value; }
+        else cache[key] = value;
         return write(key, value);
       },
       writable: (key) => writable(key) && !unreadableKeys.has(key),

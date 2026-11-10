@@ -10,9 +10,10 @@
    wrote; and what the app remembers is kept in the system's own storage through
    window.aurora.store.
 
-   Until the shared store lands (the plan's second PR), the TV build reads the
-   old app's sources but never writes the old app's keys: everything it
-   remembers goes under its own key. */
+   On the television both interfaces share the old app's `prefs` and
+   `secrets`: My List, watch progress, sources. What only this interface knows
+   (its theme, language, the TMDB cache) goes under its own key. A trace build
+   reads the shared keys and writes only its own. */
 
 /* boot.js imports this only after window.auroraReady has settled, or after it
    gave up waiting; in that case there is no window.aurora and the app runs
@@ -37,6 +38,9 @@ export const streamUrl = (url) => net.url(url);
 // ---------------- storage ----------------
 /* The key this build keeps everything it remembers under. */
 export const STORE_KEY = native ? (trace ? "web.trace" : "web.prefs") : "aurora-web";
+/* The key the records both interfaces share live under: the old app's `prefs`
+   on the television, this build's own key in a browser or a trace build. */
+export const SHARED_KEY = native && !trace ? "prefs" : STORE_KEY;
 
 let readOnly = native && !aurora;
 export const isReadOnly = () => readOnly;

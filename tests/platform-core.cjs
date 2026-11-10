@@ -63,15 +63,20 @@ const SECRETS = JSON.stringify({ sources: [{ id: "src-a", name: "Line", server: 
     check("a get() that throws makes the key read-only", aurora.store.writable("prefs"), false);
   }
 
-  console.log("— the new interface never writes the old app's keys (until the shared store) —");
+  console.log("— the new interface shares the old app's keys —");
   {
     const t = boot({ initial: { prefs: PREFS, secrets: SECRETS }, classes: ["ui-web"] });
     const aurora = await t.ready;
-    check("store.write(prefs) is refused", await aurora.store.write("prefs", {}), false);
-    check("setSecrets is refused", (await aurora.setSecrets({ sources: [] })).saved, false);
-    check("its own key is written", await aurora.store.write("web.prefs", { list: [1] }), true);
-    check("prefs are byte-identical", t.values.prefs, PREFS);
-    check("secrets are byte-identical", t.values.secrets, SECRETS);
+    const next = { ...aurora.store.read("prefs"), favorites: ["movie-1", "movie-2"] };
+    check("store.write(prefs) is saved", await aurora.store.write("prefs", next), true);
+    check("later reads answer the new prefs (and window.aurora.prefs follows)", [aurora.store.read("prefs").favorites, aurora.prefs.favorites], [["movie-1", "movie-2"], ["movie-1", "movie-2"]]);
+    check("the old app's fields it did not touch are kept", JSON.parse(t.values.prefs).theme, "dark");
+    check("its own key is written too", await aurora.store.write("web.prefs", { theme: "teal" }), true);
+  }
+  {
+    const t = boot({ initial: { prefs: "{not json", secrets: SECRETS }, classes: ["ui-web"] });
+    const aurora = await t.ready;
+    check("prefs that could not be read stay read-only (the only copy is kept)", [await aurora.store.write("prefs", { favorites: [] }), t.values.prefs], [false, "{not json"]);
   }
 
   console.log("— a trace build writes nothing but web.trace, not even a .locked copy —");
