@@ -116,12 +116,18 @@ const episodeKey = (ep) => `episode-${ep.id}`;
 
 /* A progress record in the old app's shape, from this app's item and episode. */
 function recordOf(item, episode, next) {
-  if (!episode) return { key: sharedId(item), id: sharedId(item), type: item.kind === "live" ? "live" : "movie", title: item.title, subtitle: item.category || "", poster: item.poster || "" };
+  if (!episode) {
+    const record = { key: sharedId(item), id: sharedId(item), type: item.kind === "live" ? "live" : "movie", title: item.title, subtitle: item.category || "", poster: item.poster || "" };
+    // a film's file type, so resuming asks the provider for the right file (the old app ignores it)
+    if (item.kind === "movie" && item.ext) record.container = item.ext;
+    return record;
+  }
   return {
     key: episodeKey(episode), id: sharedId(item), type: "episode", title: item.title,
     subtitle: `S${episode.season} E${episode.number} • ${episode.title || `Episode ${episode.number}`}`, poster: item.poster || "",
     seriesId: item.id, season: String(episode.season), episodeId: episode.id, container: episode.ext || "mp4",
-    next: next ? { season: String(next.season), episodeId: next.id, number: String(next.number), title: next.title || `Episode ${next.number}`, container: next.ext || "mp4" } : null,
+    // only when known: the merge keeps the hint the old app (or an earlier save) wrote
+    ...(next ? { next: { season: String(next.season), episodeId: next.id, number: String(next.number), title: next.title || `Episode ${next.number}`, container: next.ext || "mp4" } } : {}),
   };
 }
 
@@ -129,6 +135,7 @@ function recordOf(item, episode, next) {
 function entryOf(record) {
   const ref = fromSharedId(record.id) || { source: "xtream", kind: record.type === "episode" ? "series" : record.type, id: record.id };
   const item = { id: ref.id, kind: ref.kind, source: ref.source, title: record.title, poster: record.poster || "", category: record.type === "episode" ? "" : record.subtitle || "" };
+  if (record.type === "movie" && record.container) item.ext = record.container;
   let episode = null;
   if (record.type === "episode") {
     const m = /^S(\S+) E(\S+) • (.*)$/.exec(record.subtitle || "");

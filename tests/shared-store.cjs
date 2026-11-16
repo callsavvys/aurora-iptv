@@ -78,7 +78,7 @@ const shape = (record) => Object.fromEntries(Object.entries(record).map(([k, v])
     check("the old dark theme reads as graphite here", await web(`return (await import("/js/store.js")).prefs.theme;`), "graphite");
     check("starting wrote nothing to prefs", await web(`return window.__sets.filter((k) => k === "prefs").length;`), 0);
 
-    const wrote = await web(`
+    let wrote = await web(`
       const film = { id: 202, kind: "movie", source: "xtream", title: "Web Film", poster: "web.jpg", category: "Action" };
       const show = { id: 55, kind: "series", source: "xtream", title: "Show", poster: "show.jpg" };
       const ep = { id: "9001", season: 1, number: 4, title: "Four", ext: "mkv" }, next = { id: "9002", season: 1, number: 5, title: "Five", ext: "mkv" };
@@ -105,13 +105,25 @@ const shape = (record) => Object.fromEntries(Object.entries(record).map(([k, v])
     check("every change is marked for sync, beside the old app's marks", [Object.keys(wrote.syncDirty.progress).sort(), Object.keys(wrote.syncDirty.favorites).sort()], [["episode-9001", "live-303", "movie-101", "movie-202"], ["movie-101", "movie-202"]]);
     check("no record carries this app's old names (name, at, item)", Object.values(wrote.progress).some((r) => "name" in r || "at" in r || "item" in r), false);
 
+    check("an episode resumed without its queue keeps the next hint already saved", await web(`
+      const show = { id: 55, kind: "series", source: "xtream", title: "Show", poster: "show.jpg" };
+      S.progress.save(show, { id: "9001", season: 1, number: 4, title: "Four", ext: "mkv" }, 1995, 2000, { next: null, force: true });
+      await new Promise((r) => setTimeout(r, 100));
+      return JSON.parse(window.__values.prefs).progress["episode-9001"].next;`), { season: "1", episodeId: "9002", number: "5", title: "Five", container: "mkv" });
+    check("a film record keeps its file type, and a resume gets it back", await web(`
+      const film = { id: 505, kind: "movie", source: "xtream", title: "MKV Film", poster: "", category: "Films", ext: "mkv" };
+      S.progress.save(film, null, 900, 6000, { force: true });
+      await new Promise((r) => setTimeout(r, 100));
+      return [JSON.parse(window.__values.prefs).progress["movie-505"].container, S.progress.forItem(film).item.ext];`), ["mkv", "mkv"]);
+    wrote = JSON.parse(await webWin.webContents.executeJavaScript("window.__values.prefs"));
+
     console.log("— the old app reads it back —");
     await js(`window.aurora.setPrefs(${JSON.stringify(wrote)})`);
     win.webContents.reload();
     await settle(1800);
     check("the list is the same set", await js(`[...state.favorites]`), ["movie-1", "movie-101", "movie-202"]);
     // the two were saved in the same millisecond, so their order is a tie
-    check("Continue watching: the next episode and the film (the hidden one stays out)", await js(`continueWatching().map((r) => [r.record.key, r.fresh || false]).sort()`), [["episode-9002", true], ["movie-202", false]]);
+    check("Continue watching: the next episode and the films (the hidden one stays out)", await js(`continueWatching().map((r) => [r.record.key, r.fresh || false]).sort()`), [["episode-9002", true], ["movie-202", false], ["movie-505", false]]);
     check("History has the show and the hidden film, not the forgotten channel", await js(`[state.progress.has("movie-101"), state.progress.has("live-303"), historyShows().map((s) => [s.id, s.watched])]`), [true, false, [["series-55", 1]]]);
 
     console.log("— progress is saved at most once every 5 s while playing —");

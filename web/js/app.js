@@ -655,9 +655,11 @@ async function playFirstEpisode(item) {
   const eps = item.queue?.[s] || await source.episodes(item, s);
   if (eps[0]) playEpisode(item, eps[0]);
 }
-function resumePlay(p) {
+async function resumePlay(p) {
   if (p.episode) return playEpisode(p.item, p.episode, p.position);
-  return playItem(p.item, p.position);
+  // a film the old app started has no file type in its record: the library knows it
+  const item = p.item.ext ? p.item : (await findOnLine([{ kind: p.item.kind, id: p.item.id }]).catch(() => []))[0] || p.item;
+  return playItem(item, p.position);
 }
 
 // ============================== Settings ==============================
