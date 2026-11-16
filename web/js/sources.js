@@ -303,6 +303,16 @@ function xtream(cfg) {
       return [{ id: "", name: "All channels" }, ...L.lc.filter((c) => L.lcount.get(String(c.category_id))).map((c) => ({ id: String(c.category_id), name: c.category_name }))];
     },
     async channels(category) { const L = await load(); return L.live.filter((c) => !category || c.categoryId === category).slice(0, 400); },
+    /* Items by kind and id, for My List entries the old app saved (it keeps
+       ids only). */
+    async find(refs) {
+      const L = await load();
+      const lists = { movie: L.movies, series: L.series, live: L.live };
+      const wanted = new Map(refs.map((r) => [`${r.kind}:${r.id}`, r]));
+      const out = [];
+      for (const [kind, list] of Object.entries(lists)) for (const x of list) if (wanted.has(`${kind}:${x.id}`)) out.push(x);
+      return out;
+    },
     async search(q) {
       const L = await load();
       const n = q.trim().toLowerCase();

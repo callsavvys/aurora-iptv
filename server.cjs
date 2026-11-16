@@ -95,6 +95,8 @@ function createAuroraServer(assetDir, port = 41791) {
       const origin = `http://127.0.0.1:${server.address().port}`;
       const requestUrl = new URL(req.url, origin);
       if (requestUrl.pathname === "/proxy") return handleProxy(req, res, requestUrl, origin);
+      // the record rules app/ shares with web/ live in web/js, beside this app's folder
+      if (requestUrl.pathname === "/sync-core.js") return serveAsset(res, path.resolve(assetDir, "..", "web", "js", "sync-core.js"));
       const asset = requestUrl.pathname === "/" ? "index.html" : requestUrl.pathname.slice(1);
       const safePath = path.resolve(assetDir, asset);
       if (!safePath.startsWith(path.resolve(assetDir) + path.sep) && safePath !== path.resolve(assetDir, "index.html")) {

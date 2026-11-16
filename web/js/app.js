@@ -184,7 +184,8 @@ async function renderHome(el, params, entry, live) {
   try { data = await source.home(); } finally { document.removeEventListener("library:progress", status); }
   if (!live()) return;
   const sections = [];
-  const resume = progress.recent().filter((p) => (p.item.source || "demo") === source.kind);
+  const resume = progress.recent(source.kind);
+  const mine = await myList.items(source.kind, findOnLine);
   if (resume.length) {
     sections.push(U.row({ id: "continue", title: "Continue watching", line: "Pick up exactly where you left off." },
       resume.map((p) => { on(`home-continue|resume:${p.id}`, () => resumePlay(p)); return U.continueCard(p, "home-continue"); }).join("")));
@@ -202,8 +203,7 @@ async function renderHome(el, params, entry, live) {
       if (s.browse) { on(`${where}|all`, () => go(s.browse.kind === "series" ? "series" : "movies", { category: s.browse.category || "" })); inner += U.seeAll(where); }
     }
     sections.push(U.row(s, inner));
-    if (s.id === "top10" && myList.all().some((x) => (x.source || "demo") === source.kind)) {
-      const mine = myList.all().filter((x) => (x.source || "demo") === source.kind);
+    if (s.id === "top10" && mine.length) {
       sections.push(U.row({ id: "mylist", title: "My List", line: "Everything you saved for later." }, mine.map((x) => P(x, "home-mylist")).join("")));
     }
   }
@@ -308,7 +308,7 @@ async function renderBrowse(el, kind, params) {
 
 // ============================== My List ==============================
 async function renderMyList(el) {
-  const items = myList.all().filter((x) => (x.source || "demo") === source.kind);
+  const items = await myList.items(source.kind, findOnLine);
   if (!items.length) {
     el.innerHTML = `<div class="page-head"><h1>My List</h1><p>Nothing saved yet</p></div>
       <div class="empty"><p>Press <b>＋</b> on any title to keep it here. It's the fastest way back to something you meant to watch.</p>
@@ -540,7 +540,7 @@ async function renderDetail(el, params) {
       epTrack.innerHTML = dressed.map((ep) => {
         const key = `ep:${ep.id}`;
         on(key, () => playEpisode(provider, ep));
-        const pct = U.pctOf(epId(provider, ep));
+        const pct = U.pctOf(progress.forEpisode(ep));
         return `<button class="card episode" data-f data-key="${esc(key)}"><div class="art">${ep.still ? `<img src="${esc(ep.still)}" alt="" loading="lazy" data-fallback="${esc(ep.title)}">` : `<div class="fallback">${esc(ep.title)}</div>`}
           <span class="ep">E${ep.number}</span>${pct ? `<div class="meter"><i style="width:${pct}%"></i></div>` : ""}</div>
           <div class="t" dir="auto">${ep.number}. ${esc(ep.title)}</div><div class="m">${esc(ep.runtime || "")}</div><div class="o" dir="auto">${esc(ep.overview)}</div></button>`;
@@ -639,11 +639,14 @@ function openTrailer(t, title) {
 function closeTrailer() { if (!trailer) return; const t = trailer; trailer = null; F.popLayer(t); t.remove(); }
 
 
-const epId = (item, ep) => `${item.source || "demo"}:ep:${ep.id}`;
-const filmId = (item) => `${item.source || "demo"}:${item.kind}:${item.id}`;
+/* My List keeps ids (the old app's); one the old app saved is found in the
+   library to draw it. */
+const findOnLine = (refs) => (source.find ? source.find(refs) : Promise.resolve([]));
+// where to start: a finished record is the watched mark, so it starts over
+const startOf = (saved) => (saved && !globalThis.AuroraSync.finished(saved) ? saved.position : 0);
 
 function findResume(item) {
-  const mine = progress.recent().filter((p) => p.item.id === item.id && p.item.kind === item.kind && (p.item.source || "demo") === (item.source || "demo"));
+  const mine = progress.recent(item.source || "demo").filter((p) => String(p.item.id) === String(item.id) && p.item.kind === item.kind);
   return mine[0] || null;
 }
 async function playFirstEpisode(item) {
@@ -652,9 +655,11 @@ async function playFirstEpisode(item) {
   const eps = item.queue?.[s] || await source.episodes(item, s);
   if (eps[0]) playEpisode(item, eps[0]);
 }
-function resumePlay(p) {
+async function resumePlay(p) {
   if (p.episode) return playEpisode(p.item, p.episode, p.position);
-  return playItem(p.item, p.position);
+  // a film the old app started has no file type in its record: the library knows it
+  const item = p.item.ext ? p.item : (await findOnLine([{ kind: p.item.kind, id: p.item.id }]).catch(() => []))[0] || p.item;
+  return playItem(item, p.position);
 }
 
 // ============================== Settings ==============================
@@ -806,12 +811,10 @@ async function attach(video, stream, { muted = false, startAt = 0 } = {}) {
 let player = null;
 
 function playItem(item, startAt) {
-  const saved = progress.get(filmId(item));
-  openPlayer({ item, startAt: startAt ?? (saved ? saved.position : 0) });
+  openPlayer({ item, startAt: startAt ?? startOf(progress.forItem(item)) });
 }
 function playEpisode(item, ep, startAt) {
-  const saved = progress.get(epId(item, ep));
-  openPlayer({ item, episode: ep, startAt: startAt ?? (saved ? saved.position : 0) });
+  openPlayer({ item, episode: ep, startAt: startAt ?? startOf(progress.forEpisode(ep)) });
 }
 function playChannel(ch, list) { openPlayer({ item: ch, live: true, channels: list?.length ? list : [ch] }); }
 
@@ -886,15 +889,17 @@ function openPlayer(opts) {
   };
   video.addEventListener("timeupdate", paint);
   video.addEventListener("play", paint); video.addEventListener("pause", paint);
-  video.addEventListener("ended", () => { save(); const n = nextEpisode(); if (n) offerNext(n); else showChrome(); });
+  video.addEventListener("pause", () => save(true));
+  video.addEventListener("ended", () => { save(true); const n = nextEpisode(); if (n) offerNext(n); else showChrome(); });
 
-  function save() {
+  /* In the old app's record shape, at most once every 5 s while playing (the
+     store throttles), and at once on pause, the end and leaving. */
+  function save(force = false) {
     if (P0.live || !video.duration || !isFinite(video.duration)) return;
-    const id = P0.episode ? epId(P0.item, P0.episode) : filmId(P0.item);
-    const done = video.currentTime / video.duration > 0.95;
-    progress.set(id, done ? null : { item: slim(P0.item), episode: P0.episode ? { ...P0.episode } : null, position: video.currentTime, duration: video.duration });
+    progress.save(P0.item, P0.episode || null, video.currentTime, video.duration, { next: P0.episode ? nextEpisode() : null, force });
   }
   saveTimer = setInterval(save, 5000);
+  if (P0.live) progress.played(P0.item);
 
   function showChrome() {
     el.classList.add("show");
@@ -909,6 +914,7 @@ function openPlayer(opts) {
     if (!P0.channels || P0.channels.length < 2) return;
     P0.chIndex = (P0.chIndex + d + P0.channels.length) % P0.channels.length;
     P0.item = P0.channels[P0.chIndex];
+    progress.played(P0.item);
     showChrome(); start();
   };
   function offerNext(ep) {
@@ -926,7 +932,7 @@ function openPlayer(opts) {
       if (t >= 10) { clearInterval(tick); goNext(); }
     }, 100);
   }
-  function goNext() { const n = nextEpisode(); if (!n) return; P0.episode = n; start(progress.get(epId(P0.item, n))?.position || 0); F.focusStart(); }
+  function goNext() { const n = nextEpisode(); if (!n) return; P0.episode = n; start(startOf(progress.forEpisode(n))); F.focusStart(); }
 
   // the player keeps the arrows for itself while its controls are hidden
   el.addEventListener("own:key", (e) => {
@@ -960,7 +966,7 @@ function openPlayer(opts) {
     },
     close(silent) {
       if (closed) return; closed = true;
-      save();
+      save(true);
       clearInterval(saveTimer); clearTimeout(hideTimer);
       document.removeEventListener("keydown", onKey, true);
       handle?.destroy?.();

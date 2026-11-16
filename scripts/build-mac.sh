@@ -39,6 +39,8 @@ PLIST="$APP/Contents/Info.plist"
 # only these files are needed at runtime; hls.js ships as app/hls.min.js
 cp package.json ./*.cjs "$STAGE/"
 cp -R app "$STAGE/app"
+# server.cjs serves app/'s sync-core.js (the record rules shared with web/) from web/js
+mkdir -p "$STAGE/web/js" && cp web/js/sync-core.js "$STAGE/web/js/"
 
 # a missing .cjs only shows up as a dead app on launch, so check before packing
 node -e '

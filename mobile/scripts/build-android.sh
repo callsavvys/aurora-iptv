@@ -84,7 +84,9 @@ rm -rf www
 if [ "$UI" = app ]; then
   cp -R ../app www
   cp platform/platform-core.js platform/platform-boot-app.js platform/tv.css platform/tv-nav.js www/
-  # the renderer is loaded by platform-boot-app.js once window.aurora exists
+  # the record rules shared with web/ (the Mac app's server serves it from web/js)
+  cp ../web/js/sync-core.js www/
+    # the renderer is loaded by platform-boot-app.js once window.aurora exists
   sed -i '' 's#<script src="renderer.js"></script>#<script src="platform-core.js"></script><script src="platform-boot-app.js"></script>#' www/index.html
   sed -i '' 's#<link rel="stylesheet" href="series.css" />#<link rel="stylesheet" href="series.css" />\n  <link rel="stylesheet" href="tv.css" />#' www/index.html
   # said before anything renders, because the shim, the renderer and the D-pad
@@ -92,7 +94,7 @@ if [ "$UI" = app ]; then
   sed -i '' 's#<html lang="en">#<html lang="en" class="platform-tv">#' www/index.html
   sed -i '' 's#Stored only on this Mac and sent directly#Stored only on this TV and sent directly#' www/index.html
   sed -i '' 's#placeholder="Search channels, movies and series"#placeholder="Search"#' www/index.html
-  NEEDLES="platform-core.js platform-boot-app.js platform-tv tv.css"
+  NEEDLES="platform-core.js platform-boot-app.js platform-tv tv.css src=\"sync-core.js\""
 else
   # the new interface: web/ as it runs in the Mac browser, minus its local
   # server, plus what that server provided (keys, hls.js, Supabase)
@@ -106,7 +108,7 @@ else
   # boot.js, which waits for it
   sed -i '' 's#<script src="config.js"></script>#<script src="config.js"></script><script src="platform-core.js"></script>#' www/index.html
   sed -i '' 's#<html lang="en" data-theme="teal">#<html lang="en" data-theme="teal" class="platform-tv ui-web">#' www/index.html
-  NEEDLES="platform-core.js platform-tv ui-web boot.js config.js"
+  NEEDLES="platform-core.js platform-tv ui-web boot.js config.js sync-core.js"
 fi
 sed -i '' "s/__AURORA_VERSION__/$VERSION/" www/platform-core.js
 grep -q "$VERSION" www/platform-core.js || { echo "the version was not written into platform-core.js"; exit 1; }

@@ -1030,44 +1030,33 @@ const upNext = (list, at = Date.now()) => (list || []).find((entry) => entry.sta
 
 /* ---------- watch progress ---------- */
 
-/* History is what you watched, so it has to outlast a binge. 400 records was
-   two long shows' worth of episodes before older films fell off the end. Over
-   the cap, live channels go first — they carry no position or watched mark —
-   and only then the oldest of everything else. */
-const HISTORY_CAP = 3000;
+/* The rules for these records live in sync-core.js (AuroraSync), shared with
+   the new interface so both read and write the same History. These wrappers
+   keep this app's side effects: saving and marking records for sync. */
+const Sync = globalThis.AuroraSync;
 
 function persistProgress() {
-  if (state.progress.size > HISTORY_CAP) {
-    const keep = [...state.progress.entries()]
-      .sort(([, a], [, b]) => (a.type === "live") - (b.type === "live") || b.updatedAt - a.updatedAt)
-      .slice(0, HISTORY_CAP);
-    state.progress = new Map(keep);
-  }
+  state.progress = Sync.capProgress(state.progress);
   writePref("progress", Object.fromEntries(state.progress));
 }
 
 function saveProgress(patch) {
   if (!patch?.key) return;
-  const merged = { ...(state.progress.get(patch.key) || {}), ...patch, updatedAt: Date.now() };
-  delete merged.hidden; // watching something again brings it back to Continue watching
-  state.progress.set(patch.key, merged); persistProgress();
+  Sync.mergeProgress(state.progress, patch, Date.now()); persistProgress();
   markDirty("progress", patch.key);
 }
 
 /* Removing a card from Continue watching used to delete the record outright,
    and with it the watched mark and the history entry. It only hides it now. */
 function hideFromContinue(keys) {
-  for (const key of keys) {
-    const record = state.progress.get(key);
-    if (record) { state.progress.set(key, { ...record, hidden: true, updatedAt: Date.now() }); markDirty("progress", key) }
-  }
+  for (const key of Sync.hideProgress(state.progress, keys, Date.now())) markDirty("progress", key);
   persistProgress();
 }
 
 const progressOf = (key) => state.progress.get(key) || null;
-const finished = (record) => Boolean(record && record.duration > 0 && record.position >= record.duration * 0.95);
-const percent = (record) => (record && record.duration > 0 ? Math.min(100, (record.position / record.duration) * 100) : 0);
-const underway = (record) => Boolean(record) && record.position > 20 && !finished(record);
+const finished = Sync.finished;
+const percent = Sync.percent;
+const underway = Sync.underway;
 
 /* A record only knows its own episode, so when one is played the episode after
    it is written down with it. That is what lets a show move on to "next
@@ -1079,51 +1068,9 @@ function nextHint(queue) {
   return { season: String(target.season), episodeId: episode.id, number: String(episodeNumber(episode, target.index)), title: episodeTitle(episode, target.index), container: episode.container_extension || "mp4" };
 }
 
-function recordFromHint(latest) {
-  const next = latest.next;
-  return { key: `episode-${next.episodeId}`, id: latest.id, type: "episode", title: latest.title, subtitle: `S${next.season} E${next.number} \u2022 ${next.title}`, poster: latest.poster, seriesId: latest.seriesId, season: next.season, episodeId: next.episodeId, container: next.container, position: 0, duration: 0 };
-}
-
-// what "continue" means for a show: the episode in progress, or the unstarted
-// one after the last episode finished; nothing once it is caught up
-function upNextFor(latest) {
-  if (!finished(latest)) return underway(latest) ? { record: latest, fresh: false } : null;
-  if (!latest.next) return null;
-  const existing = progressOf(`episode-${latest.next.episodeId}`);
-  if (finished(existing)) return null;
-  return existing && underway(existing) ? { record: existing, fresh: false } : { record: recordFromHint(latest), fresh: true };
-}
-
-function historyShows() {
-  const shows = new Map();
-  for (const record of state.progress.values()) {
-    if (record.type !== "episode") continue;
-    const show = shows.get(record.id) || { id: record.id, episodes: [], latest: record };
-    show.episodes.push(record);
-    if (record.updatedAt > show.latest.updatedAt) show.latest = record;
-    shows.set(record.id, show);
-  }
-  for (const show of shows.values()) {
-    show.episodes.sort((a, b) => b.updatedAt - a.updatedAt);
-    show.title = show.latest.title;
-    show.poster = show.episodes.find((record) => record.poster)?.poster || "";
-    show.updatedAt = show.latest.updatedAt;
-    show.watched = show.episodes.filter(finished).length;
-    show.upNext = upNextFor(show.latest);
-  }
-  return [...shows.values()];
-}
-
-function continueWatching() {
-  const films = [...state.progress.values()]
-    .filter((record) => record.type === "movie" && !record.hidden && underway(record))
-    .map((record) => ({ kind: "movie", record, updatedAt: record.updatedAt }));
-  const shows = historyShows()
-    .filter((show) => show.upNext && !show.latest.hidden)
-    .map((show) => ({ kind: "series", show, record: show.upNext.record, fresh: show.upNext.fresh, updatedAt: show.updatedAt }));
-  return [...films, ...shows].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 20);
-}
-const watchHistory = () => [...state.progress.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+const historyShows = () => Sync.historyShows(state.progress);
+const continueWatching = () => Sync.continueWatching(state.progress);
+const watchHistory = () => Sync.watchHistory(state.progress);
 
 /* ---------- AirPlay ----------
    On an iPhone the film can go to a car's screen — CarPlay with AirPlay video,
@@ -3498,14 +3445,7 @@ async function restoreVaultKey() {
 }
 
 function vaultPayload() {
-  const removed = readPref("sourcesRemoved", {});
-  return {
-    v: 1,
-    sources: readSources().map(({ id, name, server, username, password, updatedAt }) => ({ id, name, server, username, password, updatedAt: updatedAt || 0 })),
-    removed,
-    tmdb: secrets?.tmdb || "", tmdbAt: readPref("keysUpdatedAt", 0),
-    omdb: secrets?.omdb || "",
-  };
+  return Sync.vaultPayload({ sources: readSources(), removed: readPref("sourcesRemoved", {}), tmdb: secrets?.tmdb, omdb: secrets?.omdb, keysUpdatedAt: readPref("keysUpdatedAt", 0) });
 }
 
 async function pushVault() {
@@ -3528,29 +3468,17 @@ async function openVault(row) {
    remembered — otherwise a device that still had the source would put it back
    on the next sync. Returns how many sources this device gained. */
 async function mergeVault(remote) {
-  const local = readSources();
-  const removed = { ...readPref("sourcesRemoved", {}), };
-  for (const [key, at] of Object.entries(remote.removed || {})) if (!removed[key] || removed[key] < at) removed[key] = at;
-  const byKey = new Map(local.map((source) => [sourceKey(source), source]));
-  let gained = 0, changed = false;
-  for (const source of remote.sources || []) {
-    const key = sourceKey(source), mine = byKey.get(key);
-    if (removed[key] && removed[key] >= (source.updatedAt || 0)) continue;
-    if (!mine) { byKey.set(key, { ...source, id: source.id || newSourceId(), count: 0 }); gained += 1; changed = true }
-    else if ((source.updatedAt || 0) > (mine.updatedAt || 0)) { byKey.set(key, { ...mine, name: source.name, password: source.password, updatedAt: source.updatedAt }); changed = true }
+  const merged = Sync.mergeVault({
+    local: readSources(), removed: readPref("sourcesRemoved", {}), remote, sourceKey, newSourceId,
+    keys: { tmdb: secrets?.tmdb, omdb: secrets?.omdb, at: readPref("keysUpdatedAt", 0) },
+  });
+  writePref("sourcesRemoved", merged.removed);
+  if (merged.changed) writeSources(merged.sources);
+  if (merged.keys) {
+    await saveSecrets({ ...(secrets || {}), tmdb: merged.keys.tmdb, omdb: merged.keys.omdb }, { quiet: true });
+    writePref("keysUpdatedAt", merged.keys.at);
   }
-  for (const [key, at] of Object.entries(removed)) {
-    const mine = byKey.get(key);
-    if (mine && at > (mine.updatedAt || 0)) { byKey.delete(key); changed = true }
-  }
-  writePref("sourcesRemoved", removed);
-  if (changed) writeSources([...byKey.values()]);
-  const keysChanged = (remote.tmdbAt || 0) > readPref("keysUpdatedAt", 0) && (remote.tmdb !== secrets?.tmdb || remote.omdb !== secrets?.omdb);
-  if (keysChanged) {
-    await saveSecrets({ ...(secrets || {}), tmdb: remote.tmdb || "", omdb: remote.omdb || "" }, { quiet: true });
-    writePref("keysUpdatedAt", remote.tmdbAt);
-  }
-  return gained;
+  return merged.gained;
 }
 
 async function syncVault() {
@@ -3573,25 +3501,18 @@ function scheduleSync() {
 }
 
 function markDirty(kind, id) {
-  const dirty = readPref("syncDirty", { favorites: {}, progress: {} });
-  dirty[kind] = { ...(dirty[kind] || {}), [id]: Date.now() };
-  writePref("syncDirty", dirty);
+  writePref("syncDirty", Sync.markDirty(readPref("syncDirty", { favorites: {}, progress: {} }), kind, id, Date.now()));
   scheduleSync();
 }
 
 function noteFavorite(id, saved) {
-  writePref("favoriteTimes", { ...readPref("favoriteTimes", {}), [id]: { saved, at: Date.now() } });
+  writePref("favoriteTimes", Sync.noteFavorite(readPref("favoriteTimes", {}), id, saved, Date.now()));
   markDirty("favorites", id);
 }
 
 function forgetProgress(keys) {
-  const gone = { ...readPref("progressGone", {}) };
-  for (const key of keys) {
-    if (!state.progress.has(key)) continue;
-    state.progress.delete(key);
-    gone[key] = Date.now();
-    markDirty("progress", key);
-  }
+  const { gone, changed } = Sync.forgetProgress(state.progress, readPref("progressGone", {}), keys, Date.now());
+  for (const key of changed) markDirty("progress", key);
   writePref("progressGone", gone);
   persistProgress();
 }
@@ -3816,8 +3737,9 @@ async function deleteAccount() {
    itself never leaves the device; what goes up is a Bloom filter, which answers
    "could this be in there?" and cannot be read back as a list. */
 
-const FILTER_BYTES = 1 << 16; // 64 KB covers a six-figure library at a low false-positive rate
-const FILTER_HASHES = 4;
+// the filter's rules are in sync-core.js; these names stay for the tests and party code
+const FILTER_BYTES = AuroraSync.FILTER_BYTES;
+const FILTER_HASHES = AuroraSync.FILTER_HASHES;
 const PARTY_TICK = 2000;
 const PARTY_SEEK_DRIFT = 2.5; // past this, catch up by seeking rather than by speed
 const PARTY_EASE_DRIFT = 0.4; // under this, leave it alone
@@ -3834,42 +3756,12 @@ function fingerprints(item) {
   return year ? [`${key}|${year}`, key] : [key];
 }
 
-const fnv = (text, seed) => {
-  let hash = (2166136261 ^ seed) >>> 0;
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 16777619) >>> 0;
-  }
-  return hash >>> 0;
-};
-
-function filterSet(bits, value) {
-  for (let i = 0; i < FILTER_HASHES; i += 1) {
-    const at = fnv(value, i) % (bits.length * 8);
-    bits[at >> 3] |= 1 << (at & 7);
-  }
-}
-
-function filterHas(bits, value) {
-  for (let i = 0; i < FILTER_HASHES; i += 1) {
-    const at = fnv(value, i) % (bits.length * 8);
-    if (!(bits[at >> 3] & (1 << (at & 7)))) return false;
-  }
-  return true;
-}
+const filterSet = AuroraSync.filterSet;
+const filterHas = AuroraSync.filterHas;
 
 const toBits = (text) => Uint8Array.from(atob(text), (char) => char.charCodeAt(0));
 
-function libraryFilter() {
-  const bits = new Uint8Array(FILTER_BYTES);
-  let count = 0;
-  for (const item of state.items) {
-    if (item.type !== "movie" && item.type !== "series") continue;
-    for (const print of fingerprints(item)) filterSet(bits, print);
-    count += 1;
-  }
-  return { bits, count };
-}
+const libraryFilter = () => AuroraSync.libraryFilter(state.items, fingerprints);
 
 /* Published when the library changes, not on a timer: it is a snapshot of what
    this device can play, and it only moves when that does. */
