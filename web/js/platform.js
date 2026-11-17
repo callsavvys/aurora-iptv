@@ -22,14 +22,21 @@ const aurora = window.aurora?.store ? window.aurora : null;
 export const native = !!aurora || !!window.Capacitor?.isNativePlatform?.();
 export const config = window.AURORA_CONFIG || {};
 export const trace = !!aurora?.trace;
+/* On the web (the Cloudflare Pages site, config.js says cloud): the page is
+   served over https and the provider over plain http, which a secure page may
+   not play, so the site relays it: the catalogue through /api/xtream, video
+   through /api/stream (cloud/functions). */
+export const cloud = !native && !!config.cloud;
+/* the URL a player loads for a provider stream */
+export const playable = (url) => (cloud ? `/api/stream?u=${encodeURIComponent(url)}` : url);
 
 // ---------------- network ----------------
 /* The URL to fetch for a provider URL. */
 export const net = {
-  url: (url) => (native ? url : `/api/proxy?u=${encodeURIComponent(url)}`),
+  url: (url) => (native ? url : cloud ? `/api/xtream?u=${encodeURIComponent(url)}` : `/api/proxy?u=${encodeURIComponent(url)}`),
   /* true when `url` is one this module routed, so errors can name "your
      provider" instead of the local server */
-  routed: (url) => native || String(url).startsWith("/api/proxy"),
+  routed: (url) => native || String(url).startsWith("/api/proxy") || String(url).startsWith("/api/xtream"),
 };
 /* hls.js segment and playlist URLs. On the TV, CapacitorHttp's patched XHR
    reaches the provider as it does for the old app, so nothing changes. */

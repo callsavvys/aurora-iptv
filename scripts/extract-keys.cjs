@@ -39,8 +39,8 @@ function extractKeys(file = SOURCE) {
   return keys;
 }
 
-const configJs = (keys, { trace = false } = {}) =>
-  `window.AURORA_CONFIG = ${JSON.stringify({ ...keys, ...(trace ? { trace: true } : {}) })};\n`;
+const configJs = (keys, { trace = false, cloud = false } = {}) =>
+  `window.AURORA_CONFIG = ${JSON.stringify({ ...keys, ...(trace ? { trace: true } : {}), ...(cloud ? { cloud: true } : {}) })};\n`;
 
 module.exports = { extractKeys, configJs, PATTERNS, MissingKeyError };
 
@@ -50,7 +50,7 @@ if (require.main === module) {
   const file = fileArg !== -1 ? path.resolve(args[fileArg + 1]) : SOURCE;
   try {
     const keys = extractKeys(file);
-    if (args.includes("--config-js")) process.stdout.write(configJs(keys, { trace: args.includes("--trace") }));
+    if (args.includes("--config-js")) process.stdout.write(configJs(keys, { trace: args.includes("--trace"), cloud: args.includes("--cloud") }));
     else console.log(`ok: ${Object.keys(keys).join(", ")} found in ${path.relative(process.cwd(), file)}`);
   } catch (error) {
     console.error(error.message);
