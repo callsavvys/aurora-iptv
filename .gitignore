@@ -5,3 +5,8 @@ release/
 # operational state, not source
 .omc/
 supabase/.temp/
+
+# the built web site (scripts/build-cloud.sh)
+cloud/public/
+cloud/.wrangler/
+.wrangler/

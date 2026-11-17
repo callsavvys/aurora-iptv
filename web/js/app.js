@@ -814,12 +814,16 @@ const loadHls = () => (window.Hls ? Promise.resolve(window.Hls) : (hlsLoading = 
 
 async function attach(video, stream, { muted = false, startAt = 0 } = {}) {
   video.muted = muted;
-  if (stream.hls) {
+  // on the web site, through its relay (the provider is plain http)
+  stream = { ...stream, url: Plat.playable(stream.url) };
+  // Safari (an iPhone, a Mac) plays HLS itself; elsewhere hls.js does
+  const systemHls = Plat.cloud && !!video.canPlayType("application/vnd.apple.mpegurl");
+  if (stream.hls && !systemHls) {
     const Hls = await loadHls();
     if (Hls?.isSupported()) {
       const hls = new Hls({
         enableWorker: true, lowLatencyMode: false, startPosition: startAt || -1,
-        ...(stream.proxied && !Plat.native ? { xhrSetup: (xhr, url) => xhr.open("GET", Plat.streamUrl(url), true) } : {}),
+        ...(stream.proxied && !Plat.native && !Plat.cloud ? { xhrSetup: (xhr, url) => xhr.open("GET", Plat.streamUrl(url), true) } : {}),
       });
       hls.loadSource(stream.url); hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
