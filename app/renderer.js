@@ -430,27 +430,12 @@ const hasTmdb = () => Boolean(apiKeys().tmdb);
 // "AR| Dune" is a language tag; "Troy: The Odyssey" is a title. The shapes are
 // identical, so the prefix is stripped for one key and kept for another, and
 // the scoring decides which reading was right.
-const LEAD_TAG = /^\s*[\[|(]?\s*[A-Za-z]{2,4}\s*[\]|)]?\s*[|:\-–]\s*/u;
 
-function searchTitle(name, { keepPrefix = false } = {}) {
-  const raw = String(name || "");
-  return (keepPrefix ? raw : raw.replace(LEAD_TAG, ""))
-    .replace(/\[[^\]]*\]|\([^)]*\)/g, " ")
-    .replace(/\b(4k|uhd|fhd|hd|sd|hevc|x26[45]|h\.?26[45]|multi|vf|vo|vostfr|dub(bed)?|sub(bed)?|imax|remux|blu-?ray|web-?dl|\d{3,4}p)\b/gi, " ")
-    .replace(/[_.]+/g, " ")
-    .replace(/\s{2,}/g, " ")
-    .trim()
-    .replace(/\s+\b((?:19|20)\d{2})\b$/, (match, year) => (Number(year) <= new Date().getFullYear() + 2 ? "" : match))
-    .trim();
-}
+// how both apps clean a provider's name (sync-core.js): search, parties and the filter match on it
+const searchTitle = AuroraSync.searchTitle;
 
 // providers often bury the year in the title when the year field is empty
-function releaseYear(item) {
-  if (item.year) return String(item.year);
-  const limit = new Date().getFullYear() + 2;
-  const years = (String(item.name || "").match(/\b(?:19|20)\d{2}\b/g) || []).map(Number).filter((y) => y <= limit);
-  return years.length ? String(years[years.length - 1]) : "";
-}
+const releaseYear = (item) => AuroraSync.releaseYear(item.year, item.name);
 
 const queue = [];
 const slowQueue = [];
@@ -738,10 +723,10 @@ function watchArtwork() {
 
 let libraryIndex = null;
 
-const indexKey = (name, options) => searchTitle(name, options).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const indexKey = AuroraSync.indexKey;
 
 // both readings of the name, so neither interpretation of a prefix loses a match
-const indexKeys = (name) => [...new Set([indexKey(name), indexKey(name, { keepPrefix: true })])].filter(Boolean);
+const indexKeys = AuroraSync.indexKeys;
 
 function buildIndex() {
   const byTitle = new Map(), byType = { live: [], movie: [], series: [] }, rows = [];
@@ -3749,12 +3734,7 @@ const party = { id: null, hosting: false, channel: null, friend: null, title: ""
 
 /* Both readings, because a provider that omits the year must still match one
    that includes it — the year-qualified form is tried first when testing. */
-function fingerprints(item) {
-  const [key] = indexKeys(item.name);
-  if (!key) return [];
-  const year = String(releaseYear(item) || "").slice(0, 4);
-  return year ? [`${key}|${year}`, key] : [key];
-}
+const fingerprints = (item) => AuroraSync.fingerprints(item.name, item.year);
 
 const filterSet = AuroraSync.filterSet;
 const filterHas = AuroraSync.filterHas;

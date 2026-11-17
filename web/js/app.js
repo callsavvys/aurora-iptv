@@ -10,6 +10,7 @@ import { prefs, myList, progress, slim } from "./store.js";
 import { makeSource, testXtream } from "./sources.js";
 import * as U from "./ui.js";
 import * as Plat from "./platform.js";
+import * as Tg from "./together.js";
 import { enrich, seasonEpisodes, collection, person as tmdbPerson, scores, norm, cleanTitle } from "./tmdb.js";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -63,7 +64,10 @@ const W = (item, where, opts) => (on(opts?.key || U.keyOf(item, where), () => op
 const T = (item, n, where) => (on(U.keyOf(item, where), () => openItem(item)), U.topCard(item, n, where));
 const C = (ch, where, list) => (on(U.keyOf(ch, where), () => playChannel(ch, list)), U.channelCard(ch, where));
 
+// a click from a mouse or a finger, not Enter on a remote (which also fires click, with detail 0)
+let pointerClick = false;
 document.addEventListener("click", (e) => {
+  pointerClick = e.detail > 0;
   const el = e.target.closest("[data-key]");
   if (!el) return;
   // iPhone Safari does not focus a tapped button, and screens react to focus
@@ -205,6 +209,7 @@ async function renderHome(el, params, entry, live) {
   if (!live()) return;
   const sections = [];
   const resume = progress.recent(source.kind);
+  if (Tg.signedIn() && source.titles) source.titles().then((t) => Tg.publishLibrary(t, prefs.source.id || source.name)).catch(() => {});
   const mine = await myList.items(source.kind, findOnLine);
   if (resume.length) {
     sections.push(U.row({ id: "continue", title: "Continue watching", line: "Pick up exactly where you left off." },
@@ -514,6 +519,7 @@ async function renderDetail(el, params) {
       ${resume ? `<button class="btn" data-f data-key="d:restart">Start over</button>` : ""}
       ${meta?.trailer ? `<button class="btn" data-f ${onLine ? "" : "data-start"} data-key="d:trailer">${U.icons.film}Trailer</button>` : ""}
       ${onLine ? `<button class="btn ${saved ? "on" : ""}" data-f data-key="d:list">${saved ? U.icons.check : U.icons.plus}My List</button>` : ""}
+      ${onLine && provider?.source === "xtream" && Tg.signedIn() && Tg.accepted().length ? `<button class="btn" data-f data-key="d:together">${U.icons.play}Watch together</button>` : ""}
       ${!onLine && !meta?.trailer ? `<button class="btn" data-f data-start data-key="d:back">${U.icons.back}Back</button>` : ""}
     </div>`;
   if (meta?.imdbId) scores(meta.imdbId).then((s) => {
@@ -524,6 +530,7 @@ async function renderDetail(el, params) {
   on("d:play", () => resume ? resumePlay(resume) : provider.kind === "series" ? playFirstEpisode(provider) : playItem(provider));
   on("d:restart", () => resume.episode ? playEpisode(provider, resume.episode, 0) : playItem(provider, 0));
   on("d:trailer", () => openTrailer(meta.trailer, t.title));
+  on("d:together", () => pickFriendFor(provider));
   on("d:list", (btn) => {
     const added = myList.toggle(provider);
     btn.classList.toggle("on", added); btn.innerHTML = `${added ? U.icons.check : U.icons.plus}My List`;
@@ -695,7 +702,7 @@ async function renderSettings(el, params) {
   const pane = params.pane || "look";
   el.innerHTML = `<div class="settings">
     <div class="side list" data-zone="side" data-lock="y" data-leave="up" data-prefer=".cat-item.on">
-      ${[["look", "Appearance"], ["lang", "Language & region"], ["source", "Source"], ["keys", "Keyboard & remote"], ["about", "About"]].map(([id, label]) =>
+      ${[["look", "Appearance"], ["lang", "Language & region"], ["source", "Source"], ["together", "Account & friends"], ["keys", "Keyboard & remote"], ["about", "About"]].map(([id, label]) =>
         `<button class="cat-item ${id === pane ? "on" : ""}" data-f data-key="set:${id}" ${id === pane ? "data-start" : ""}><span>${label}</span></button>`).join("")}
     </div><div class="pane"></div></div>`;
   const paneEl = el.querySelector(".pane");
@@ -732,6 +739,8 @@ async function renderSettings(el, params) {
       for (const inp of paneEl.querySelectorAll("input")) on(inp.dataset.key, () => { inp.readOnly = false; inp.focus(); const n = inp.value.length; try { inp.setSelectionRange(n, n); } catch { /* password fields */ } });
       paneEl.addEventListener("focusout", (e) => { if (e.target.matches("input")) e.target.readOnly = true; });
       paneEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("input") && !e.target.readOnly) { e.preventDefault(); e.target.readOnly = true; } });
+    } else if (id === "together") {
+      drawTogether(paneEl, () => params.pane === "together" && draw("together"));
     } else if (id === "keys") {
       paneEl.innerHTML = `<h2>Keyboard &amp; remote</h2><p>Everything works from the arrow keys alone — the same as a remote's D-pad.</p>
         <div class="shortcuts"><kbd>← ↑ → ↓</kbd><span>Move</span><kbd>Enter</kbd><span>Choose (OK)</span><kbd>Backspace / Esc</kbd><span>Back</span>
@@ -742,10 +751,10 @@ async function renderSettings(el, params) {
         <p class="note">Film and series data and images from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. Test stream: Big Buck Bunny, © Blender Foundation, CC BY 3.0.</p>`;
     }
   };
-  // OK on a section moves into it; a tap on a phone just opens it (there is no
+  // OK on a section moves into it; a click or a tap just opens it (there is no
   // focus to carry across, and the pane may still show the last section)
-  for (const id of ["look", "lang", "source", "keys", "about"]) on(`set:${id}`, () => {
-    if (isPhone()) { clearTimeout(dwell); return draw(id); }
+  for (const id of ["look", "lang", "source", "together", "keys", "about"]) on(`set:${id}`, () => {
+    if (isPhone() || pointerClick) { clearTimeout(dwell); return draw(id); }
     const first = F.focusables(paneEl)[0]; if (first) F.focus(first);
   });
   for (const t of THEMES) on(`theme:${t.id}`, (btn) => {
@@ -805,6 +814,97 @@ function openHelp() {
   F.pushLayer(dialog);
 }
 function closeDialog() { if (!dialog) return; const d = dialog; dialog = null; F.popLayer(d); d.remove(); }
+
+// ============================== account, friends, watching together ==============================
+/* A small dialog: a heading, a line, and buttons ([label, fn, primary]). */
+function ask(title, line, buttons) {
+  if (dialog) closeDialog();
+  dialog = document.createElement("div");
+  dialog.className = "dialog";
+  dialog.innerHTML = `<div class="box"><h2>${esc(title)}</h2>${line ? `<p class="note" style="font-size:var(--t-body)">${line}</p>` : ""}
+    <div class="actions" style="margin-top:34px;display:flex;flex-wrap:wrap;gap:16px">${buttons.map(([label, , primary], i) => `<button class="btn ${primary ? "primary" : ""}" data-f ${i === 0 ? "data-start" : ""} data-key="ask:${i}">${esc(label)}</button>`).join("")}</div></div>`;
+  stage.appendChild(dialog);
+  buttons.forEach(([, fn], i) => on(`ask:${i}`, () => { closeDialog(); fn?.(); }));
+  F.pushLayer(dialog);
+}
+
+function drawTogether(paneEl, redraw) {
+  const s = Tg.social;
+  const field = (key, label, type = "text", value = "") => `<label class="field"><span>${label}</span><input data-f data-key="${key}" type="${type}" readonly value="${esc(value)}" autocapitalize="off" spellcheck="false"></label>`;
+  const typeable = () => {
+    for (const inp of paneEl.querySelectorAll("input")) on(inp.dataset.key, () => { inp.readOnly = false; inp.focus(); });
+    paneEl.addEventListener("focusout", (e) => { if (e.target.matches("input")) e.target.readOnly = true; });
+    paneEl.addEventListener("keydown", (e) => { if (e.key === "Enter" && e.target.matches("input") && !e.target.readOnly) { e.preventDefault(); e.target.readOnly = true; } });
+  };
+  const val = (key) => paneEl.querySelector(`[data-key="${key}"]`)?.value || "";
+  if (!Tg.signedIn()) {
+    paneEl.innerHTML = `<h2>Account &amp; friends</h2><p>Sign in with your Aurora account to add friends and watch together. It is the same account as the Aurora app on a Mac, an iPhone or the TV.</p>
+      <div data-zone="acct">${field("acct:email", "Email", "email")}${field("acct:pass", "Password", "password")}
+      <div class="actions" style="display:flex;flex-wrap:wrap;gap:16px"><button class="btn primary" data-f data-key="acct:in">Sign in</button><button class="btn" data-f data-key="acct:new">Create account</button></div>
+      <div class="error" ${s.error ? "" : "hidden"}>${esc(s.error)}</div>${s.notice ? `<p class="note">${esc(s.notice)}</p>` : ""}</div>`;
+    typeable();
+    const go = (create) => async () => {
+      s.error = ""; s.notice = "";
+      try { const r = await Tg.signIn(val("acct:email").trim(), val("acct:pass"), { create }); if (r.confirm) s.notice = "Check your email for a confirmation link, then sign in here."; else toast(`Signed in as ${Tg.email()}`); }
+      catch (e) { s.error = e.message; }
+      redraw();
+    };
+    on("acct:in", go(false)); on("acct:new", go(true));
+    return;
+  }
+  const me = s.profile || {};
+  const answer = s.friends.filter((f) => f.status === "pending" && !f.i_asked);
+  const asked = s.friends.filter((f) => f.status === "pending" && f.i_asked);
+  const friends = Tg.accepted();
+  const row = (f, buttons) => `<div class="toggle" style="cursor:default"><span>${esc(f.display_name || "Someone")}<small>${esc(f.friend_code || "")}</small></span><span style="display:flex;gap:12px">${buttons}</span></div>`;
+  paneEl.innerHTML = `<h2>Account &amp; friends</h2>
+    <p>Signed in as <b>${esc(Tg.email())}</b>. Your name is <b>${esc(me.display_name || "…")}</b> and your friend code is <b style="font-family:var(--mono);letter-spacing:.08em">${esc(me.friend_code || "…")}</b>. Give the code to someone and they can add you.</p>
+    <div data-zone="add">${field("fr:code", "Add a friend by their code")}<div class="actions" style="display:flex;gap:16px;flex-wrap:wrap"><button class="btn primary" data-f data-key="fr:add">Send request</button><button class="btn" data-f data-key="acct:out">Sign out</button></div>
+    <div class="error" ${s.error ? "" : "hidden"}>${esc(s.error)}</div>${s.notice ? `<p class="note">${esc(s.notice)}</p>` : ""}</div>
+    ${answer.length ? `<h2 style="margin-top:40px">Wants to be your friend</h2><div data-zone="answer">${answer.map((f) => row(f, `<button class="btn primary" data-f data-key="fr:ok:${f.user_id}">Accept</button><button class="btn" data-f data-key="fr:no:${f.user_id}">Decline</button>`)).join("")}</div>` : ""}
+    <h2 style="margin-top:40px">Friends</h2>
+    <div data-zone="friends">${friends.length ? friends.map((f) => row(f, `<button class="btn" data-f data-key="fr:rm:${f.user_id}">Remove</button>`)).join("") : `<p class="note">No friends yet. Send someone your code.</p>`}</div>
+    ${asked.length ? `<p class="note">Waiting on ${asked.map((f) => esc(f.display_name)).join(", ")}.</p>` : ""}
+    <p class="note">To watch together, open a film or series and choose Watch together. Each of you plays your own copy; Aurora keeps you in step.</p>`;
+  typeable();
+  on("fr:add", async () => { await Tg.addFriendByCode(val("fr:code")); redraw(); });
+  on("acct:out", async () => { await Tg.signOut(); toast("Signed out"); redraw(); });
+  for (const f of answer) { on(`fr:ok:${f.user_id}`, async () => { await Tg.acceptFriend(f.user_id); redraw(); }); on(`fr:no:${f.user_id}`, async () => { await Tg.removeFriend(f.user_id); redraw(); }); }
+  for (const f of friends) on(`fr:rm:${f.user_id}`, () => ask(`Remove ${f.display_name}?`, "You can add each other again with your codes.", [["Remove", async () => { await Tg.removeFriend(f.user_id); redraw(); }, true], ["Cancel"]]));
+}
+
+/* Host: pick a friend, invite them, start playing. */
+function pickFriendFor(item) {
+  const friends = Tg.accepted();
+  if (!friends.length) return toast("Add a friend first, in Settings → Account & friends");
+  const start = async (f) => {
+    if (!(await Tg.startParty(item, f.user_id))) return toast(Tg.social.error || "Could not start the party");
+    toast(`Invited ${f.display_name} to watch`);
+    if (item.kind === "series") return findResume(item) ? resumePlay(findResume(item)) : playFirstEpisode(item);
+    playItem(item);
+  };
+  ask("Watch together with…", `Each of you plays your own copy of <b>${esc(item.title)}</b>; Aurora keeps you in step.`, [...friends.map((f, i) => [f.display_name || "Friend", () => start(f), i === 0]), ["Cancel"]]);
+}
+
+/* Guest: an invitation, from a friend's Aurora (this app or the old one). */
+let offered = null;
+Tg.onChange(() => {
+  const inv = Tg.pendingInvite();
+  if (!inv || offered === inv.party || player) return;
+  offered = inv.party;
+  ask(`${inv.from || "A friend"} wants to watch`, `<b>${esc(inv.title || "something")}</b> together. You will play your own copy, kept in step with theirs.`, [
+    ["Watch together", async () => {
+      if (!source.titles) return toast("Connect your line first, in Settings → Source");
+      toast("Finding it on your line…");
+      const r = await Tg.joinParty(inv.party, await source.titles());
+      if (r.error) return toast(r.error);
+      if (r.item.kind === "series") { const res = findResume(r.item); return res ? resumePlay(res) : playFirstEpisode(r.item); }
+      playItem(r.item);
+    }, true],
+    ["Not now", () => Tg.dismissInvite()],
+  ]);
+});
+Tg.start().catch(() => {});
 
 // ============================== playing ==============================
 let hlsLoading = null;
@@ -931,6 +1031,22 @@ function openPlayer(opts) {
   if (P0.live) progress.played(P0.item);
   // on a phone the system's own controls do the work: scrubbing, fullscreen, AirPlay
   if (isPhone()) { video.controls = true; el.classList.add("touch"); }
+  // watching together: the host's clock goes out, the guest follows it
+  const unparty = Tg.attachPlayer(video);
+  let partyEl = null;
+  const paintParty = () => {
+    if (!Tg.party.id) { partyEl?.remove(); partyEl = null; return; }
+    if (!partyEl) {
+      partyEl = document.createElement("div");
+      partyEl.className = "party-strip";
+      partyEl.innerHTML = `<span></span>${Tg.party.hosting ? "" : '<button class="btn" data-f data-key="pt:back">−5s</button><button class="btn" data-f data-key="pt:fwd">+5s</button>'}<button class="btn" data-f data-key="pt:leave">${Tg.party.hosting ? "End" : "Leave"}</button>`;
+      el.appendChild(partyEl);
+    }
+    partyEl.querySelector("span").textContent = Tg.partyLine();
+  };
+  const stopPaint = Tg.onChange(paintParty); paintParty();
+  on("pt:back", () => Tg.nudgeParty(-5)); on("pt:fwd", () => Tg.nudgeParty(5));
+  on("pt:leave", () => { Tg.leaveParty(); toast("Left the party"); });
 
   function showChrome() {
     el.classList.add("show");
@@ -998,6 +1114,8 @@ function openPlayer(opts) {
     close(silent) {
       if (closed) return; closed = true;
       save(true);
+      unparty(); stopPaint();
+      if (Tg.party.id && Tg.party.hosting) Tg.leaveParty();
       clearInterval(saveTimer); clearTimeout(hideTimer);
       document.removeEventListener("keydown", onKey, true);
       handle?.destroy?.();

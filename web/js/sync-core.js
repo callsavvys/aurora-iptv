@@ -170,6 +170,45 @@
     };
   }
 
+  // ---------- titles: how both apps recognise the same film on two lines ----------
+
+  /* A provider's name for a title, cleaned to what it is called: no leading
+     country tag ("EN | "), no brackets, no quality or release words, no
+     trailing year. Watch parties and the library filter match on it, so both
+     apps must clean names exactly the same way. */
+  const LEAD_TAG = /^\s*[\[|(]?\s*[A-Za-z]{2,4}\s*[\]|)]?\s*[|:\-–]\s*/u;
+  function searchTitle(name, { keepPrefix = false } = {}) {
+    const raw = String(name || "");
+    return (keepPrefix ? raw : raw.replace(LEAD_TAG, ""))
+      .replace(/\[[^\]]*\]|\([^)]*\)/g, " ")
+      .replace(/\b(4k|uhd|fhd|hd|sd|hevc|x26[45]|h\.?26[45]|multi|vf|vo|vostfr|dub(bed)?|sub(bed)?|imax|remux|blu-?ray|web-?dl|\d{3,4}p)\b/gi, " ")
+      .replace(/[_.]+/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+      .replace(/\s+\b((?:19|20)\d{2})\b$/, (match, year) => (Number(year) <= new Date().getFullYear() + 2 ? "" : match))
+      .trim();
+  }
+  const indexKey = (name, options) => searchTitle(name, options).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  // both readings of the name, so neither interpretation of a prefix loses a match
+  const indexKeys = (name) => [...new Set([indexKey(name), indexKey(name, { keepPrefix: true })])].filter(Boolean);
+
+  // providers often bury the year in the title when the year field is empty
+  function releaseYear(year, name) {
+    if (year) return String(year);
+    const limit = new Date().getFullYear() + 2;
+    const years = (String(name || "").match(/\b(?:19|20)\d{2}\b/g) || []).map(Number).filter((y) => y <= limit);
+    return years.length ? String(years[years.length - 1]) : "";
+  }
+
+  /* Both readings, because a provider that omits the year must still match one
+     that includes it; the year-qualified form is tried first. */
+  function fingerprints(name, year) {
+    const [key] = indexKeys(name);
+    if (!key) return [];
+    const y = String(releaseYear(year, name) || "").slice(0, 4);
+    return y ? [`${key}|${y}`, key] : [key];
+  }
+
   // ---------- the library filter (a Bloom filter of titles) ----------
 
   const fnv = (text, seed) => {
@@ -214,5 +253,6 @@
     finished, percent, underway, recordFromHint, upNextFor, historyShows, continueWatching, watchHistory,
     markDirty, noteFavorite, vaultPayload, mergeVault,
     fnv, filterSet, filterHas, libraryFilter,
+    searchTitle, indexKey, indexKeys, releaseYear, fingerprints,
   });
 })(typeof globalThis !== "undefined" ? globalThis : this);
