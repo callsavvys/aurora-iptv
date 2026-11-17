@@ -30,6 +30,10 @@ let lastMove = 0;
 let motion = true;
 
 export const setScale = (s) => { stageScale = s || 1; };
+/* On a phone the pages and rows scroll natively under a finger, so focus
+   never moves them with transforms. */
+let touch = false;
+export const setTouch = (on) => { touch = !!on; };
 export const setMotion = (on) => { motion = on; document.documentElement.classList.toggle("instant", !on); };
 export const setBackHandler = (fn) => { onBack = fn; };
 
@@ -59,6 +63,7 @@ function rank(from, to, move) {
 const px = (v) => v / stageScale;
 
 function bringRowTo(el) {
+  if (touch) return;
   const row = el.closest("[data-track]");
   if (!row) return;
   const track = row.querySelector(":scope > .track");
@@ -78,6 +83,7 @@ function bringRowTo(el) {
 }
 
 function bringPageTo(el) {
+  if (touch) return;
   const page = el.closest("[data-page]");
   if (!page) return;
   const scroller = page.querySelector(":scope > .scroller");
