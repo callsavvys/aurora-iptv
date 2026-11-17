@@ -87,6 +87,18 @@ const STUB = `(() => {
     // A TV WebView inflated innerWidth to 1920 on a 960x540 screen: fake that and the stage must still fit.
     check("…even when the WebView reports innerWidth 1920", await js(`(() => { Object.defineProperty(window, "innerWidth", { get: () => 1920, configurable: true }); Object.defineProperty(window, "innerHeight", { get: () => 1080, configurable: true }); dispatchEvent(new Event("resize")); return document.querySelector(".stage").style.transform.includes("scale(0.5)"); })()`), true);
 
+    console.log("— at iPhone size —");
+    win.setContentSize(390, 844);
+    await settle(600);
+    check("a phone gets its own page: 780 wide, as tall as the screen, not the TV stage shrunk", await js(`(() => { const st = document.querySelector(".stage"); return [document.documentElement.classList.contains("phone"), st.style.width, Math.round(st.getBoundingClientRect().width)]; })()`), [true, "780px", 390]);
+    check("a tap on a Settings section opens it", await js(`(async () => { document.querySelector('[data-key="tab:settings"]').click(); await new Promise((r) => setTimeout(r, 900)); document.querySelector('[data-key="set:about"]').click(); await new Promise((r) => setTimeout(r, 400)); return document.querySelector(".settings .pane h2")?.textContent; })()`), "About");
+    check("the page scrolls under a finger instead of being moved by focus", await js(`getComputedStyle(document.querySelector(".settings").parentElement).overflowY`), "auto");
+    win.setContentSize(960, 540);
+    await settle(600);
+    check("back at TV size it is the 1920x1080 stage again", await js(`[document.documentElement.classList.contains("phone"), document.querySelector(".stage").style.transform.includes("scale(0.5)")]`), [false, true]);
+    await js(`document.querySelector('[data-key="tab:home"]')?.click(); true`);
+    await settle(800);
+
     console.log("— the remote's Back —");
     await js(`document.querySelector(".bar .tab")?.focus(); true`);
     const first = await js(`window.__back.forEach((fn) => fn({ canGoBack: true })); window.__exited`);

@@ -423,3 +423,104 @@ section.block { padding-bottom: 64px; }
 .boot-banner { position: fixed; left: 50%; top: 40px; transform: translateX(-50%); z-index: 1000; width: min(1100px, 90vw); padding: 28px 36px; border-radius: var(--r-wide); background: var(--surface-2); color: var(--text); font: 500 var(--t-callout)/1.35 var(--font); box-shadow: 0 12px 40px rgba(0,0,0,.5); }
 .boot-banner .actions { display: flex; gap: 16px; margin-top: 18px; }
 .boot-banner .detail { margin-top: 14px; color: var(--text-2); font: var(--t-caption)/1.3 var(--mono); }
+
+/* ---------- a phone (web/js/app.js fit(): narrower than 900px) ----------
+   The page is 780 stage px wide and as tall as the screen, so the TV sizes
+   above come out at phone sizes. Pages and rows scroll under a finger (focus
+   never moves them), a tap opens things, and nothing is laid out wider than
+   the screen. Only what differs from the TV is here. */
+.phone { --safe-x: 28px; --safe-y: 24px; --gap: 22px; --t-hero: 64px; --t-title1: 56px; --t-title2: 48px; --t-title3: 40px; }
+.phone body { overflow: hidden; }
+.phone .stage { overflow: hidden; }
+/* scrolling: the page scrolls, rows scroll sideways */
+.phone .page { overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.phone .scroller { position: relative; transform: none !important; transition: none; will-change: auto; padding-bottom: 150px; }
+.phone .row, .phone .chips-row { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 18px 0 26px; margin: -18px 0 -26px; }
+.phone .row::-webkit-scrollbar, .phone .chips-row::-webkit-scrollbar, .phone .page::-webkit-scrollbar { display: none; }
+.phone .track { transform: none !important; transition: none; }
+/* a tap is not a focus: no lifting, glow or scale that would stick after a tap */
+.phone .card:focus .art { transform: none; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.phone .card:focus .t, .phone .card:focus .m, .phone .episode:focus .o { transform: none; }
+.phone .tab:focus, .phone .chip:focus, .phone .cat-item:focus, .phone .ch-item:focus, .phone .toggle:focus, .phone .theme:focus, .phone .query:focus-within, .phone .field input:focus, .phone .info-card:focus { transform: none; }
+
+/* the bar: logo and tools at the top, the tabs along the bottom like a phone app */
+.phone .bar { height: 116px; padding: 0 var(--safe-x); gap: 16px; background: linear-gradient(180deg, rgba(0,0,0,.75), rgba(0,0,0,0)); }
+.phone .bar.away { transform: none; opacity: 1; }
+.phone .tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; justify-content: stretch; }
+.phone .tabs nav { flex: 1; justify-content: space-around; gap: 0; padding: 12px 10px 34px; border-radius: 0; border-width: 1px 0 0; background: rgba(12,13,18,.94); backdrop-filter: none; box-shadow: none; }
+.phone .tab { height: 76px; padding: 0 16px; font-size: 26px; }
+.phone .tab:focus { background: none; color: var(--text); }
+.phone .tab.on::after, .phone .tab:focus::after { background: var(--accent); bottom: 4px; }
+.phone .bar-tools { margin-left: auto; }
+
+/* Home */
+.phone .hero { height: 980px; }
+.phone .hero .copy { left: var(--safe-x); right: var(--safe-x); width: auto; bottom: 120px; }
+.phone .hero .logo { max-width: 100%; max-height: 180px; }
+.phone .hero p { -webkit-line-clamp: 4; font-size: 27px; }
+.phone .hero .pager { right: var(--safe-x); bottom: 70px; }
+.phone .poster { width: 220px; } .phone .poster .art { height: 330px; }
+.phone .wide, .phone .chan, .phone .genre { width: 380px; } .phone .wide .art, .phone .chan .art { height: 214px; }
+.phone .top { width: 600px; }
+.phone .see-all { width: 220px; } .phone .see-all .art { height: 330px; }
+
+/* Movies, Series, My List, search results: three columns */
+.phone .page-head { padding: 136px var(--safe-x) 0; }
+.phone .grid, .phone .results .grid { grid-template-columns: repeat(3, 1fr); gap: 46px 18px; padding: 34px var(--safe-x) 170px; }
+.phone .grid .poster { width: auto; } .phone .grid .poster .art { height: auto; aspect-ratio: 2/3; }
+.phone .empty { padding: 60px var(--safe-x); }
+.phone .results { overflow-y: auto; margin: 0 calc(-1 * var(--safe-x)); }
+
+/* a title */
+.phone .detail .top-area { height: auto; min-height: 1100px; }
+.phone .detail .backdrop { height: 620px; bottom: auto; }
+.phone .detail .backdrop::after { background: linear-gradient(0deg, var(--bg) 4%, color-mix(in srgb, var(--bg) 0%, transparent) 70%); }
+.phone .detail .copy { position: relative; left: 0; top: 0; width: auto; padding: 440px var(--safe-x) 40px; }
+.phone .detail .logo { max-width: 100%; max-height: 170px; }
+.phone .detail .back-btn { top: 130px; }
+.phone .detail .overview { -webkit-line-clamp: 8 !important; }
+.phone .detail .actions, .phone .hero .actions { display: flex; flex-wrap: wrap; gap: 14px; }
+.phone .episode { width: 460px; } .phone .episode .art { height: 259px; }
+.phone .info-card { width: auto; margin: 0 var(--safe-x); padding: 30px; }
+.phone .info-card dl { grid-template-columns: 1fr 1fr; gap: 24px; }
+.phone .person-top { height: auto; }
+.phone .person-top .portrait { position: relative; right: auto; top: auto; display: block; width: 300px; height: 450px; margin: 140px var(--safe-x) 0; }
+.phone .person-top .copy { width: auto; top: 0; padding-top: 30px; }
+.phone .nets { flex-wrap: wrap; }
+
+/* Live TV: categories as chips across the top, channels underneath, no side preview */
+.phone .live-page { display: flex; flex-direction: column; gap: 18px; padding: 136px 0 0; height: 100%; }
+.phone .live-page > .list:first-child { flex: 0 0 auto; height: auto; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.phone .live-page > .list:first-child .track { flex-direction: row; padding: 4px var(--safe-x); width: max-content; }
+.phone .cat-item { height: 64px; padding: 0 24px; border-radius: 999px; background: var(--surface); white-space: nowrap; }
+.phone .cat-item.on::before { content: none; }
+.phone .cat-item.on { background: var(--accent); color: var(--accent-ink); }
+.phone .cat-item span { overflow: visible; }
+.phone .live-page > .list:nth-child(2) { flex: 1 1 auto; overflow-y: auto; height: auto; padding: 0 var(--safe-x) 170px; }
+.phone .live-page > .list:nth-child(2) .track { padding: 0; }
+.phone .live-page .preview { display: none; }
+.phone .ch-item { height: 104px; }
+
+/* Search */
+.phone .search-page { padding: 136px var(--safe-x) 0; }
+.phone .query { height: 88px; }
+.phone .query input { font-size: 32px; }
+
+/* Settings: one column, and the screen scrolls (it has no page of its own) */
+.phone .screen-root:has(> .settings) { overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.phone .settings { grid-template-columns: 1fr; gap: 30px; padding: 136px var(--safe-x) 170px; }
+.phone .settings .side { flex-direction: row; flex-wrap: wrap; }
+.phone .themes { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.phone .theme { height: 150px; }
+.phone .toggle, .phone .field, .phone .field-row { width: auto; }
+.phone .field-row { grid-template-columns: 1fr; }
+.phone .shortcuts { display: none; }
+.phone .dialog .box { width: calc(100% - 2 * var(--safe-x)); padding: 36px 30px; }
+
+/* the player: the system's controls, plus a way back */
+.phone .player.touch .chrome { opacity: 1; background: none; pointer-events: none; }
+.phone .player.touch .ttl, .phone .player.touch .timeline, .phone .player.touch .flash { display: none; }
+.phone .player.touch .bottom { left: auto; right: var(--safe-x); top: 120px; bottom: auto; }
+.phone .player.touch .controls > :not([data-key="pl:close"]):not([data-key="pl:next"]) { display: none; }
+.phone .player.touch .controls .btn { pointer-events: auto; }
+.phone .upnext { left: var(--safe-x); right: var(--safe-x); width: auto; bottom: 220px; }

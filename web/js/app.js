@@ -21,8 +21,25 @@ const esc = U.esc;
    Android TV WebView grows it to fit the 1920-wide stage itself (a 960x540
    screen reported 1920x1080), so scaling by it drew the stage at twice the
    size with three quarters of it off the screen. */
+/* A phone gets its own page: 780 stage px wide and as tall as the screen, so
+   the TV's sizes come out at phone sizes (26px text is about 13pt), pages and
+   rows scroll under a finger, and a tap opens things. The TV and a computer
+   keep the 1920x1080 stage. */
+const PHONE_WIDTH = 780;
+const isPhone = () => document.documentElement.clientWidth < 900;
 function fit() {
   const w = document.documentElement.clientWidth, h = document.documentElement.clientHeight;
+  const phone = isPhone();
+  document.documentElement.classList.toggle("phone", phone);
+  F.setTouch(phone);
+  if (phone) {
+    const s = w / PHONE_WIDTH;
+    stage.style.width = `${PHONE_WIDTH}px`; stage.style.height = `${h / s}px`;
+    stage.style.transform = `scale(${s})`;
+    F.setScale(s);
+    return;
+  }
+  stage.style.width = ""; stage.style.height = "";
   const s = Math.min(w / 1920, h / 1080);
   stage.style.transform = `translate(${(w - 1920 * s) / 2}px, ${(h - 1080 * s) / 2}px) scale(${s})`;
   F.setScale(s);
@@ -49,6 +66,9 @@ const C = (ch, where, list) => (on(U.keyOf(ch, where), () => playChannel(ch, lis
 document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-key]");
   if (!el) return;
+  // iPhone Safari does not focus a tapped button, and screens react to focus
+  // (a Live TV category loads when it is focused): a tap focuses first
+  if (isPhone() && el.matches("[data-f]") && document.activeElement !== el) F.focus(el);
   const fn = actions.get(el.dataset.key);
   if (fn) fn(el);
 });
@@ -722,7 +742,12 @@ async function renderSettings(el, params) {
         <p class="note">Film and series data and images from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. Test stream: Big Buck Bunny, © Blender Foundation, CC BY 3.0.</p>`;
     }
   };
-  for (const id of ["look", "lang", "source", "keys", "about"]) on(`set:${id}`, () => { const first = F.focusables(paneEl)[0]; if (first) F.focus(first); });
+  // OK on a section moves into it; a tap on a phone just opens it (there is no
+  // focus to carry across, and the pane may still show the last section)
+  for (const id of ["look", "lang", "source", "keys", "about"]) on(`set:${id}`, () => {
+    if (isPhone()) { clearTimeout(dwell); return draw(id); }
+    const first = F.focusables(paneEl)[0]; if (first) F.focus(first);
+  });
   for (const t of THEMES) on(`theme:${t.id}`, (btn) => {
     prefs.theme = t.id; applyLook();
     paneEl.querySelectorAll(".theme").forEach((b) => b.classList.toggle("on", b === btn));
@@ -900,6 +925,8 @@ function openPlayer(opts) {
   }
   saveTimer = setInterval(save, 5000);
   if (P0.live) progress.played(P0.item);
+  // on a phone the system's own controls do the work: scrubbing, fullscreen, AirPlay
+  if (isPhone()) { video.controls = true; el.classList.add("touch"); }
 
   function showChrome() {
     el.classList.add("show");
