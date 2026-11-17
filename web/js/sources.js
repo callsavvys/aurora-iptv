@@ -10,7 +10,7 @@
    poster, backdrop, still, badge, source, category }. */
 
 import { tmdb, img, cleanTitle, norm, yearOf, fromList, displayTitle, tidyCategory } from "./tmdb.js";
-import { net, redact } from "./platform.js";
+import { net, redact, cloud } from "./platform.js";
 // Big Buck Bunny, Blender Foundation (CC BY 3.0) — a public test stream
 const TEST_STREAM = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
@@ -26,6 +26,13 @@ async function getJson(url) {
       try { const j = JSON.parse(body); said = j.message || j.error || ""; } catch { said = body.slice(0, 120); }
       if (said) said = redact(said);
       const who = net.routed(url) ? "Your provider" : new URL(url, location.href).hostname;
+      /* a provider that refuses by country, IP or connection limit has the
+         login right: telling the person to retype their password sends them
+         the wrong way */
+      if ((r.status === 401 || r.status === 403) && /countr|region|location|\bip\b|vpn|proxy|connection|limit|expired|banned|blocked/i.test(said)) {
+        const where = cloud ? " This web version reaches your provider from Cloudflare's servers, outside your country; the Aurora app on your own network does not have this problem." : "";
+        throw new Error(`${who} refused the connection${said ? `: “${said}”` : ""}.${where}`);
+      }
       if (r.status === 401 || r.status === 403) throw new Error(`${who} refused the login${said ? `: “${said}”` : ""}. Check the username and password — the password is easy to mistype behind the dots.`);
       throw new Error(`${who} answered ${r.status}${said ? `: “${said}”` : ""}`);
     }
