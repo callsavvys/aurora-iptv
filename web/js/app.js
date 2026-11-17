@@ -1084,9 +1084,12 @@ function openPlayer(opts) {
   // the player keeps the arrows for itself while its controls are hidden
   el.addEventListener("own:key", (e) => {
     const k = e.detail;
+    // channel up and down always change channel, controls showing or not: a
+    // channel that will not play must be one press from the next one
+    if (P0.live && (k === "ArrowUp" || k === "ArrowDown")) { e.preventDefault(); zap(k === "ArrowUp" ? -1 : 1); return; }
     if (chromeShown()) { showChrome(); return; }
     e.preventDefault();
-    if (P0.live) { if (k === "ArrowUp") zap(-1); else if (k === "ArrowDown") zap(1); else showChrome(); return; }
+    if (P0.live) { showChrome(); return; }
     if (k === "ArrowLeft") seek(-10); else if (k === "ArrowRight") seek(10); else showChrome();
   });
   const onKey = (e) => {
