@@ -107,7 +107,7 @@ else
   # platform-core.js goes after config.js (it reads the trace flag) and before
   # boot.js, which waits for it
   sed -i '' 's#<script src="config.js"></script>#<script src="config.js"></script><script src="platform-core.js"></script>#' www/index.html
-  sed -i '' 's#<html lang="en" data-theme="teal">#<html lang="en" data-theme="teal" class="platform-tv ui-web">#' www/index.html
+  sed -i '' 's#<html lang="en" data-theme="ocean">#<html lang="en" data-theme="ocean" class="platform-tv ui-web">#' www/index.html
   NEEDLES="platform-core.js platform-tv ui-web boot.js config.js sync-core.js"
 fi
 sed -i '' "s/__AURORA_VERSION__/$VERSION/" www/platform-core.js

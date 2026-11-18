@@ -698,6 +698,7 @@ async function resumePlay(p) {
 
 // ============================== Settings ==============================
 const THEMES = [
+  { id: "ocean", name: "Ocean", sw: ["#050b12", "#0489ac", "#f2f7fa"] },
   { id: "teal", name: "Teal", sw: ["#080a0f", "#14d3a8", "#ffd25a"] },
   { id: "crimson", name: "Crimson", sw: ["#090909", "#e50914", "#ffffff"] },
   { id: "graphite", name: "Graphite", sw: ["#000000", "#ffffff", "#2c2c2e"] },

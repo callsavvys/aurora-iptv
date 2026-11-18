@@ -75,7 +75,7 @@ const shape = (record) => Object.fromEntries(Object.entries(record).map(([k, v])
 
     check("it sees the old app's list entry and its Continue watching film", await web(`return [S.myList.has({ source: "xtream", kind: "movie", id: 101 }), S.progress.recent("xtream").map((p) => [p.id, p.item.id, p.item.kind, p.position])];`),
       [true, [["movie-101", 101, "movie", 600]]]);
-    check("the old dark theme reads as graphite here", await web(`return (await import("/js/store.js")).prefs.theme;`), "graphite");
+    check("the old dark theme reads as Ocean, the default, here", await web(`return (await import("/js/store.js")).prefs.theme;`), "ocean");
     check("starting wrote nothing to prefs", await web(`return window.__sets.filter((k) => k === "prefs").length;`), 0);
 
     let wrote = await web(`
