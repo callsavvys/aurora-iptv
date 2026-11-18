@@ -294,6 +294,11 @@ function follow(message) {
   if (message.paused && !video.paused) video.pause();
   if (!message.paused && video.paused) video.play().catch(() => {});
   const off = Math.abs(party.drift);
+  /* A seek while the film is still loading, or while the last seek settles,
+     restarts the download; the host speaks every 2 s and an IPTV film can
+     take longer than that to start, so seeking on every message left the
+     guest loading forever (seen on an iPhone). Seek once it has loaded. */
+  if (off > PARTY_SEEK_DRIFT && (video.readyState < 1 || video.seeking)) { changed(); return; }
   if (off > PARTY_SEEK_DRIFT) { video.currentTime = target; video.playbackRate = 1; }
   else if (off > PARTY_EASE_DRIFT) video.playbackRate = party.drift > 0 ? 0.95 : 1.05;
   else video.playbackRate = 1;

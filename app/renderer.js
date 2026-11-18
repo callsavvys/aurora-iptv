@@ -3932,6 +3932,12 @@ function followHost(message) {
   if (message.paused && !video.paused) video.pause();
   if (!message.paused && video.paused) video.play().catch(() => {});
   const off = Math.abs(party.drift);
+  /* A seek while the film is still loading, or while the last seek is still
+     settling, restarts the download from a new place. The host speaks every
+     2 s and an IPTV film takes longer than that to start on a phone, so
+     seeking on every message left the guest loading forever. Wait until it
+     has loaded, then seek once; the next message after that corrects it. */
+  if (off > PARTY_SEEK_DRIFT && (video.readyState < 1 || video.seeking)) { updatePartyStrip(); return }
   if (off > PARTY_SEEK_DRIFT) { video.currentTime = target; video.playbackRate = speedChoice() }
   else if (off > PARTY_EASE_DRIFT) video.playbackRate = speedChoice() * (party.drift > 0 ? 0.95 : 1.05);
   else video.playbackRate = speedChoice();

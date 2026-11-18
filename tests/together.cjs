@@ -47,6 +47,8 @@ const NOW = 1_700_000_000_000; // followHost reads the clock; it is held still s
     Object.defineProperty(v, "currentTime", { configurable: true, get: () => window.__v.time, set: (x) => { window.__v.time = x; window.__v.seeks.push(x) } });
     Object.defineProperty(v, "paused", { configurable: true, get: () => window.__v.paused });
     Object.defineProperty(v, "playbackRate", { configurable: true, get: () => window.__v.rate, set: (x) => { window.__v.rate = x } });
+    Object.defineProperty(v, "readyState", { configurable: true, get: () => window.__v.ready ?? 4 });
+    Object.defineProperty(v, "seeking", { configurable: true, get: () => !!window.__v.seeking });
     v.pause = () => { window.__v.paused = true; window.__v.pauses += 1 };
     v.play = () => { window.__v.paused = false; window.__v.plays += 1; return Promise.resolve() };
     true`);
@@ -123,7 +125,7 @@ const NOW = 1_700_000_000_000; // followHost reads the clock; it is held still s
     window.__realNow = Date.now; Date.now = () => ${NOW}; true`);
   // put the guest's player in a known place, hear one message from the host, report what it did
   const follow = (video, message, { offset = 0 } = {}) => js(`(() => {
-    Object.assign(__v, ${JSON.stringify({ rate: 1, paused: false, seeks: [], plays: 0, pauses: 0, ...video })});
+    Object.assign(__v, ${JSON.stringify({ rate: 1, paused: false, seeks: [], plays: 0, pauses: 0, ready: 4, seeking: false, ...video })});
     party.offset = ${offset};
     followHost(${JSON.stringify(message)});
     return { time: __v.time, paused: __v.paused, rate: __v.rate, seeks: __v.seeks, plays: __v.plays, pauses: __v.pauses, drift: Math.round(party.drift * 10) / 10 };
@@ -135,6 +137,10 @@ const NOW = 1_700_000_000_000; // followHost reads the clock; it is held still s
   check("far behind the host, it seeks to where the host is", [r.seeks, r.time, r.rate], [[100], 100, 1]);
   r = await follow({ time: 200 }, playing(100));
   check("far ahead of the host, it seeks back", [r.seeks, r.time], [[100], 100]);
+  r = await follow({ time: 0, ready: 0 }, playing(100));
+  check("while its film is still loading it does not seek (that restarts the load)", r.seeks, []);
+  r = await follow({ time: 3, seeking: true }, playing(100));
+  check("nor while its last seek is still settling", r.seeks, []);
   r = await follow({ time: 47.4 }, playing(50));
   check("just past the seek threshold it seeks, not eases", [r.seeks.length, r.rate], [1, 1]);
   r = await follow({ time: 47.6 }, playing(50));

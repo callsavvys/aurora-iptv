@@ -85,7 +85,7 @@ const sent = [];
 function fakeVideo(at = 0) {
   const listeners = {};
   return {
-    currentTime: at, paused: true, playbackRate: 1,
+    currentTime: at, paused: true, playbackRate: 1, readyState: 4, seeking: false,
     play() { this.paused = false; (listeners.play || []).forEach((f) => f()); return Promise.resolve(); },
     pause() { this.paused = true; (listeners.pause || []).forEach((f) => f()); },
     addEventListener(e, f) { (listeners[e] ||= []).push(f); },
@@ -135,6 +135,12 @@ function fakeVideo(at = 0) {
   const state = sent.filter(([who, ch, ev]) => who === "A" && ch === "aurora-party-P1" && ev === "state").pop()[3];
   check("the state message has the old app's keys", Object.keys(state).sort(), ["at", "paused", "position", "title"]);
   check("far apart (100 s): the guest seeks to the host and plays", [Math.round(gv.currentTime), gv.paused, gv.playbackRate], [100, false, 1]);
+  gv.currentTime = 0; gv.readyState = 0; hv.pause(); hv.play(); await tick();
+  check("while the guest's film is still loading it does not seek (that restarts the load)", Math.round(gv.currentTime), 0);
+  gv.readyState = 4; gv.seeking = true; hv.pause(); hv.play(); await tick();
+  check("nor while its last seek is still settling", Math.round(gv.currentTime), 0);
+  gv.seeking = false; hv.pause(); hv.play(); await tick();
+  check("once loaded it seeks to the host", Math.round(gv.currentTime), 100);
   gv.currentTime = 101.5; hv.pause(); hv.currentTime = 100; hv.play(); await tick();
   check("1.5 s ahead: the guest eases off (0.95x) instead of jumping", [gv.playbackRate, Math.round(gv.currentTime * 10) / 10], [0.95, 101.5]);
   gv.currentTime = 100.2; hv.pause(); await tick();
