@@ -123,6 +123,7 @@
       <video id="video" autoplay playsinline x-webkit-airplay="allow"></video>
       <div class="video-message hidden" id="video-message"></div>
       <div class="party-strip hidden" id="party-strip"></div>
+      <div class="party-chooser hidden" id="party-chooser"></div>
       <div class="buffering hidden" id="buffering"><span></span></div>
       <div class="tap-flash" id="tap-flash"><svg class="icon"><use href="#i-play"/></svg></div>
       <div class="seek-flash back" id="seek-back"><svg class="icon"><use href="#i-back10"/></svg><b>10 seconds</b></div>
@@ -164,6 +165,7 @@
               <option value="1.25">1.25&times;</option><option value="1.5">1.5&times;</option><option value="1.75">1.75&times;</option><option value="2">2&times;</option>
             </select></label>
             <input type="file" id="subtitle-file" accept=".vtt,.srt,text/vtt" hidden>
+            <button class="ghost party-button" id="player-party" hidden title="Watch together">Watch together</button>
             <button class="ghost" id="player-airplay" hidden title="AirPlay — play on your car or TV"><svg class="icon"><use href="#i-airplay"/></svg></button>
             <span class="volume">
               <button class="ghost" id="player-mute" title="Mute"><svg class="icon"><use href="#i-volume"/></svg></button>

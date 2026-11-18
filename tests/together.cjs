@@ -34,7 +34,7 @@ const NOW = 1_700_000_000_000; // followHost reads the clock; it is held still s
       channel: (name) => { note("channel(" + name + ")"); return { send: () => Promise.resolve(), on() { return this }, subscribe: () => Promise.resolve(), track() {} } },
       removeChannel: (channel) => { window.__removed = channel; return Promise.resolve() },
     });
-    window.__fetches = 0; const realFetch = window.fetch; window.fetch = (...args) => { window.__fetches += 1; return realFetch(...args) };
+    window.__fetches = 0; const realFetch = window.fetch; window.fetch = (...args) => {  window.__fetches += 1; return realFetch(...args) };
     window.__asked.length = 0;
     true`);
   const asked = () => js(`window.__asked.splice(0)`);
@@ -355,6 +355,116 @@ const NOW = 1_700_000_000_000; // followHost reads the clock; it is held still s
     return [/event: "invite"/.test(src), /event: "friends"/.test(src)];
   })()`);
   check("both kinds arrive on the same channel of your own", listening, [true, true]);
+
+  console.log("\n— party codes —");
+  // a recording client whose answers each test chooses
+  await js(`
+    window.__log = [];
+    window.__plays = [];
+    window.__insertErrors = [];   // errors to hand back to successive party inserts
+    window.__rpcAnswer = { data: null, error: null };
+    window.__rpcCalls = [];
+    window.__realPlay = window.play;
+    window.play = (item) => { window.__plays.push(item.id) };
+    window.accountClient = () => ({
+      from: (table) => ({
+        insert: (rows) => {
+          window.__log.push({ table, rows });
+          const fail = table === "parties" ? window.__insertErrors.shift() : null;
+          const result = { data: fail ? null : { id: "party-new" }, error: fail || null };
+          return { select: () => ({ single: () => Promise.resolve(result) }), then: (resolve) => resolve({ data: null, error: null }) };
+        },
+        update: () => ({ eq: () => ({ eq: () => Promise.resolve({}) }) }),
+        select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null }) }) }),
+      }),
+      rpc: (name, args) => { window.__rpcCalls.push([name, args]); return Promise.resolve(window.__rpcAnswer) },
+      channel: (name) => { window.__log.push({ channel: name }); return { send: (m) => { window.__log.push({ sent: name, event: m.event }); return Promise.resolve() }, on() { return this }, subscribe: () => Promise.resolve(), track() {} } },
+      removeChannel: () => Promise.resolve(),
+    });
+    account.user = { id: "me" };
+    social.profile = { user_id: "me", display_name: "Me" };
+    social.friends = [{ user_id: "friend-1", display_name: "Sam", status: "accepted" }];
+    state.items = [{ id: "m1", type: "movie", name: "The Runner", year: "2026", streamId: 1 }];
+    window.__reset = () => { __log.length = 0; __plays.length = 0; __insertErrors.length = 0; __rpcCalls.length = 0; Object.assign(party, { id: null, code: "", hosting: false, channel: null, friend: null, title: "", here: [] }) };
+    true`);
+  const rowsOf = (table) => js(`__log.filter((e) => e.table === "${table}").map((e) => e.rows)`);
+
+  await js(`__reset(); startParty(state.items[0], "friend-1").then(() => true)`);
+  const inserted = (await rowsOf("parties"))[0];
+  check("a party row carries a six-character code from the unambiguous alphabet", /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(inserted.code), true);
+  check("and the party keeps it for the strip and the toast", await js(`party.code`), inserted.code);
+  check("the toast shows the code", await js(`$("#toast").textContent.includes("Party code " + party.code)`), true);
+  check("the strip shows it", await js(`$("#party-strip .party-code").textContent`), inserted.code);
+  check("with a friend: host and friend rows, with identical keys", await js(`__log.find((e) => e.table === "party_members").rows.map((r) => Object.keys(r).join())`), ["party_id,user_id,joined_at", "party_id,user_id,joined_at"]);
+  check("the friend is invited on their own channel", await js(`__log.filter((e) => e.sent).map((e) => [e.sent, e.event])`), [["aurora-user-friend-1", "invite"]]);
+  check("and the film plays", await js(`__plays`), ["m1"]);
+
+  await js(`__reset(); startParty(state.items[0]).then(() => true)`);
+  check("with no friend: only the host is a member", await js(`__log.find((e) => e.table === "party_members").rows.map((r) => r.user_id)`), ["me"]);
+  check("and nobody is invited", await js(`__log.some((e) => e.sent)`), false);
+  check("the strip says it is a hosted party", await js(`$("#party-strip .party-who").textContent`), "Hosting a party");
+
+  await js(`__reset(); __insertErrors.push({ code: "23505", message: "duplicate key" }, { code: "23505", message: "duplicate key" }); startParty(state.items[0]).then(() => true)`);
+  const attempts = await rowsOf("parties");
+  check("a code that is taken is redrawn", [attempts.length, new Set(attempts.map((r) => r.code)).size > 1 || attempts.length === 3], [3, true]);
+  check("and the party still starts", await js(`party.id`), "party-new");
+
+  await js(`__reset(); __insertErrors.push({ code: "42703", message: 'column "code" of relation "parties" does not exist' }); startParty(state.items[0], "friend-1").then(() => true)`);
+  const retried = await rowsOf("parties");
+  check("with no code column, the insert is retried without one", [retried.length, "code" in retried[0], "code" in retried[1]], [2, true, false]);
+  check("and the party starts without a code", await js(`[party.id, party.code]`), ["party-new", ""]);
+  check("the toast does not mention a code that does not exist", await js(`$("#toast").textContent.includes("Party code")`), false);
+
+  console.log("\n— starting from the player —");
+  await js(`__reset(); state.playerItem = state.items[0]; $("#player-modal").classList.remove("hidden"); updatePartyButton(); true`);
+  check("a signed-in viewer sees Watch together on a film", await js(`$("#player-party").hidden`), false);
+  await js(`state.playerItem = { id: "l1", type: "live", name: "Channel" }; updatePartyButton(); true`);
+  check("but not on a live channel", await js(`$("#player-party").hidden`), true);
+  await js(`state.playerItem = state.items[0]; account.user = null; updatePartyButton(); true`);
+  check("nor when signed out", await js(`$("#player-party").hidden`), true);
+  await js(`account.user = { id: "me" }; updatePartyButton(); $("#player-party").click(); true`);
+  check("the button opens a chooser of friends plus a code option", await js(`[$("#party-chooser").classList.contains("hidden"), [...document.querySelectorAll("#party-chooser [data-party-with]")].map((b) => b.dataset.partyWith)]`), [false, ["friend-1", ""]]);
+  await js(`Object.assign(__v, { time: 61, paused: false }); document.querySelector('#party-chooser [data-party-with=""]').click(); true`);
+  await new Promise((r) => setTimeout(r, 100));
+  check("starting from the player does not restart playback", await js(`__plays`), []);
+  check("and the playing video is the party clock straight away", await js(`__log.filter((e) => e.sent && e.sent.startsWith("aurora-party-")).map((e) => e.event)`), ["state"]);
+  check("the chooser closes and the button goes while a party runs", await js(`[$("#party-chooser").classList.contains("hidden"), $("#player-party").hidden, !!party.code]`), [true, true, true]);
+  await js(`__reset(); updatePartyStrip(); state.playerItem = null; true`);
+
+  console.log("\n— joining by code —");
+  await js(`__reset(); __rpcAnswer = { data: [{ id: "party-9", host: "friend-1", fingerprint: "the runner|2026", title: "The Runner", kind: "movie" }], error: null }; joinPartyByCode(" k7p-2qx ").then(() => true)`);
+  check("a typed code is cleaned up and sent to the RPC", await js(`__rpcCalls`), [["join_party_by_code", { party_code: "K7P2QX" }]]);
+  check("it joins the party channel, as a guest, with the code kept", await js(`[party.id, party.hosting, party.code, party.title]`), ["party-9", false, "K7P2QX", "The Runner"]);
+  check("and plays my own copy of the film", await js(`__plays`), ["m1"]);
+  await js(`__reset(); __rpcAnswer = { data: [], error: null }; joinPartyByCode("ABCDEF").then(() => true)`);
+  check("no row says so", await js(`$("#toast").textContent`), "No open party has that code");
+  check("and joins nothing", await js(`[party.id, __plays]`), [null, []]);
+  await js(`__reset(); __rpcAnswer = { data: null, error: { code: "PGRST202", message: "Could not find the function" } }; joinPartyByCode("ABCDEF").then(() => true)`);
+  check("a database without the function asks for the update", await js(`$("#toast").textContent`), "Party codes need a database update");
+  await js(`__reset(); joinPartyByCode("AB").then(() => true)`);
+  check("a short code never reaches the server", await js(`__rpcCalls.length`), 0);
+  await js(`__reset(); __rpcAnswer = { data: [{ id: "party-9", host: "friend-1", fingerprint: "nothing like it", title: "Other", kind: "movie" }], error: null }; joinPartyByCode("ABCDEF").then(() => true)`);
+  check("a film this library lacks is said so, not played", await js(`[$("#toast").textContent, __plays, party.id]`), ["Your provider does not seem to have Other", [], null]);
+
+  console.log("\n— watching now —");
+  await js(`__reset(); social.watching = []; social.watchingAt = 0;
+    __rpcAnswer = { data: [{ party_id: "p1", code: "K7P2QX", host: "friend-1", display_name: "Sam", title: "The <b>Runner</b>", kind: "movie" }], error: null };
+    state.view = "together"; renderTogether(); true`);
+  await new Promise((r) => setTimeout(r, 100));
+  check("the Together view asks for the list without waiting on it", await js(`__rpcCalls.map((c) => c[0])`), ["friends_watching"]);
+  check("and shows a panel with name, title and a Join button", await js(`[$("#watching-panel").classList.contains("hidden"), $("#watching-panel strong").textContent, $("#watching-panel small").textContent, $("#watching-panel [data-watch-code]").dataset.watchCode]`), [false, "Sam", "The <b>Runner</b>", "K7P2QX"]);
+  check("titles are text, not markup", await js(`!!$("#watching-panel b")`), false);
+  check("the code form is there", await js(`!!$("#party-code-form #party-code")`), true);
+  await js(`__plays.length = 0; __rpcAnswer = { data: [{ id: "party-9", host: "friend-1", fingerprint: "the runner|2026", title: "The Runner", kind: "movie" }], error: null }; $("#watching-panel [data-watch-code]").click(); true`);
+  await new Promise((r) => setTimeout(r, 100));
+  check("Join goes through the code path", await js(`[__rpcCalls.at(-1), party.id]`), [["join_party_by_code", { party_code: "K7P2QX" }], "party-9"]);
+  await js(`__reset(); social.watchingAt = 0; account.user = { id: "me" }; __rpcAnswer = { data: [{ party_id: "p1", code: "K7P2QX", host: "friend-1", display_name: "Sam", title: "The Runner", kind: "movie" }], error: null }; social.watching = []; const realHydrate = hydrateHero; window.hydrateHero = () => {}; renderHome(); window.hydrateHero = realHydrate; true`);
+  await new Promise((r) => setTimeout(r, 100));
+  check("Home carries the same list in a compact row", await js(`(() => { const bar = $("#watching-now"); return bar ? [bar.classList.contains("hidden"), bar.textContent.includes("Sam")] : "no bar" })()`), [false, true]);
+  await js(`__reset(); social.watchingAt = 0; __rpcAnswer = { data: null, error: { code: "PGRST202" } }; refreshWatching({ force: true }); true`);
+  await new Promise((r) => setTimeout(r, 50));
+  check("a failing RPC clears the list (nothing to show) and throws nothing", await js(`social.watching.length`), 0);
+  await js(`window.play = __realPlay; state.view = "home"; true`);
 
   console.log("\n— the page is allowed to open a party at all —");
   // connect-src with http:/https: alone does NOT cover wss: in Chromium, and a

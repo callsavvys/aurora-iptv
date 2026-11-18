@@ -1525,8 +1525,9 @@ function renderHome() {
   const image = artUrl(meta?.backdrop, "w1280") || featured.backdrop || featured.logo;
   const score = meta?.ratings?.imdb || meta?.score || featured.rating;
   const missing = state.trending && !state.trending.movie.length && !state.trending.series.length && state.trending.of > 0;
-  $("#content").innerHTML = `<section class="hero">${heroInner(featured)}</section>${genreChips()}${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${becauseYouWatched()}${rankedShelf(`Biggest of ${new Date().getFullYear()}`, state.trending?.year, "Most popular released this year, that you have")}${rankedShelf("Big this past month", state.trending?.month, "Released in the last month")}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
+  $("#content").innerHTML = `<div class="watching-now ${social.watching.length ? "" : "hidden"}" id="watching-now">${social.watching.length ? `<span class="watching-label">Watching now</span>${watchingItems()}` : ""}</div><section class="hero">${heroInner(featured)}</section>${genreChips()}${resumeShelf()}${rankedShelf("Top 20 movies this week", state.trending?.movie, "Most watched worldwide, that you have")}${rankedShelf("Top 20 series this week", state.trending?.series, "")}${missing ? '<p class="row-note">None of this week\u2019s trending titles matched your library by name.</p>' : ""}${becauseYouWatched()}${rankedShelf(`Biggest of ${new Date().getFullYear()}`, state.trending?.year, "Most popular released this year, that you have")}${rankedShelf("Big this past month", state.trending?.month, "Released in the last month")}${shelf("Live now", ofType("live"), true, "Your channels")}${recentlyAdded("movie", "Recently added movies")}${recentlyAdded("series", "Recently added series")}${shelf("Highest rated films", ratedItems("movie"), false, "By rating")}${shelf("Highest rated series", ratedItems("series"), false, "By rating")}`;
   hydrateHero(featured);
+  refreshWatching();
 }
 
 /* ---------- who is watching ----------
@@ -2445,6 +2446,7 @@ function startPlayback({ url, title, subtitle = "", isLive = false, resumeAt = 0
   $("#player-title").textContent = title;
   $("#player-subtitle").textContent = subtitle;
   updatePlayerFavorite();
+  updatePartyButton();
   $("#player-modal").classList.remove("hidden");
   const video = $("#video"), source = relay(url), message = $("#video-message");
   message.classList.add("hidden");
@@ -2918,6 +2920,14 @@ document.addEventListener("click", (event) => {
   const joinBtn = target.closest("[data-join-party]");
   if (joinBtn) { $("#party-invite").classList.add("hidden"); return joinParty(joinBtn.dataset.joinParty) }
   if (target.closest("[data-dismiss-invite]")) return $("#party-invite").classList.add("hidden");
+  const watchCode = target.closest("[data-watch-code]");
+  if (watchCode) return joinPartyByCode(watchCode.dataset.watchCode);
+  if (target.closest("#player-party")) return openPartyChooser();
+  const partyWith = target.closest("[data-party-with]");
+  if (partyWith) {
+    $("#party-chooser").classList.add("hidden");
+    return startParty(state.playerItem, partyWith.dataset.partyWith || null, { fromPlayer: true });
+  }
   const shift = target.closest("[data-party-nudge]");
   if (shift) return nudgeParty(Number(shift.dataset.partyNudge));
   if (target.closest("[data-party-leave]")) return leaveParty();
@@ -3822,8 +3832,8 @@ const PARTY_TICK = 2000;
 const PARTY_SEEK_DRIFT = 2.5; // past this, catch up by seeking rather than by speed
 const PARTY_EASE_DRIFT = 0.4; // under this, leave it alone
 
-const social = { profile: null, friends: [], filters: new Map(), busy: false, error: "", notice: "", picking: null };
-const party = { id: null, hosting: false, channel: null, friend: null, title: "", offset: 0, drift: 0, here: [], last: 0 };
+const social = { profile: null, friends: [], filters: new Map(), busy: false, error: "", notice: "", picking: null, watching: [], watchingAt: 0 };
+const party = { id: null, code: "", hosting: false, channel: null, friend: null, title: "", offset: 0, drift: 0, here: [], last: 0 };
 
 /* Both readings, because a provider that omits the year must still match one
    that includes it — the year-qualified form is tried first when testing. */
@@ -3972,30 +3982,60 @@ const friendlyError = (error) => (/fetch|network|load failed/i.test(error?.messa
 
 const partyMember = (id) => social.friends.find((friend) => friend.user_id === id);
 
-async function startParty(item, friendId) {
+/* No character that reads as another (0/O, 1/I): the code is said out loud. */
+const PARTY_CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const partyCode = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), (byte) => PARTY_CODE_LETTERS[byte % PARTY_CODE_LETTERS.length]).join("");
+const normalCode = (text) => String(text || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+/* The database update that adds party codes may not have been applied yet.
+   A missing column or function must read as "not yet", never as a crash. */
+const needsDbUpdate = (error) => ["42703", "PGRST204", "42883", "PGRST202"].includes(error?.code)
+  || /schema cache|could not find the|does not exist/i.test(error?.message || "");
+
+async function insertParty(fields) {
+  let result;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const code = partyCode();
+    result = await accountClient().from("parties").insert({ ...fields, code }).select("id").single();
+    if (result.error?.code === "23505") continue; // another open party has that code: draw again
+    if (!result.error) return { ...result, code };
+    break;
+  }
+  // no code column yet: a party without a code is still a party
+  if (result.error && needsDbUpdate(result.error)) {
+    const plain = await accountClient().from("parties").insert(fields).select("id").single();
+    return { ...plain, code: "" };
+  }
+  return { ...result, code: "" };
+}
+
+/* friendId is optional: with none, the party is open to whoever has its code.
+   fromPlayer means the film is already playing, so leave it alone and make it
+   the party's clock from where it is. */
+async function startParty(item, friendId, { fromPlayer = false } = {}) {
   if (!account.user || !item) return;
   const [print] = fingerprints(item);
-  const { data, error } = await accountClient().from("parties")
-    .insert({ host: account.user.id, fingerprint: print || "", kind: item.type === "series" ? "series" : "movie", title: item.name })
-    .select("id").single();
+  const { data, error, code } = await insertParty({ host: account.user.id, fingerprint: print || "", kind: item.type === "series" ? "series" : "movie", title: item.name });
   if (error) { showToast(friendlyError(error)); return }
   // both rows must carry the same keys: a bulk insert whose objects differ is
   // refused outright, which left a party with nobody in it and no invitation
   await accountClient().from("party_members").insert([
     { party_id: data.id, user_id: account.user.id, joined_at: new Date().toISOString() },
-    { party_id: data.id, user_id: friendId, joined_at: null },
+    ...(friendId ? [{ party_id: data.id, user_id: friendId, joined_at: null }] : []),
   ]);
   party.hosting = true;
-  party.friend = partyMember(friendId);
+  party.code = code;
+  party.friend = friendId ? partyMember(friendId) : null;
   party.title = item.name;
   await openPartyChannel(data.id);
   // tell them now; the row is there for whenever they next open Aurora
-  accountClient().channel(`aurora-user-${friendId}`).send({
+  if (friendId) accountClient().channel(`aurora-user-${friendId}`).send({
     type: "broadcast", event: "invite",
     payload: { party: data.id, from: social.profile?.display_name || "A friend", title: item.name, fingerprint: print },
   }).catch(() => {});
-  play(item);
-  showToast(`Invited ${party.friend?.display_name || "your friend"} to watch`);
+  if (fromPlayer) broadcastParty(true); else play(item);
+  const codeNote = code ? `Party code ${code}` : "";
+  showToast(friendId ? `Invited ${party.friend?.display_name || "your friend"} to watch${codeNote ? ` · ${codeNote}` : ""}` : codeNote || "Party started");
 }
 
 /* The invitee's side: find the title in *their* library, by fingerprint, and
@@ -4003,16 +4043,70 @@ async function startParty(item, friendId) {
 async function joinParty(partyId) {
   const { data: row } = await accountClient().from("parties").select("id, host, fingerprint, title, kind, ended_at").eq("id", partyId).maybeSingle();
   if (!row || row.ended_at) { showToast("That party has ended"); return }
+  if (await enterParty(row, "")) await accountClient().from("party_members").update({ joined_at: new Date().toISOString() }).eq("party_id", partyId).eq("user_id", account.user.id);
+}
+
+/* Shared by both ways in. Returns false when this library cannot play it. */
+async function enterParty(row, code) {
   const mine = state.items.find((item) => (item.type === "movie" || item.type === "series") && fingerprints(item)[0] === row.fingerprint)
     || state.items.find((item) => (item.type === "movie" || item.type === "series") && fingerprints(item).includes(row.fingerprint));
-  if (!mine) { showToast(`Your provider does not seem to have ${row.title}`); return }
-  await accountClient().from("party_members").update({ joined_at: new Date().toISOString() }).eq("party_id", partyId).eq("user_id", account.user.id);
+  if (!mine) { showToast(`Your provider does not seem to have ${row.title}`); return false }
   party.hosting = false;
+  party.code = code;
   party.friend = partyMember(row.host);
   party.title = row.title;
   party.offset = Number(readPref("partyOffsets", {})[row.host] || 0);
-  await openPartyChannel(partyId);
+  await openPartyChannel(row.id);
   play(mine);
+  return true;
+}
+
+/* join_party_by_code checks the code and adds us as a member in one step,
+   because only a host may add members directly. */
+async function joinPartyByCode(code) {
+  if (!account.user) return;
+  const typed = normalCode(code);
+  if (typed.length !== 6) { showToast("A party code is six letters and numbers"); return }
+  const { data, error } = await accountClient().rpc("join_party_by_code", { party_code: typed });
+  if (error) { showToast(needsDbUpdate(error) ? "Party codes need a database update" : friendlyError(error)); return }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) { showToast("No open party has that code"); return }
+  await enterParty(row, typed);
+}
+
+/* Parties your friends have open. Never awaited by a render: the list fills in
+   when it arrives, and a failure (or a database without the function yet)
+   just means nothing to show. */
+async function refreshWatching({ force = false } = {}) {
+  if (!account.user || !window.supabase) return;
+  if (!force && Date.now() - social.watchingAt < 15000) return;
+  social.watchingAt = Date.now();
+  let rows = [];
+  try {
+    const { data, error } = await accountClient().rpc("friends_watching");
+    if (!error && Array.isArray(data)) rows = data;
+  } catch { /* offline: show nothing */ }
+  if (JSON.stringify(rows) === JSON.stringify(social.watching)) return;
+  social.watching = rows;
+  paintWatching();
+}
+
+const watchingItems = () => social.watching.map((entry) => `<div class="watching-item">
+    <div><strong>${escapeHtml(entry.display_name || "A friend")}</strong><small>${escapeHtml(entry.title || "something")}</small></div>
+    <button class="primary small" data-watch-code="${escapeHtml(entry.code || "")}">Join</button></div>`).join("");
+
+/* Painted in place, so a half-typed code in the same view survives it. */
+function paintWatching() {
+  const panel = $("#watching-panel");
+  if (panel) {
+    panel.classList.toggle("hidden", !social.watching.length);
+    panel.querySelector("#watching-list").innerHTML = watchingItems();
+  }
+  const bar = $("#watching-now");
+  if (bar) {
+    bar.classList.toggle("hidden", !social.watching.length);
+    bar.innerHTML = social.watching.length ? `<span class="watching-label">Watching now</span>${watchingItems()}` : "";
+  }
 }
 
 async function openPartyChannel(id) {
@@ -4094,7 +4188,7 @@ async function leaveParty() {
     party.channel?.send({ type: "broadcast", event: "ended", payload: {} }).catch(() => {});
   }
   await closePartyChannel();
-  Object.assign(party, { id: null, hosting: false, friend: null, title: "", offset: 0, drift: 0, here: [], last: 0 });
+  Object.assign(party, { id: null, code: "", hosting: false, friend: null, title: "", offset: 0, drift: 0, here: [], last: 0 });
   $("#video").playbackRate = speedChoice();
   updatePartyStrip();
 }
@@ -4105,10 +4199,11 @@ function listenForInvites() {
   if (!account.user || listenForInvites.on) return;
   listenForInvites.on = true;
   accountClient().channel(`aurora-user-${account.user.id}`)
-    .on("broadcast", { event: "invite" }, ({ payload }) => offerParty(payload))
+    .on("broadcast", { event: "invite" }, ({ payload }) => { offerParty(payload); refreshWatching({ force: true }) })
     // someone asked to be your friend, or answered that you had asked them
     .on("broadcast", { event: "friends" }, () => {
       loadFriends().then(() => { if (state.view === "together") renderTogether() }).catch(() => {});
+      refreshWatching({ force: true });
     })
     .subscribe();
 }
@@ -4134,17 +4229,40 @@ function offerParty(invite) {
 function updatePartyStrip() {
   const strip = $("#party-strip");
   if (!strip) return;
+  updatePartyButton();
   if (!party.id) { strip.classList.add("hidden"); return }
   const name = party.friend?.display_name || "your friend";
+  const who = party.hosting ? (party.friend ? `Watching with ${name}` : "Hosting a party") : `Following ${name}`;
   const together = party.here.length > 1;
   const drift = Math.abs(party.drift) < 1 ? "in step" : `${Math.abs(party.drift).toFixed(1)}s ${party.drift > 0 ? "ahead" : "behind"}`;
-  strip.innerHTML = `<span class="party-who">${escapeHtml(party.hosting ? `Watching with ${name}` : `Following ${name}`)}</span>
+  strip.innerHTML = `<span class="party-who">${escapeHtml(who)}</span>
+    ${party.code ? `<span class="party-code" title="Anyone with this code can join">${escapeHtml(party.code)}</span>` : ""}
     <span class="party-state">${together ? escapeHtml(drift) : "waiting for them to join…"}</span>
     ${party.hosting ? "" : `<button class="ghost" data-party-nudge="-5" title="Hold me further back">−5s</button><button class="ghost" data-party-nudge="5" title="Push me further on">+5s</button>`}
     <button class="ghost" data-party-leave>${party.hosting ? "End" : "Leave"}</button>`;
   strip.classList.remove("hidden");
 }
 
+
+/* The player's "Watch together": there for a signed-in viewer with a film or
+   series on, and gone once a party is running (the strip takes over). */
+function updatePartyButton() {
+  const button = $("#player-party");
+  if (!button) return;
+  const item = state.playerItem;
+  const can = !!account.user && !party.id && !!item && (item.type === "movie" || item.type === "series");
+  button.hidden = !can;
+  if (!can) $("#party-chooser").classList.add("hidden");
+}
+
+function openPartyChooser() {
+  const accepted = social.friends.filter((friend) => friend.status === "accepted");
+  const chooser = $("#party-chooser");
+  chooser.innerHTML = `<strong>Watch together</strong>
+    ${accepted.map((friend) => `<button class="secondary small" data-party-with="${escapeHtml(friend.user_id)}">${escapeHtml(friend.display_name || "Someone")}</button>`).join("")}
+    <button class="primary small" data-party-with="">Start with a code</button>`;
+  chooser.classList.toggle("hidden", !chooser.classList.contains("hidden"));
+}
 
 const speedChoice = () => Number($("#playback-rate")?.value) || 1;
 
@@ -4194,6 +4312,19 @@ function renderTogether() {
         </form>
       </section>
 
+      <section class="panel watching-panel ${social.watching.length ? "" : "hidden"}" id="watching-panel">
+        <header><h2>Watching now</h2><p>Friends with a party open. Join and Aurora plays your own copy.</p></header>
+        <div id="watching-list">${watchingItems()}</div>
+      </section>
+
+      <section class="panel">
+        <header><h2>Join a party with a code</h2><p>Someone read you six letters and numbers? Type them here.</p></header>
+        <form id="party-code-form" class="keys">
+          <label>Party code<input id="party-code" placeholder="e.g. K7P2QX" maxlength="9" autocapitalize="characters" autocorrect="off" spellcheck="false" /></label>
+          <button class="primary small" type="submit">Join party</button>
+        </form>
+      </section>
+
       ${toAnswer.length ? `<section class="panel"><header><h2>Wants to be your friend</h2></header>
         ${toAnswer.map((friend) => row(friend, `<button class="primary small" data-accept-friend="${friend.user_id}">Accept</button><button class="secondary small" data-remove-friend="${friend.user_id}">Decline</button>`)).join("")}
       </section>` : ""}
@@ -4212,6 +4343,7 @@ function renderTogether() {
           </button>`).join("")}</div>
       </section>` : ""}
     </section>`;
+  if (account.user) refreshWatching();
 }
 
 function accountPanel() {
@@ -4340,6 +4472,11 @@ document.addEventListener("submit", (event) => {
     const typed = $("#friend-code")?.value || "";
     social.busy = true; renderTogether();
     addFriendByCode(typed).finally(() => { social.busy = false; renderTogether() });
+    return;
+  }
+  if (event.target.id === "party-code-form") {
+    event.preventDefault();
+    joinPartyByCode($("#party-code")?.value || "");
     return;
   }
   if (event.target.id !== "account-form") return;
