@@ -43,20 +43,21 @@ fs.rmSync(marker, { force: true });
 check("--help lists every setting", ["AURORA_TV_UI", "AURORA_TEST_VERSION", "AURORA_TRACE", "AURORA_APP_ID_SUFFIX", "AURORA_STAGE_ONLY"].every((k) => build({}, ["--help"]).out.includes(k)), true);
 
 console.log("— a test code is used once, and Android never sees an older one —");
-const before = fs.existsSync(LEDGER) ? fs.readFileSync(LEDGER, "utf8") : null;
+/* Checked on the side-by-side .test app's own ledger, which takes any version:
+   the real 0.38.9x codes are a fixed set the TV builds use up, and a check
+   that needs free ones would stop working once they are spent. */
+const TEST_LEDGER = path.join(ROOT, "mobile/test-codes.test.log");
+const before = fs.existsSync(TEST_LEDGER) ? fs.readFileSync(TEST_LEDGER, "utf8") : null;
 try {
-  // the real ledger keeps growing as test builds are made, so the fixture sits
-  // one past whatever it holds now (the codes stop at 0.38.99)
-  const used = (before || "").split("\n").map((l) => /^0\.38\.(9\d)\s/.exec(l)?.[1]).filter(Boolean).map(Number);
-  const fixture = Math.max(91, ...used) + 1;
-  if (fixture > 98) throw new Error(`the ledger has used test codes up to 0.38.${fixture - 1}; this check needs two free codes`);
-  fs.writeFileSync(LEDGER, (before || "") + `0.38.${fixture} web test-fixture 2026-11-05\n`);
-  const r = build({ AURORA_TEST_VERSION: `0.38.${fixture - 1}`, AURORA_STAGE_ONLY: "1" });
-  check("an older code than the last one built is refused", [r.code, r.err.includes("already used or older"), r.err.includes(`AURORA_TEST_VERSION=0.38.${fixture + 1}`)], [2, true, true]);
-  check("so is the same code again", build({ AURORA_TEST_VERSION: `0.38.${fixture}`, AURORA_STAGE_ONLY: "1" }).code, 2);
+  fs.writeFileSync(TEST_LEDGER, (before || "") + "9.9.50 web test-fixture 2026-11-05\n");
+  const suffixed = (v) => build({ AURORA_APP_ID_SUFFIX: ".test", AURORA_TEST_VERSION: v, AURORA_STAGE_ONLY: "1" });
+  const r = suffixed("9.9.49");
+  check("an older code than the last one built is refused", [r.code, r.err.includes("already used or older"), r.err.includes("AURORA_TEST_VERSION=9.9.51")], [2, true, true]);
+  check("so is the same code again", suffixed("9.9.50").code, 2);
 } finally {
-  if (before === null) fs.rmSync(LEDGER, { force: true }); else fs.writeFileSync(LEDGER, before);
+  if (before === null) fs.rmSync(TEST_LEDGER, { force: true }); else fs.writeFileSync(TEST_LEDGER, before);
 }
+check("the real ledger was not touched", fs.readFileSync(LEDGER, "utf8").includes("test-fixture"), false);
 
 console.log("— the keys come from one place, and a missing one stops the build —");
 const keys = require(path.join(ROOT, "scripts/extract-keys.cjs")).extractKeys();
@@ -90,10 +91,12 @@ console.log("— the new interface, staged —");
   check("the version is written into platform-core.js", read("platform-core.js").includes("__AURORA_VERSION__"), false);
 }
 {
-  const r = build({ AURORA_TV_UI: "web", AURORA_STAGE_ONLY: "1", AURORA_TRACE: "1", AURORA_TEST_VERSION: "0.38.99" });
+  // on the side-by-side app, so it never depends on a free 0.38.9x code
+  const r = build({ AURORA_TV_UI: "web", AURORA_STAGE_ONLY: "1", AURORA_TRACE: "1", AURORA_APP_ID_SUFFIX: ".test", AURORA_TEST_VERSION: "9.9.99" });
   check("a trace stage is a test build with trace on", [r.code, /test build|stage only/.test(r.out), / trace on /.test(r.out)], [0, true, true]);
   check("its config.js says trace", read("config.js").includes('"trace":true'), true);
-  check("a stage-only run records no test code", fs.existsSync(LEDGER) ? fs.readFileSync(LEDGER, "utf8").includes("0.38.99") : false, false);
+  const testLedger = path.join(ROOT, "mobile/test-codes.test.log");
+  check("a stage-only run records no test code", fs.existsSync(testLedger) ? fs.readFileSync(testLedger, "utf8").includes("9.9.99") : false, false);
 }
 
 console.log("— the old interface, staged as before —");
