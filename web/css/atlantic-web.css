@@ -260,3 +260,31 @@
 .settings .shortcuts { margin: 0; grid-template-columns: 240px 1fr; gap: 15px 24px; font-size: 21px; }
 .settings .shortcuts kbd { font-size: 18px; padding: 6px 12px; border-radius: 6px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
 .settings .shortcuts span { color: rgba(255,255,255,.7); }
+
+/* ---------- Live TV, in the website's materials (the website has no live TV of its own) ---------- */
+.live-page { grid-template-columns: 420px 760px 1fr; gap: 30px; padding: 252px 90px 60px; }
+.live-title { position: absolute; left: 90px; top: 150px; margin: 0; display: flex; align-items: baseline; gap: 18px; font-size: 45px; font-weight: 700; letter-spacing: -.02em; }
+.live-title small { font-size: 21px; font-weight: 400; color: rgba(255,255,255,.5); letter-spacing: 0; }
+.live-page > .list { padding: 12px; border-radius: 18px; background: rgba(10,20,31,.6); border: 1px solid rgba(255,255,255,.1); }
+.live-page .list .track { gap: 6px; padding: 6px; }
+.live-page .cat-item, [data-theme="ocean"] .live-page .cat-item { height: 63px; padding: 0 18px; border-radius: 12px; font-size: 21px; font-weight: 400; color: rgba(255,255,255,.6); background: none; border: 0; }
+.live-page .cat-item.on, [data-theme="ocean"] .live-page .cat-item.on { background: rgba(30,203,236,.12); color: #fff; font-weight: 600; border: 0; }
+.live-page .cat-item.on::before { width: 4px; height: 27px; margin: 0 15px 0 -6px; background: #1ecbec; }
+.live-page .cat-item:focus { outline: 0; background: rgba(255,255,255,.08); color: #fff; box-shadow: inset 0 0 0 3px #4fe0fb; transform: none; }
+.live-page .cat-item:focus::before { background: #4fe0fb; }
+.live-page .ch-item, [data-theme="ocean"] .live-page .ch-item { height: 96px; padding: 0 18px; gap: 18px; border-radius: 12px; background: none; border: 0; }
+.live-page .ch-item.on, [data-theme="ocean"] .live-page .ch-item.on { background: rgba(255,255,255,.05); border: 0; }
+.live-page .ch-item .n { width: 48px; font: 500 18px var(--font); color: rgba(255,255,255,.4); }
+.live-page .ch-item .lg { width: 96px; height: 60px; border-radius: 9px; background: #101f2e; font-size: 21px; }
+.live-page .ch-item .nm { font-size: 24px; font-weight: 600; }
+.live-page .ch-item .now { font-size: 18px; color: rgba(255,255,255,.4); }
+.live-page .ch-item:focus { outline: 0; background: rgba(255,255,255,.08); color: #fff; box-shadow: inset 0 0 0 3px #4fe0fb; transform: none; }
+.live-page .ch-item:focus .now, .live-page .ch-item:focus .n { color: rgba(255,255,255,.55); }
+.live-page .preview .screen { border-radius: 18px; border: 1px solid rgba(255,255,255,.1); box-shadow: 0 37px 75px -18px rgba(0,0,0,.6); }
+.live-page .preview .screen .badge { display: inline-flex; height: 33px; padding: 0 12px; border-radius: 9px; font-size: 16px; }
+.live-page .preview h3 { margin: 27px 0 6px; font-size: 36px; font-weight: 700; letter-spacing: -.02em; }
+.live-page .preview p { margin: 0 0 27px; font-size: 21px; color: rgba(255,255,255,.6); }
+.live-page .btn, [data-theme="ocean"] .live-page .btn { height: 66px; padding: 0 36px; gap: 12px; border-radius: 999px; font-size: 21px; font-weight: 700; border: 0; }
+.live-page .btn.primary, [data-theme="ocean"] .live-page .btn.primary { background: linear-gradient(90deg, #4fe0fb, #06aed4); color: #050b12; box-shadow: 0 12px 36px -9px rgba(30,203,236,.55); }
+.live-page .btn svg { width: 24px; height: 24px; }
+.live-page .btn:focus { outline: 0; transform: translateY(-3px) scale(1.04); box-shadow: 0 0 0 3px #fff, 0 12px 36px -9px rgba(30,203,236,.55); }

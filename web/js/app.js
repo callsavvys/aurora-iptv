@@ -360,7 +360,7 @@ async function renderMyList(el) {
 let previewHls = null;
 
 async function renderLive(el) {
-  el.innerHTML = `<div class="live-page">
+  el.innerHTML = `<div class="live-page"><h1 class="live-title">Live TV<small>${esc(source.name)}</small></h1>
     <div class="list" data-zone="cats" data-track="y" data-lock="y" data-leave="up" data-prefer=".cat-item.on" data-pad="80"><div class="track"></div></div>
     <div class="list" data-zone="chans" data-track="y" data-lock="y" data-leave="up" data-prefer=".ch-item.on" data-pad="120"><div class="track"></div></div>
     <div class="preview"><div class="screen"><video muted playsinline></video><span class="badge b-live">Live</span></div><h3></h3><p></p>
