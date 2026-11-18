@@ -16,13 +16,21 @@
       "tintColor": "#55E5CF",
       "category": "entertainment",
       "screenshotURLs": [],
-      "version": "0.38.10",
-      "versionDate": "2026-11-18T02:35:30Z",
-      "versionDescription": "Aurora 0.38.10: join a watch party with a code, see friends' parties under Watching now, and start one from the player.",
-      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/ios-v0.38.10/Aurora-0.38.10.ipa",
-      "size": 1251963,
+      "version": "0.39.0",
+      "versionDate": "2026-11-18T03:01:55Z",
+      "versionDescription": "Aurora 0.39.0: the new Ocean look — deep navy, ocean-blue buttons, see-through cards and the iPhone's own font.",
+      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/ios-v0.39.0/Aurora-0.39.0.ipa",
+      "size": 1251920,
       "minOSVersion": "15.0",
       "versions": [
+        {
+          "version": "0.39.0",
+          "date": "2026-11-18T03:01:55Z",
+          "localizedDescription": "Aurora 0.39.0: the new Ocean look — deep navy, ocean-blue buttons, see-through cards and the iPhone's own font.",
+          "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/ios-v0.39.0/Aurora-0.39.0.ipa",
+          "size": 1251920,
+          "minOSVersion": "15.0"
+        },
         {
           "version": "0.38.10",
           "date": "2026-11-18T02:35:30Z",
