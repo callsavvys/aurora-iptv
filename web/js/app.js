@@ -207,9 +207,16 @@ async function renderHome(el, params, entry, live) {
   let data;
   try { data = await source.home(); } finally { document.removeEventListener("library:progress", status); }
   if (!live()) return;
-  const sections = [];
+  const sections = [`<div class="watching-now" data-section hidden></div>`];
   const resume = progress.recent(source.kind);
   if (Tg.signedIn() && source.titles) source.titles().then((t) => Tg.publishLibrary(t, prefs.source.id || source.name)).catch(() => {});
+  if (Tg.signedIn()) Tg.friendsWatching().then((list) => {
+    const slot = el.querySelector(".watching-now");
+    if (!slot || !live() || !list.length) return;
+    slot.innerHTML = U.row({ id: "watching", title: "Watching now", line: "Your friends' parties. Join and you'll play your own copy, in step with theirs." },
+      list.map((p) => { const key = `home-watching|${p.code}`; on(key, () => joinWithCode(p.code)); return `<button class="card wide watching" data-f data-key="${esc(key)}"><div class="art"><div class="who"><b>${esc(p.display_name || "A friend")}</b><span>is watching</span></div></div><div class="t" dir="auto">${esc(p.title)}</div><div class="m">Join · code ${esc(p.code)}</div></button>`; }).join(""));
+    slot.hidden = false;
+  }).catch(() => {});
   const mine = await myList.items(source.kind, findOnLine);
   if (resume.length) {
     sections.push(U.row({ id: "continue", title: "Continue watching", line: "Pick up exactly where you left off." },
@@ -519,7 +526,7 @@ async function renderDetail(el, params) {
       ${resume ? `<button class="btn" data-f data-key="d:restart">Start over</button>` : ""}
       ${meta?.trailer ? `<button class="btn" data-f ${onLine ? "" : "data-start"} data-key="d:trailer">${U.icons.film}Trailer</button>` : ""}
       ${onLine ? `<button class="btn ${saved ? "on" : ""}" data-f data-key="d:list">${saved ? U.icons.check : U.icons.plus}My List</button>` : ""}
-      ${onLine && provider?.source === "xtream" && Tg.signedIn() && Tg.accepted().length ? `<button class="btn" data-f data-key="d:together">${U.icons.play}Watch together</button>` : ""}
+      ${onLine && provider?.source === "xtream" && Tg.signedIn() ? `<button class="btn" data-f data-key="d:together">${U.icons.play}Watch together</button>` : ""}
       ${!onLine && !meta?.trailer ? `<button class="btn" data-f data-start data-key="d:back">${U.icons.back}Back</button>` : ""}
     </div>`;
   if (meta?.imdbId) scores(meta.imdbId).then((s) => {
@@ -859,6 +866,7 @@ function drawTogether(paneEl, redraw) {
   const row = (f, buttons) => `<div class="toggle" style="cursor:default"><span>${esc(f.display_name || "Someone")}<small>${esc(f.friend_code || "")}</small></span><span style="display:flex;gap:12px">${buttons}</span></div>`;
   paneEl.innerHTML = `<h2>Account &amp; friends</h2>
     <p>Signed in as <b>${esc(Tg.email())}</b>. Your name is <b>${esc(me.display_name || "…")}</b> and your friend code is <b style="font-family:var(--mono);letter-spacing:.08em">${esc(me.friend_code || "…")}</b>. Give the code to someone and they can add you.</p>
+    <div data-zone="party-code">${field("pc:code", "Join a party with its code")}<div class="actions" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:34px"><button class="btn primary" data-f data-key="pc:join">Join party</button></div></div>
     <div data-zone="add">${field("fr:code", "Add a friend by their code")}<div class="actions" style="display:flex;gap:16px;flex-wrap:wrap"><button class="btn primary" data-f data-key="fr:add">Send request</button><button class="btn" data-f data-key="acct:out">Sign out</button></div>
     <div class="error" ${s.error ? "" : "hidden"}>${esc(s.error)}</div>${s.notice ? `<p class="note">${esc(s.notice)}</p>` : ""}</div>
     ${answer.length ? `<h2 style="margin-top:40px">Wants to be your friend</h2><div data-zone="answer">${answer.map((f) => row(f, `<button class="btn primary" data-f data-key="fr:ok:${f.user_id}">Accept</button><button class="btn" data-f data-key="fr:no:${f.user_id}">Decline</button>`)).join("")}</div>` : ""}
@@ -868,22 +876,38 @@ function drawTogether(paneEl, redraw) {
     <p class="note">To watch together, open a film or series and choose Watch together. Each of you plays your own copy; Aurora keeps you in step.</p>`;
   typeable();
   on("fr:add", async () => { await Tg.addFriendByCode(val("fr:code")); redraw(); });
+  on("pc:join", () => joinWithCode(val("pc:code")));
   on("acct:out", async () => { await Tg.signOut(); toast("Signed out"); redraw(); });
   for (const f of answer) { on(`fr:ok:${f.user_id}`, async () => { await Tg.acceptFriend(f.user_id); redraw(); }); on(`fr:no:${f.user_id}`, async () => { await Tg.removeFriend(f.user_id); redraw(); }); }
   for (const f of friends) on(`fr:rm:${f.user_id}`, () => ask(`Remove ${f.display_name}?`, "You can add each other again with your codes.", [["Remove", async () => { await Tg.removeFriend(f.user_id); redraw(); }, true], ["Cancel"]]));
 }
 
 /* Host: pick a friend, invite them, start playing. */
-function pickFriendFor(item) {
-  const friends = Tg.accepted();
-  if (!friends.length) return toast("Add a friend first, in Settings → Account & friends");
+/* Host: invite a friend, or start with a code anyone can join by. From a
+   title page it then plays; from the player (`playing`) it keeps playing and
+   the film already on screen becomes the party's clock. */
+function pickFriendFor(item, { playing = null } = {}) {
+  if (!Tg.signedIn()) return toast("Sign in first, in Settings → Account & friends");
   const start = async (f) => {
-    if (!(await Tg.startParty(item, f.user_id))) return toast(Tg.social.error || "Could not start the party");
-    toast(`Invited ${f.display_name} to watch`);
+    if (!(await Tg.startParty(item, f?.user_id || null))) return toast(Tg.social.error || "Could not start the party");
+    const code = Tg.party.code ? ` · code ${Tg.party.code}` : "";
+    toast(f ? `Invited ${f.display_name}${code}` : Tg.party.code ? `Party code ${Tg.party.code} — they type it in Aurora` : "Party started");
+    if (playing) return playing();
     if (item.kind === "series") return findResume(item) ? resumePlay(findResume(item)) : playFirstEpisode(item);
     playItem(item);
   };
-  ask("Watch together with…", `Each of you plays your own copy of <b>${esc(item.title)}</b>; Aurora keeps you in step.`, [...friends.map((f, i) => [f.display_name || "Friend", () => start(f), i === 0]), ["Cancel"]]);
+  ask("Watch together", `Each of you plays your own copy of <b>${esc(item.title)}</b>; Aurora keeps you in step. Invite a friend, or start with a code to read out.`,
+    [...Tg.accepted().map((f, i) => [f.display_name || "Friend", () => start(f), i === 0]), ["Start with a code", () => start(null), !Tg.accepted().length], ["Cancel"]]);
+}
+
+/* Guest: a code read out by the host, typed on this device. */
+async function joinWithCode(code) {
+  if (!source.titles) return toast("Connect your line first, in Settings → Source");
+  toast("Finding it on your line…");
+  const r = await Tg.joinByCode(code, await source.titles());
+  if (r.error) return toast(r.error);
+  if (r.item.kind === "series") { const res = findResume(r.item); return res ? resumePlay(res) : playFirstEpisode(r.item); }
+  playItem(r.item);
 }
 
 /* Guest: an invitation, from a friend's Aurora (this app or the old one). */
@@ -963,6 +987,7 @@ function openPlayer(opts) {
           <button class="btn icon" data-f data-key="pl:fwd10" aria-label="Forward 10 seconds">${U.icons.fwd10}</button>
           <span class="grow"></span>
           <button class="btn" data-f data-key="pl:next" hidden>${U.icons.next}Next episode</button>
+          <button class="btn" data-f data-key="pl:party" hidden>${U.icons.play}Watch together</button>
           <button class="btn" data-f data-key="pl:close">${U.icons.back}Back</button>
         </div></div></div></div>`;
   stage.appendChild(el);
@@ -1032,7 +1057,7 @@ function openPlayer(opts) {
   // on a phone the system's own controls do the work: scrubbing, fullscreen, AirPlay
   if (isPhone()) { video.controls = true; el.classList.add("touch"); }
   // watching together: the host's clock goes out, the guest follows it
-  const unparty = Tg.attachPlayer(video);
+  let unparty = Tg.attachPlayer(video);
   let partyEl = null;
   const paintParty = () => {
     if (!Tg.party.id) { partyEl?.remove(); partyEl = null; return; }
@@ -1044,7 +1069,12 @@ function openPlayer(opts) {
     }
     partyEl.querySelector("span").textContent = Tg.partyLine();
   };
-  const stopPaint = Tg.onChange(paintParty); paintParty();
+  // Watch together from the player: films and series on a line, when signed in and not in a party
+  const partyBtn = el.querySelector('[data-key="pl:party"]');
+  const paintPartyBtn = () => { partyBtn.hidden = !!(P0.live || !Tg.signedIn() || Tg.party.id || P0.item.source !== "xtream"); };
+  paintPartyBtn();
+  on("pl:party", () => pickFriendFor(P0.item, { playing: () => { unparty(); unparty = Tg.attachPlayer(video); paintParty(); paintPartyBtn(); showChrome(); } }));
+  const stopPaint = Tg.onChange(() => { paintParty(); paintPartyBtn?.(); }); paintParty();
   on("pt:back", () => Tg.nudgeParty(-5)); on("pt:fwd", () => Tg.nudgeParty(5));
   on("pt:leave", () => { Tg.leaveParty(); toast("Left the party"); });
 

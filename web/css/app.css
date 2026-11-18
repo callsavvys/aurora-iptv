@@ -529,3 +529,7 @@ section.block { padding-bottom: 64px; }
 .party-strip { position: absolute; z-index: 5; left: 50%; top: var(--safe-y); transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 12px 14px 12px 28px; border-radius: 999px; background: rgba(20,22,30,.9); border: 1px solid var(--line-2); font-size: var(--t-caption); font-weight: 600; white-space: nowrap; }
 .party-strip .btn { height: 52px; padding: 0 20px; font-size: var(--t-min); }
 .phone .party-strip { top: 120px; left: var(--safe-x); right: auto; transform: none; max-width: calc(100% - 2 * var(--safe-x) - 160px); white-space: normal; }
+
+/* Watching now: a friend's party on Home */
+.watching .art { display: grid; place-items: center; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 40%, var(--surface-2)), var(--surface)); }
+.watching .who { text-align: center; } .watching .who b { display: block; font-size: 40px; letter-spacing: -.02em; } .watching .who span { font-size: var(--t-caption); color: var(--text-2); }

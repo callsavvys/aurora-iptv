@@ -31,7 +31,7 @@ const changed = () => { for (const fn of listeners) { try { fn(); } catch { /* a
 export const onChange = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
 
 export const social = { profile: null, friends: [], error: "", notice: "", busy: false };
-export const party = { id: null, hosting: false, friend: null, title: "", offset: 0, drift: 0, here: [], channel: null, last: 0, video: null };
+export const party = { id: null, code: "", hosting: false, friend: null, title: "", offset: 0, drift: 0, here: [], channel: null, last: 0, video: null };
 
 const friendly = (error) => (/fetch|network|load failed/i.test(error?.message || "") ? "Could not reach the account server" : error?.message || "That did not work");
 
@@ -207,25 +207,61 @@ function listen() {
 const member = (id) => social.friends.find((f) => f.user_id === id) || null;
 const offsets = () => { try { return JSON.parse(localStorage.getItem(OFFSETS)) || {}; } catch { return {}; } };
 
-/* Host: start a party for `item` with a friend; the caller then plays it. */
-export async function startParty(item, friendId) {
+/* A party code: six characters that cannot be misread for each other. */
+const CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export const makeCode = () => Array.from({ length: 6 }, () => CODE_LETTERS[Math.floor(Math.random() * CODE_LETTERS.length)]).join("");
+const needsUpdate = (error) => /code|join_party_by_code|friends_watching|schema cache|does not exist|42703|PGRST20/i.test(`${error?.message || ""} ${error?.code || ""}`);
+
+/* Host: start a party for `item`, with a code anyone can join by and, if
+   given, an invitation to one friend. The caller plays (or keeps playing). */
+export async function startParty(item, friendId = null) {
   if (!user || !item) return false;
   const [print] = prints(item);
-  const { data, error } = await client.from("parties")
-    .insert({ host: user.id, fingerprint: print || "", kind: item.kind === "series" ? "series" : "movie", title: item.raw || item.title })
-    .select("id").single();
-  if (error) { social.error = friendly(error); changed(); return false; }
-  await client.from("party_members").insert([
-    { party_id: data.id, user_id: user.id, joined_at: new Date().toISOString() },
-    { party_id: data.id, user_id: friendId, joined_at: null },
-  ]);
-  Object.assign(party, { hosting: true, friend: member(friendId), title: item.raw || item.title, offset: 0 });
+  const row = { host: user.id, fingerprint: print || "", kind: item.kind === "series" ? "series" : "movie", title: item.raw || item.title };
+  let data = null, error = null, code = "";
+  for (let attempt = 0; attempt < 3 && !data; attempt += 1) {
+    code = makeCode();
+    ({ data, error } = await client.from("parties").insert({ ...row, code }).select("id").single());
+    if (error && !/duplicate|unique/i.test(error.message || "")) break;   // a taken code tries another
+  }
+  // a database without party codes yet: the party still starts, by invitation
+  if (!data && error && needsUpdate(error)) { code = ""; ({ data, error } = await client.from("parties").insert(row).select("id").single()); }
+  if (!data) { social.error = friendly(error); changed(); return false; }
+  const members = [{ party_id: data.id, user_id: user.id, joined_at: new Date().toISOString() }];
+  if (friendId) members.push({ party_id: data.id, user_id: friendId, joined_at: null });
+  await client.from("party_members").insert(members);
+  Object.assign(party, { code, hosting: true, friend: friendId ? member(friendId) : null, title: item.raw || item.title, offset: 0 });
   await openChannel(data.id);
-  client.channel(`aurora-user-${friendId}`).send({
+  if (friendId) client.channel(`aurora-user-${friendId}`).send({
     type: "broadcast", event: "invite",
     payload: { party: data.id, from: social.profile?.display_name || "A friend", title: item.raw || item.title, fingerprint: print },
   }).catch(() => {});
   return true;
+}
+
+/* Guest: join by the code the host reads out, and find your own copy among
+   `titles`. Returns the item to play, or a reason it cannot be played. */
+export async function joinByCode(code, titles) {
+  if (!user) return { error: "Sign in first, in Settings → Account & friends" };
+  const clean = String(code || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  if (clean.length !== 6) return { error: "A party code is six characters" };
+  const { data, error } = await client.rpc("join_party_by_code", { party_code: clean });
+  if (error) return { error: needsUpdate(error) ? "Party codes need a database update" : friendly(error) };
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return { error: "No open party has that code" };
+  invite = null;
+  const mine = titles.find((t) => prints(t)[0] === row.fingerprint) || titles.find((t) => prints(t).includes(row.fingerprint));
+  if (!mine) { changed(); return { error: `Your line does not seem to have ${row.title}` }; }
+  Object.assign(party, { code: clean, hosting: false, friend: member(row.host) || { user_id: row.host, display_name: "the host" }, title: row.title, offset: Number(offsets()[row.host] || 0) });
+  await openChannel(row.id);
+  return { item: mine };
+}
+
+/* The parties your friends have open right now, for "Watching now". */
+export async function friendsWatching() {
+  if (!user) return [];
+  const { data, error } = await client.rpc("friends_watching");
+  return error ? [] : data || [];
 }
 
 /* Guest: join, and find your own copy among `titles`. Returns the item to
@@ -322,15 +358,16 @@ export async function leaveParty() {
   }
   await closeChannel();
   if (party.video) party.video.playbackRate = 1;
-  Object.assign(party, { id: null, hosting: false, friend: null, title: "", offset: 0, drift: 0, here: [], last: 0, video: null });
+  Object.assign(party, { id: null, code: "", hosting: false, friend: null, title: "", offset: 0, drift: 0, here: [], last: 0, video: null });
   changed();
 }
 
 /* One line for the player: who, and how far apart. */
 export function partyLine() {
   if (!party.id) return "";
-  const name = party.friend?.display_name || "your friend";
   const together = party.here.length > 1;
   const drift = Math.abs(party.drift) < 1 ? "in step" : `${Math.abs(party.drift).toFixed(1)}s ${party.drift > 0 ? "ahead" : "behind"}`;
-  return `${party.hosting ? `Watching with ${name}` : `Following ${name}`} · ${together ? drift : "waiting for them to join…"}`;
+  const code = party.code ? `Code ${party.code} · ` : "";
+  if (party.hosting) return `${code}${party.friend ? `Watching with ${party.friend.display_name || "your friend"}` : "Your party"} · ${together ? drift : party.friend ? "waiting for them to join…" : "waiting for someone to join…"}`;
+  return `Following ${party.friend?.display_name || "the host"} · ${together ? drift : "waiting for the host…"}`;
 }
