@@ -4,12 +4,12 @@
 //   node tests/tv-scale.cjs
 const fs = require("node:fs"), path = require("node:path"), vm = require("node:vm");
 const ROOT = path.resolve(__dirname, "..");
-const SHIM = fs.readFileSync(path.join(ROOT, "mobile/platform/platform-native.js"), "utf8");
+const SHIM = fs.readFileSync(path.join(ROOT, "mobile/platform/platform-boot-app.js"), "utf8");
 const CSS = fs.readFileSync(path.join(ROOT, "mobile/platform/tv.css"), "utf8");
 
 const from = SHIM.indexOf("const TV_WIDTH = 1920;");
 const to = SHIM.indexOf("fitToScreen();");
-if (from < 0 || to < 0) throw new Error("platform-native.js no longer has the fitToScreen block");
+if (from < 0 || to < 0) throw new Error("platform-boot-app.js no longer has the fitToScreen block");
 const SOURCE = SHIM.slice(from, to);
 
 let failed = 0;

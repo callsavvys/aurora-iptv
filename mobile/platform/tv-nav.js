@@ -20,7 +20,9 @@
   /* The modals the app puts over the page. When one of them is open the remote
      belongs to it alone: the arrows have to stay inside the player chrome
      rather than wander through the library behind it. */
-  const MODALS = ["player-modal", "source-modal"];
+  /* The account menu too: Down past Exit Aurora fell out of it onto the page
+     behind, with the menu still hanging open over the top. */
+  const MODALS = ["player-modal", "source-modal", "who-menu"];
 
   const MOVES = {
     ArrowLeft: { axis: "x", back: true },
@@ -108,7 +110,8 @@
        page scrolls, whatever is nearest the top sits underneath it and no
        geometry points at the menu any more — it is behind you, not above you.
        Up from the topmost thing on the page always means the menu. */
-    if (move.axis === "y" && move.back && !current.closest("aside")) {
+    // never out of an open dialog, though: the menu is behind it
+    if (root === document && move.axis === "y" && move.back && !current.closest("aside")) {
       const nav = activeNav();
       if (nav && reachable(nav)) focus(nav);
     }
@@ -146,7 +149,10 @@
   function focusFirst() {
     const root = layer();
     if (root !== document) {
-      const first = candidates(root)[0];
+      /* The close button comes first in every dialog's markup, so the first
+         press on a fresh television landed on a 16px cross in the corner. */
+      const found = candidates(root);
+      const first = found.find((node) => !node.matches(".close")) || found[0];
       if (first) focus(first);
       return;
     }
@@ -168,6 +174,23 @@
     if (held instanceof Element && reachable(held)) return focus(held);
     focusFirst();
   }
+
+  /* The dialogs live outside #content, so nothing above notices them open. A
+     fresh television opens straight onto Connect a source with nothing
+     focused at all, and the first press was spent finding somewhere to start;
+     closing a dialog left focus on a node that was no longer on the screen. */
+  const watchLayer = new MutationObserver(() => {
+    const root = layer();
+    const active = document.activeElement;
+    const lost = !active || active === document.body || !reachable(active);
+    if (root !== document && (lost || !root.contains(active))) focusFirst();
+    else if (root === document && lost) refocus();
+  });
+  for (const id of MODALS) {
+    const modal = document.getElementById(id);
+    if (modal) watchLayer.observe(modal, { attributes: true, attributeFilter: ["class"] });
+  }
+  if (layer() !== document) setTimeout(focusFirst, 0);
 
   /* Focus the remote did not move still has to be kept and kept on screen: the
      renderer jumps to the search field on its own, and a click in a preview
@@ -275,8 +298,12 @@
       return key === "ArrowLeft" || key === "ArrowRight";
     }
     if (takesText(node)) {
-      // held back: nothing has been typed into it, so every key is the remote's
-      if (node.dataset.tamed && node.hasAttribute("readonly")) return key !== "Enter";
+      /* held back: nothing has been typed into it, so every key is the remote's
+         — OK included, because OK is what activate() hands the field over on.
+         This said `key !== "Enter"`, which kept OK from the remote, so the
+         hand-over could never run: a field could be landed on and never typed
+         into, and a television installed fresh could not connect a source. */
+      if (node.dataset.tamed && node.hasAttribute("readonly")) return true;
       if (key === "Enter") return false; // the field's own submit
       if (key === "ArrowUp" || key === "ArrowDown") return true;
       const caret = caretAt(node);

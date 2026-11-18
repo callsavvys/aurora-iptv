@@ -3,12 +3,14 @@
 
    - demo: TMDB's real catalogue, with a public test stream standing in for
      the video, so the whole app can be driven before any account is added;
-   - xtream: your own IPTV line, through the local proxy (server.cjs).
+   - xtream: your own IPTV line, through the local proxy (server.cjs) in a
+     browser, or straight out on the television (platform.js).
 
    An item is { id, kind: movie|series|live, title, year, rating, overview,
    poster, backdrop, still, badge, source, category }. */
 
 import { tmdb, img, cleanTitle, norm, yearOf, fromList, displayTitle, tidyCategory } from "./tmdb.js";
+import { net, redact } from "./platform.js";
 // Big Buck Bunny, Blender Foundation (CC BY 3.0) — a public test stream
 const TEST_STREAM = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
@@ -22,7 +24,8 @@ async function getJson(url) {
       const body = await r.text().catch(() => "");
       let said = "";
       try { const j = JSON.parse(body); said = j.message || j.error || ""; } catch { said = body.slice(0, 120); }
-      const who = url.startsWith("/api/proxy") ? "Your provider" : new URL(url, location.href).hostname;
+      if (said) said = redact(said);
+      const who = net.routed(url) ? "Your provider" : new URL(url, location.href).hostname;
       if (r.status === 401 || r.status === 403) throw new Error(`${who} refused the login${said ? `: “${said}”` : ""}. Check the username and password — the password is easy to mistype behind the dots.`);
       throw new Error(`${who} answered ${r.status}${said ? `: “${said}”` : ""}`);
     }
@@ -153,7 +156,7 @@ export const GENRES = [
 function xtream(cfg) {
   const server = cfg.server.replace(/\/+$/, "").replace(/^(?!https?:\/\/)/, "http://");
   const u = encodeURIComponent(cfg.username), p = encodeURIComponent(cfg.password);
-  const through = (url) => `/api/proxy?u=${encodeURIComponent(url)}`;
+  const through = net.url;
   const api = (action = "", extra = "") => getJson(through(`${server}/player_api.php?username=${u}&password=${p}${action ? `&action=${action}` : ""}${extra}`));
   let lib = null;
 

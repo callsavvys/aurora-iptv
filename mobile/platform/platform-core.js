@@ -1,34 +1,91 @@
 /* The iPhone and Android stand-in for preload.cjs. The Mac app gets
-   window.aurora from Electron; here it is built on Capacitor before the
-   renderer runs, because the renderer reads the prefs snapshot synchronously on
-   its first line of work. Prefs and secrets live in the system's own app
-   storage rather than in the web view's localStorage, which the OS may clear. */
-(async () => {
+   window.aurora from Electron; here it is built on Capacitor before either
+   interface runs, because both read the prefs snapshot synchronously on their
+   first line of work. Prefs and secrets live in the system's own app storage
+   rather than in the web view's localStorage, which the OS may clear.
+
+   This file is the half both interfaces share. The old interface's own start
+   (the 1920-wide zoom, then renderer.js and tv-nav.js) is in
+   platform-boot-app.js; the new one starts from web/js/boot.js. Neither starts
+   before window.auroraReady has settled, so nothing reads storage early. */
+window.auroraReady = (async () => {
   const platform = window.Capacitor?.getPlatform?.() || "ios";
-  document.documentElement.classList.add(`platform-${platform}`);
+  const root = document.documentElement;
+  root.classList.add(`platform-${platform}`);
   const store = window.Capacitor?.Plugins?.Preferences;
+  const config = window.AURORA_CONFIG || {};
+
+  /* The new interface, until it owns the store (the plan's second PR), never
+     writes the old app's keys: a build of it can go on the television and come
+     off again without touching anyone's sources, list or sign-in. A trace build
+     goes further and writes nothing outside its own key, not even the
+     .locked copy below. */
+  const WEB_UI = root.classList.contains("ui-web");
+  const TRACE = !!config.trace;
+  const LEGACY_KEYS = new Set(["prefs", "secrets"]);
+  const writable = (key) => !(WEB_UI && LEGACY_KEYS.has(key)) && !(TRACE && key !== "web.trace");
+
+  /* Every write goes through one queue, one at a time, so two writes that
+     overlap across an await can never leave one of them half-applied. */
+  let queue = Promise.resolve();
+  const enqueue = (job) => {
+    const run = queue.then(job, job);
+    queue = run.catch(() => {});
+    return run;
+  };
 
   /* Same rule as the Mac keychain: a value that is there but cannot be read is
      not the same as nothing ever being saved, because the next write would
-     replace the only copy of the sources and keys. */
+     replace the only copy of the sources and keys. Such a key is read-only for
+     the rest of the session. */
+  const unreadableKeys = new Set();
   async function read(key) {
     let value = null;
     try { ({ value } = await store.get({ key })) }
-    catch (error) { return { unreadable: error.message || "could not be read", retryable: true } }
+    catch (error) { unreadableKeys.add(key); return { unreadable: error.message || "could not be read", retryable: true } }
     if (!value) return null;
     try { return JSON.parse(value) }
     catch (error) {
-      try { await store.set({ key: `${key}.locked`, value }) } catch { /* then the next write replaces it */ }
+      unreadableKeys.add(key);
+      if (writable(`${key}.locked`)) {
+        try { await store.set({ key: `${key}.locked`, value }) } catch { /* then the next write replaces it */ }
+      }
       return { unreadable: error.message || "could not be read" };
     }
   }
 
-  async function write(key, value) {
-    try { await store.set({ key, value: JSON.stringify(value ?? {}) }); return true }
-    catch { return false }
+  function write(key, value) {
+    if (!writable(key)) return Promise.resolve(false);
+    return enqueue(async () => {
+      try { await store.set({ key, value: JSON.stringify(value ?? {}) }); unreadableKeys.delete(key); return true }
+      catch { return false }
+    });
   }
 
+  /* A provider URL carries the account's username and password, in the path
+     (/live/USER/PASS/123.ts) or the query (?username=&password=). Nothing that
+     reaches a screen, a log or a trace file may carry them. */
+  const sourceHosts = () => {
+    const hosts = new Set();
+    for (const s of (cache.secrets && Array.isArray(cache.secrets.sources) ? cache.secrets.sources : [])) {
+      try { hosts.add(new URL(String(s.server).replace(/^(?!https?:\/\/)/, "http://")).host) } catch { /* not a URL */ }
+    }
+    return hosts;
+  };
+  function redact(text) {
+    let out = String(text ?? "");
+    out = out.replace(/\/(live|movie|series|timeshift)\/[^/\s?#]+\/[^/\s?#]+\//gi, "/$1/***/***/");
+    out = out.replace(/([?&](?:username|password|token|key|api_key|apikey)=)[^&\s#"']*/gi, "$1***");
+    for (const host of sourceHosts()) {
+      const escaped = host.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      out = out.replace(new RegExp(`(https?://${escaped})[^\\s"'<>]*`, "g"), "$1/…");
+    }
+    return out;
+  }
+
+  const cache = {};
   const storedSecrets = await read("secrets");
+  cache.secrets = storedSecrets && !storedSecrets.unreadable ? storedSecrets : null;
   let secretsLock = storedSecrets?.unreadable ? storedSecrets : null;
   let secrets = secretsLock ? null : storedSecrets;
   const storedPrefs = await read("prefs");
@@ -55,6 +112,24 @@
       return { saved, encrypted: false };
     },
     version: async () => "__AURORA_VERSION__",
+
+    /* What the new interface uses. `read` answers from what was loaded at
+       start, so a screen can ask synchronously; `write` goes through the queue
+       and resolves false when the key is not this build's to write, or when
+       the system refused it. A key that could not be read stays read-only. */
+    store: {
+      async load(key) { if (!(key in cache)) cache[key] = await read(key); return cache[key] },
+      read: (key) => (key === "prefs" ? prefs : key === "secrets" ? secretsLock || secrets : cache[key] ?? null),
+      async write(key, value) {
+        if (unreadableKeys.has(key)) return false;
+        cache[key] = value;
+        return write(key, value);
+      },
+      writable: (key) => writable(key) && !unreadableKeys.has(key),
+      unreadable: (key) => unreadableKeys.has(key),
+    },
+    redact,
+    trace: TRACE,
 
     /* A sideloaded build has no update channel: Android will not update an APK
        that did not come from a store, and an IPA is the same. It can still find
@@ -134,47 +209,5 @@
     }).catch(() => {});
   }, 4000);
 
-  /* ---- one television pixel is not another television pixel ----
-     tv.css is written against a 1920-wide screen, but an Android TV WebView
-     reports whatever it likes: 960 CSS pixels at double density is common, and
-     there every fixed size in the stylesheet comes out twice as large as it was
-     drawn. That is not a stylesheet bug to be chased rule by rule, it is one
-     scale factor: lay the page out as if it were 1920 wide and let the screen
-     put it back. Set before the renderer loads, so nothing is painted at the
-     wrong size first. */
-  const TV_WIDTH = 1920;
-  const fitToScreen = () => {
-    if (!TV_BUILD) return;
-    const width = window.innerWidth || TV_WIDTH;
-    const height = window.innerHeight || 1080;
-    const scale = width / TV_WIDTH;
-    const root = document.documentElement;
-    root.style.zoom = String(scale);
-    /* vh does not compensate for the scale: on a 540-tall screen scaled by a
-       half, 100vh still measures 540 and the page ends up covering a quarter
-       of the television. The real height has to be handed to the stylesheet.
-
-       And not only the height. Every vh and vw in the stylesheets is half what
-       it should be for the same reason, which is how the programme guide ended
-       up three rows tall on a screen with room for eight. One percent of the
-       real screen, in each direction, so the stylesheet can do the arithmetic
-       itself. */
-    root.style.setProperty("--tv-height", `${Math.round(height / scale)}px`);
-    root.style.setProperty("--tv-vh", `${(height / scale / 100).toFixed(2)}px`);
-    root.style.setProperty("--tv-vw", `${(width / scale / 100).toFixed(2)}px`);
-  };
-  fitToScreen();
-  window.addEventListener("resize", fitToScreen);
-
-  const renderer = document.createElement("script");
-  renderer.src = "renderer.js";
-  // the D-pad layer reads the DOM the renderer builds, so it follows it in
-  if (document.documentElement.classList.contains("platform-tv")) {
-    renderer.addEventListener("load", () => {
-      const nav = document.createElement("script");
-      nav.src = "tv-nav.js";
-      document.body.appendChild(nav);
-    });
-  }
-  document.body.appendChild(renderer);
+  return window.aurora;
 })();

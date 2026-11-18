@@ -133,8 +133,10 @@ console.log("\n— passing over a text box does not summon a keyboard —");
     /if \(node\.dataset\?\.tamed && node\.hasAttribute\("readonly"\)\) return handOver\(node\);/.test(NAV), true);
   check("leaving it puts it back",
     /focusout[\s\S]{0,200}takeBack\(node\)/.test(NAV), true);
-  check("and while held back the remote walks straight through it",
-    /if \(node\.dataset\.tamed && node\.hasAttribute\("readonly"\)\) return key !== "Enter";/.test(NAV), true);
+  /* every key, OK included: OK reaching activate() is what hands the field
+     over, and keeping it back meant a field could never be typed into */
+  check("and while held back every key is the remote's, OK included",
+    /if \(node\.dataset\.tamed && node\.hasAttribute\("readonly"\)\) return true;/.test(NAV), true);
   check("the search box keeps its own keys", /field\.id === "search"|node\.id !== "search"|\.id === "search"/.test(NAV), true);
 }
 
