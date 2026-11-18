@@ -16,13 +16,21 @@
       "tintColor": "#55E5CF",
       "category": "entertainment",
       "screenshotURLs": [],
-      "version": "0.38.8",
-      "versionDate": "2026-11-18T01:53:35Z",
-      "versionDescription": "Aurora 0.38.8: watch together with friends (Together), friend codes, and everything since 0.28.0.",
-      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/ios-v0.38.8/Aurora-0.38.8.ipa",
-      "size": 1249414,
+      "version": "0.38.9",
+      "versionDate": "2026-11-18T02:06:08Z",
+      "versionDescription": "Aurora 0.38.9: joining a watch party no longer stays loading on iPhone.",
+      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/ios-v0.38.9/Aurora-0.38.9.ipa",
+      "size": 1249601,
       "minOSVersion": "15.0",
       "versions": [
+        {
+          "version": "0.38.9",
+          "date": "2026-11-18T02:06:08Z",
+          "localizedDescription": "Aurora 0.38.9: joining a watch party no longer stays loading on iPhone.",
+          "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/ios-v0.38.9/Aurora-0.38.9.ipa",
+          "size": 1249601,
+          "minOSVersion": "15.0"
+        },
         {
           "version": "0.38.8",
           "date": "2026-11-18T01:53:35Z",
