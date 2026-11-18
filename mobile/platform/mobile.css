@@ -10,7 +10,7 @@
 }
 
 html, body { height: 100%; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
-body { background: var(--bg, #070b0f); }
+body { background: var(--bg, #050b12); }
 button, a { touch-action: manipulation; }
 /* under 16px iOS zooms the page when a field is focused */
 input, select, textarea { font-size: 16px !important; }
@@ -218,7 +218,7 @@ input, select, textarea { font-size: 16px !important; }
 
 /* AirPlay: while the film is on the car or TV, the phone says so instead of
    showing an empty black frame */
-#player-airplay.on { color: var(--accent); }
+#player-airplay.on { color: var(--accent-quiet); }
 .player-shell.casting::after {
   content: "Playing on your car or TV";
   position: absolute; inset: 0; z-index: 1; display: grid; place-items: center;

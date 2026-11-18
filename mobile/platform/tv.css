@@ -297,7 +297,7 @@
 .platform-tv .party-strip,
 .platform-tv .player-shell:not(:fullscreen) .party-strip { top: 150px; left: 40px; gap: 6px 22px; padding: 10px 12px 10px 28px; border-width: 2px; }
 .platform-tv .party-who { font-size: 40px; gap: 14px; }
-.platform-tv .party-who::before { width: 13px; height: 13px; box-shadow: 0 0 0 5px rgba(125, 247, 220, .22); }
+.platform-tv .party-who::before { width: 13px; height: 13px; box-shadow: 0 0 0 5px var(--accent-edge-strong); }
 .platform-tv .party-state { font-size: 28px; }
 .platform-tv .party-strip .ghost { min-width: 72px; height: 60px; padding: 0 22px; font-size: 32px; border-width: 2px; border-radius: 999px; }
 .platform-tv .party-strip .ghost:hover { background: transparent; }

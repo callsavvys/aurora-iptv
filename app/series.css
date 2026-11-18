@@ -101,7 +101,7 @@
 }
 
 .series-actions { display: flex; gap: 9px; }
-.series-actions button { height: 37px; padding: 0 15px; border-radius: 10px; font-size: 12px; }
+.series-actions button { height: 37px; padding: 0 15px; border-radius: 12px; font-size: 12px; }
 
 /* credits */
 
@@ -161,7 +161,7 @@
   border: 1px solid var(--line);
   background: var(--fill-1);
   color: var(--text-3);
-  border-radius: 10px;
+  border-radius: 12px;
   min-height: 44px;
   padding: 7px 16px;
   font-family: var(--display);
