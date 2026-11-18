@@ -742,16 +742,17 @@ const THEMES = [
 
 async function renderSettings(el, params) {
   const pane = params.pane || "look";
-  el.innerHTML = `<div class="settings">
-    <div class="side list" data-zone="side" data-lock="y" data-leave="up" data-prefer=".cat-item.on">
-      <button class="side-back" data-f data-key="set:back">${PL.back}<span>Back</span></button><span class="side-label">Settings</span>
-      ${[["look", "Appearance"], ["lang", "Language & region"], ["source", "Source"], ["together", "Account & friends"], ["keys", "Keyboard & remote"], ["about", "About"]].map(([id, label]) =>
-        `<button class="cat-item ${id === pane ? "on" : ""}" data-f data-key="set:${id}" ${id === pane ? "data-start" : ""}><span>${label}</span></button>`).join("")}
-    </div><div class="pane"></div></div>`;
+  // the website's Settings: a title, a row of tabs with icons, and the section in a card
+  const SET_TABS = [["look", "Appearance", "<circle cx=\"13.5\" cy=\"6.5\" r=\"1.5\"/><circle cx=\"17.5\" cy=\"10.5\" r=\"1.5\"/><circle cx=\"8.5\" cy=\"7.5\" r=\"1.5\"/><circle cx=\"6.5\" cy=\"12.5\" r=\"1.5\"/><path d=\"M12 2a10 10 0 0 0 0 20c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a6 6 0 0 0 6-6c0-4.9-4.5-8.6-10-8.6z\"/>"], ["lang", "Language", "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z\"/>"], ["source", "Source", "<rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M8 21h8M12 17v4\"/>"], ["together", "Account", "<circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 21a8 8 0 0 1 16 0\"/>"], ["keys", "Remote", "<rect x=\"2\" y=\"6\" width=\"20\" height=\"12\" rx=\"2\"/><path d=\"M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8\"/>"], ["about", "About", "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 16v-4M12 8h.01\"/>"]];
+  el.innerHTML = `<div class="settings" data-page data-anchor="150"><div class="scroller">
+    <section data-section class="set-top"><h1 class="set-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</h1>
+      <div class="set-tabs" data-zone="side" data-lock="x" data-prefer=".cat-item.on">${SET_TABS.map(([id, label, icon]) =>
+        `<button class="cat-item ${id === pane ? "on" : ""}" data-f data-key="set:${id}" ${id === pane ? "data-start" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg><span>${label}</span></button>`).join("")}</div></section>
+    <section data-section class="pane"></section><div style="height:120px"></div></div></div>`;
   const paneEl = el.querySelector(".pane");
   const draw = (id) => {
     params.pane = id;
-    el.querySelectorAll(".side .cat-item").forEach((b) => b.classList.toggle("on", b.dataset.key === `set:${id}`));
+    el.querySelectorAll(".set-tabs .cat-item").forEach((b) => b.classList.toggle("on", b.dataset.key === `set:${id}`));
     if (id === "look") {
       paneEl.innerHTML = `<h2>Appearance</h2><p>Pick a palette — the whole app changes as you land on one. Press OK to keep it.</p>
         <div class="themes" data-zone="themes">${THEMES.map((t) => `<button class="theme ${prefs.theme === t.id ? "on" : ""}" data-f data-key="theme:${t.id}" style="background:${t.sw[0]}">
@@ -794,7 +795,6 @@ async function renderSettings(el, params) {
         <p class="note">Film and series data and images from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. Test stream: Big Buck Bunny, © Blender Foundation, CC BY 3.0.</p>`;
     }
   };
-  on("set:back", () => go("home", {}, { root: true }));
   // OK on a section moves into it; a click or a tap just opens it (there is no
   // focus to carry across, and the pane may still show the last section)
   for (const id of ["look", "lang", "source", "together", "keys", "about"]) on(`set:${id}`, () => {

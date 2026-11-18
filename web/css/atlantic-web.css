@@ -196,3 +196,67 @@
 .detail .facts > span:has(.tmdb) { order: 2; }
 .detail .infogrid > div:not([data-k="Director"]):not([data-k="Created by"]):not([data-k="Starring"]) { display: none; }
 .detail .person .art, [data-theme="ocean"] .detail .person .art { border-radius: 50%; }
+
+/* ---------- Settings, the website's: a title, tabs with icons, the section in a card ---------- */
+.settings { display: block; position: absolute; inset: 0; padding: 0; overflow: hidden; height: auto; }
+.settings > .scroller { left: 378px; right: 378px; }
+.settings .set-top { padding-top: 282px; }
+.set-title { display: flex; align-items: center; gap: 15px; margin: 0 0 30px 30px; font-size: 45px; font-weight: 700; letter-spacing: 0; }
+.set-title svg { width: 42px; height: 42px; }
+.set-tabs { display: flex; gap: 3px; margin: 0 0 24px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.settings .set-tabs .cat-item, [data-theme="ocean"] .settings .set-tabs .cat-item { height: 63px; padding: 0 15px; gap: 9px; border-radius: 0; background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px;
+  font-size: 21px; font-weight: 400; color: rgba(255,255,255,.5); justify-content: flex-start; }
+.settings .set-tabs .cat-item svg { width: 21px; height: 21px; flex: 0 0 auto; }
+.settings .set-tabs .cat-item span { flex: none; overflow: visible; }
+.settings .set-tabs .cat-item.on, [data-theme="ocean"] .settings .set-tabs .cat-item.on { background: none; color: #fff; font-weight: 600; border-bottom-color: #1ecbec; }
+.settings .set-tabs .cat-item.on::before, .settings .set-tabs .cat-item.on::after { content: none; }
+.settings .set-tabs .cat-item:focus { outline: 0; background: rgba(255,255,255,.08); color: #fff; box-shadow: inset 0 0 0 3px #4fe0fb; border-radius: 9px 9px 0 0; transform: none; }
+
+/* the card */
+.settings .pane { padding: 30px; border-radius: 18px; background: rgba(10,20,31,.6); border: 1px solid rgba(255,255,255,.1); overflow: visible; }
+.settings .pane > h2 { margin: 0 0 3px; font-size: 30px; font-weight: 600; letter-spacing: 0; text-transform: none; color: rgba(255,255,255,.9); }
+.settings .pane > p { margin: 0 0 24px; max-width: none; font-size: 21px; line-height: 1.45; color: rgba(255,255,255,.4); }
+.settings .pane > p b { color: rgba(255,255,255,.8); }
+
+/* toggles: rows with a hairline between them, a small cyan switch */
+.settings .toggle, [data-theme="ocean"] .settings .toggle { display: flex; width: 100%; min-height: 0; margin: 0; padding: 21px 0; border-radius: 0; background: none; border: 0; border-top: 1px solid rgba(255,255,255,.1); font-size: 21px; font-weight: 600; color: #fff; }
+.settings .toggle small { margin-top: 3px; font-size: 18px; font-weight: 400; color: rgba(255,255,255,.4); }
+.settings .toggle .sw { width: 66px; height: 36px; border-radius: 18px; background: rgba(255,255,255,.2); }
+.settings .toggle .sw::after { width: 30px; height: 30px; top: 3px; left: 3px; }
+.settings .toggle.on .sw { background: #1ecbec; }
+.settings .toggle.on .sw::after { transform: translateX(30px); }
+.settings .toggle:focus { outline: 0; background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 3px #4fe0fb; border-radius: 12px; padding: 21px 18px; transform: none; }
+
+/* palettes: the website's theme tiles, three to a row */
+.settings .themes { grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 0 0 24px; }
+.settings .theme { height: 135px; padding: 18px 21px; border-radius: 12px; border: 1px solid rgba(255,255,255,.1); justify-content: flex-end; flex-direction: column-reverse; align-items: flex-start; gap: 9px; }
+.settings .theme b { font-size: 21px; font-weight: 700; }
+.settings .theme .sw i { width: 21px; height: 21px; }
+.settings .theme.on { border: 2px solid #1ecbec; box-shadow: 0 0 0 1px rgba(30,203,236,.3); }
+.settings .theme:focus { outline: 0; box-shadow: 0 0 0 3px #4fe0fb; transform: none; }
+
+/* choices, fields and buttons */
+.settings .opt-group { padding: 21px 0; margin: 0; background: none; border-radius: 0; border-top: 1px solid rgba(255,255,255,.1); }
+.settings .opt-group > b { font-size: 21px; font-weight: 600; }
+.settings .opt-group > small { font-size: 18px; color: rgba(255,255,255,.4); }
+.settings .opt-group .opts { gap: 9px; margin-top: 15px; }
+.settings .chip, [data-theme="ocean"] .settings .chip { height: 51px; padding: 0 21px; border-radius: 9px; font-size: 21px; font-weight: 500; background: none; color: rgba(255,255,255,.7); border: 1px solid rgba(255,255,255,.1); }
+.settings .chip.on { background: rgba(30,203,236,.12); color: #fff; border-color: #1ecbec; }
+.settings .chip:focus { outline: 0; box-shadow: 0 0 0 3px #4fe0fb; transform: none; }
+.settings .field { width: auto; margin: 0 0 18px; padding: 0; background: none; }
+.settings .field span { margin: 0 0 6px; font-size: 18px; font-weight: 500; color: rgba(255,255,255,.5); }
+.settings .field input { height: 57px; padding: 0 18px; border-radius: 6px; background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.1); font-size: 21px; }
+.settings .field input:focus { outline: 0; border-color: rgba(30,203,236,.6); box-shadow: 0 0 0 3px rgba(79,224,251,.35); transform: none; }
+.settings .field input:not([readonly]) { border-color: #1ecbec; background: rgba(0,0,0,.5); }
+.settings .field-row { width: auto; gap: 18px; }
+.settings .actions { gap: 12px; }
+.settings .btn, .settings .actions .btn, [data-theme="ocean"] .settings .btn { height: 57px; padding: 0 24px; gap: 9px; border-radius: 12px; font-size: 21px; font-weight: 500; color: rgba(255,255,255,.7); background: none; border: 1px solid rgba(255,255,255,.1); box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.settings .btn.primary, .settings .actions .btn.primary, [data-theme="ocean"] .settings .btn.primary { background: #06aed4; color: #050b12; font-weight: 700; border: 0; }
+.settings .btn svg { width: 21px; height: 21px; }
+.settings .btn:focus { outline: 0; color: #fff; box-shadow: 0 0 0 3px #4fe0fb; transform: none; }
+.settings .btn.primary:focus { color: #050b12; background: #1ecbec; }
+.settings .note { margin: 18px 0 0; font-size: 18px; line-height: 1.5; color: rgba(255,255,255,.4); }
+.settings .error { font-size: 21px; }
+.settings .shortcuts { margin: 0; grid-template-columns: 240px 1fr; gap: 15px 24px; font-size: 21px; }
+.settings .shortcuts kbd { font-size: 18px; padding: 6px 12px; border-radius: 6px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); }
+.settings .shortcuts span { color: rgba(255,255,255,.7); }
