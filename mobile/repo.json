@@ -16,13 +16,21 @@
       "tintColor": "#55E5CF",
       "category": "entertainment",
       "screenshotURLs": [],
-      "version": "0.28.0",
-      "versionDate": "2026-10-18T23:55:08Z",
-      "versionDescription": "Aurora 0.28.0",
-      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/v0.28.0/Aurora-0.28.0.ipa",
-      "size": 1203747,
+      "version": "0.38.8",
+      "versionDate": "2026-11-18T01:53:35Z",
+      "versionDescription": "Aurora 0.38.8: watch together with friends (Together), friend codes, and everything since 0.28.0.",
+      "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/ios-v0.38.8/Aurora-0.38.8.ipa",
+      "size": 1249414,
       "minOSVersion": "15.0",
       "versions": [
+        {
+          "version": "0.38.8",
+          "date": "2026-11-18T01:53:35Z",
+          "localizedDescription": "Aurora 0.38.8: watch together with friends (Together), friend codes, and everything since 0.28.0.",
+          "downloadURL": "https://github.com/callsavvys/aurora-iptv/releases/download/ios-v0.38.8/Aurora-0.38.8.ipa",
+          "size": 1249414,
+          "minOSVersion": "15.0"
+        },
         {
           "version": "0.28.0",
           "date": "2026-10-18T23:55:08Z",
