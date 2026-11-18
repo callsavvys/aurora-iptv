@@ -24,7 +24,8 @@ const LABEL = { movie: "Movie", series: "Series", live: "Live", anime: "Anime", 
 export const badge = (b, extra = "") => (b ? `<span class="badge b-${b} ${extra}">${LABEL[b] || esc(b)}</span>` : "");
 export const kindLabel = (item) => (item.kind === "series" ? "Series" : item.kind === "live" ? "Live" : "Movie");
 const art = (src, title) => (src ? `<img src="${esc(src)}" alt="" loading="lazy" decoding="async" data-fallback="${esc(title)}">` : `<div class="fallback">${esc(title)}</div>`);
-const meta = (item) => [item.rating && `<span class="star">★ ${esc(item.rating)}</span>`, esc(item.year), kindLabel(item)].filter(Boolean).join(" · ");
+// Atlantic's caption under a poster: "Movie • 2026"
+const meta = (item) => [kindLabel(item), esc(item.year)].filter(Boolean).join(' <span class="dotc">•</span> ');
 
 /* An image that fails gives way to the title, set in type — never a broken
    picture. One listener for all of them (no inline handlers, which the TV
@@ -37,10 +38,23 @@ document.addEventListener("error", (e) => {
   im.replaceWith(f);
 }, true);
 
+/* Atlantic's rating ring: a 0–10 score as an arc, green when good */
+export function ring(rating) {
+  const r = Number(rating);
+  if (!r) return "";
+  const c = 2 * Math.PI * 24, colour = r >= 7 ? "#4ade80" : r >= 5 ? "#facc15" : "#f87171";
+  return `<span class="ring"><svg width="60" height="60" viewBox="0 0 60 60"><circle cx="30" cy="30" r="24" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="4.5"/><circle cx="30" cy="30" r="24" fill="none" stroke="${colour}" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="${(c * Math.min(r, 10)) / 10} ${c}"/></svg><b>${esc(r.toFixed(1))}</b></span>`;
+}
+
+/* The words go on the picture, Atlantic's way: the title (or its logo) at the
+   bottom left, a play button and a line about it on the right when focused. */
+const overlay = (item, line) => `<div class="ov"><div class="name"><b dir="auto">${esc(item.title)}</b>${line ? `<small>${line}</small>` : ""}</div>
+  <div class="go"><i>${icons.play}</i>${line ? "" : `<span>${meta(item)}</span>`}</div></div>`;
+
 export const keyOf = (item, where = "") => `${where}|${item.source || "demo"}:${item.kind}:${item.id}`;
 
 export function posterCard(item, where) {
-  return `<button class="card poster" data-f data-key="${esc(keyOf(item, where))}"><div class="art">${art(item.poster, item.title)}${badge(item.badge)}</div>
+  return `<button class="card poster" data-f data-key="${esc(keyOf(item, where))}"><div class="art">${art(item.poster, item.title)}${badge(item.badge)}${overlay(item)}</div>
     <div class="t" dir="auto">${esc(item.title)}</div><div class="m">${meta(item)}</div></button>`;
 }
 
@@ -54,12 +68,12 @@ export function personCard(c) {
 export function wideCard(item, where, { flag = "", sub = "", pct = 0, left = "", key } = {}) {
   return `<button class="card wide" data-f data-key="${esc(key || keyOf(item, where))}"><div class="art">${art(item.still || item.backdrop || item.poster, item.title)}
     ${left ? `<span class="left">${esc(left)}</span>` : ""}${flag ? `<span class="flag">${esc(flag)}</span>` : ""}
-    ${pct ? `<div class="meter"><i style="width:${Math.min(100, Math.max(2, pct))}%"></i></div>` : ""}<span class="play">${icons.play}</span></div>
+    ${pct ? `<div class="meter"><i style="width:${Math.min(100, Math.max(2, pct))}%"></i></div>` : ""}<span class="play">${icons.play}</span>${overlay(item, sub ? esc(sub) : "")}</div>
     <div class="t" dir="auto">${esc(item.title)}</div><div class="m">${sub ? esc(sub) : meta(item)}</div></button>`;
 }
 
 export function topCard(item, n, where) {
-  return `<button class="card top" data-f data-key="${esc(keyOf(item, where))}"><div class="art"><span class="n">${n}</span>
+  return `<button class="card top" data-f data-key="${esc(keyOf(item, where))}" aria-label="${esc(`${n}. ${item.title}`)}"><div class="art"><span class="n${n >= 10 ? " two" : ""}">${n}</span>
     <div class="thumb">${art(item.poster, item.title)}</div><div class="info"><div class="t">${esc(item.title)}</div><div class="m">${meta(item)}</div></div></div></button>`;
 }
 
@@ -87,7 +101,19 @@ export function skeletonRow(n = 7) {
     Array.from({ length: n }, () => '<div class="card poster skeleton"><div class="art"></div></div>').join("")}</div></div></section>`;
 }
 
+/* Atlantic's Continue Watching: a big poster with how far you got */
 export function continueCard(p, where) {
+  const pct = p.duration ? (p.position / p.duration) * 100 : 0;
+  const mins = Math.max(1, Math.round((p.duration - p.position) / 60));
+  const left = p.duration ? `${mins} min left` : "Next episode";
+  const sub = p.episode ? `S${p.episode.season} · E${p.episode.number} · ${left}` : left;
+  const item = p.item;
+  return `<button class="card poster cw" data-f data-key="${esc(`${where}|resume:${p.id}`)}"><div class="art">${art(item.poster || item.backdrop, item.title)}
+    ${pct ? `<div class="meter"><i style="width:${Math.min(100, Math.max(2, pct))}%"></i></div>` : ""}</div>
+    <div class="t" dir="auto">${esc(item.title)}</div><div class="m">${esc(sub)}</div></button>`;
+}
+
+export function continueWideCard(p, where) {
   // the episode after a finished one has not started: no bar, no time left
   const pct = p.duration ? (p.position / p.duration) * 100 : 0;
   const mins = Math.max(1, Math.round((p.duration - p.position) / 60));

@@ -199,7 +199,7 @@ screenEl.addEventListener("page:scroll", (e) => {
 let heroTimer = null;
 
 async function renderHome(el, params, entry, live) {
-  el.innerHTML = `<div class="page" data-page data-anchor="96"><div class="scroller">
+  el.innerHTML = `<div class="page" data-page data-anchor="150"><div class="scroller">
     <section class="hero" data-section><div class="art"></div>${source.kind === "xtream" ? `<div class="copy"><div class="badges"><span class="badge b-plain">${esc(source.name)}</span></div>
       <h1 style="font-size:var(--t-title2)">Getting your library</h1><p class="lib-status">Connecting…</p></div>` : ""}</section>${U.skeletonRow()}${U.skeletonRow()}</div></div>`;
   const status = (e) => { const p = el.querySelector(".lib-status"); if (p) p.textContent = e.detail; };
@@ -214,13 +214,13 @@ async function renderHome(el, params, entry, live) {
     const slot = el.querySelector(".watching-now");
     if (!slot || !live() || !list.length) return;
     slot.innerHTML = U.row({ id: "watching", title: "Watching now", line: "Your friends' parties. Join and you'll play your own copy, in step with theirs." },
-      list.map((p) => { const key = `home-watching|${p.code}`; on(key, () => joinWithCode(p.code)); return `<button class="card wide watching" data-f data-key="${esc(key)}"><div class="art"><div class="who"><b>${esc(p.display_name || "A friend")}</b><span>is watching</span></div></div><div class="t" dir="auto">${esc(p.title)}</div><div class="m">Join · code ${esc(p.code)}</div></button>`; }).join(""));
+      list.map((p) => { const key = `home-watching|${p.code}`; on(key, () => joinWithCode(p.code)); return `<button class="card wide watching" data-f data-key="${esc(key)}"><div class="art"><div class="who"><b>${esc(p.display_name || "A friend")}</b><span>is watching</span></div><div class="ov"><div class="name"><b dir="auto">${esc(p.title)}</b><small>Join · code ${esc(p.code)}</small></div></div></div><div class="t" dir="auto">${esc(p.title)}</div><div class="m">Join · code ${esc(p.code)}</div></button>`; }).join(""));
     slot.hidden = false;
   }).catch(() => {});
   const mine = await myList.items(source.kind, findOnLine);
   if (resume.length) {
     sections.push(U.row({ id: "continue", title: "Continue watching", line: "Pick up exactly where you left off." },
-      resume.map((p) => { on(`home-continue|resume:${p.id}`, () => resumePlay(p)); return U.continueCard(p, "home-continue"); }).join("")));
+      resume.map((p) => { on(`home-continue|resume:${p.id}`, () => resumePlay(p)); return U.continueWideCard(p, "home-continue"); }).join("")));
   }
   for (const s of data.sections) {
     if (!s.items?.length) continue;
@@ -245,6 +245,7 @@ async function renderHome(el, params, entry, live) {
 
 function heroHtml(items) {
   return `<section class="hero" data-section data-zone="hero" data-lock="x">
+    <div class="ambient">${items.map((h, i) => `<img class="${i ? "" : "on"}" src="${esc(h.backdrop || h.poster)}" alt="" data-i="${i}">`).join("")}</div>
     <div class="art">${items.map((h, i) => `<img class="${i ? "" : "on"} ${h.backdrop ? "" : "poster-only"}" src="${esc(h.backdrop || h.poster)}" alt="" data-i="${i}">`).join("")}</div>
     <div class="copy"></div>
     <div class="pager">${items.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div></section>`;
@@ -257,15 +258,16 @@ function startHero(el, items) {
   const copy = hero.querySelector(".copy");
   const draw = () => {
     const h = items[index];
-    const saved = myList.has(h);
-    copy.innerHTML = `<div class="badges">${U.badge(h.badge)}${index === 0 ? '<span class="badge b-plain">Featured</span>' : ""}</div>
-      <h1 dir="auto">${esc(h.title)}</h1>
-      <div class="meta">${h.rating ? `<span class="star">★ ${esc(h.rating)}</span>` : ""}${h.year ? `<span class="dot">${esc(h.year)}</span>` : ""}<span class="dot">${U.kindLabel(h)}</span><span class="dot">4K</span></div>
+    const line = (genres) => U.ring(h.rating) + [h.year, genres || U.kindLabel(h)].filter(Boolean).map((x) => `<span>${esc(x)}</span>`).join('<span class="sep">·</span>');
+    const chips = (genres) => (genres || []).slice(0, 3).map((g) => `<span>${esc(g)}</span>`).join("");
+    copy.innerHTML = `<span class="eyebrow">${index === 0 ? "Trending now" : U.kindLabel(h) === "Series" ? "Popular series" : "Popular film"}</span>
+      <div class="logo-box"><h1 dir="auto">${esc(h.title)}</h1></div>
+      <div class="meta atl-meta">${line()}</div>
+      <div class="atl-chips">${chips(h.genres)}</div>
       <p dir="auto">${esc(h.overview)}</p>
       <div class="actions">
         <button class="btn primary" data-f data-start data-key="hero|play">${U.icons.play}Play</button>
-        <button class="btn" data-f data-key="hero|info">${U.icons.info}More info</button>
-        <button class="btn icon ${saved ? "on" : ""}" data-f data-key="hero|list" aria-label="My List">${saved ? U.icons.check : U.icons.plus}</button>
+        <button class="btn" data-f data-key="hero|info">${U.icons.info}Details</button>
       </div>`;
     // TMDB's title art and backdrop, for a provider's title as much as a demo one
     enrich(h).then((m) => {
@@ -275,8 +277,9 @@ function startHero(el, items) {
       const bg = hero.querySelector(`.art img[data-i="${index}"]`);
       if (m.backdrop && bg && bg.classList.contains("poster-only")) { bg.src = m.backdrop; bg.classList.remove("poster-only"); }
       if (m.overview && !h.overview) { const p = copy.querySelector("p"); if (p) p.textContent = m.overview; }
+      if (m.genres?.length) { const ch = copy.querySelector(".atl-chips"); if (ch) ch.innerHTML = chips(m.genres); const ml = copy.querySelector(".atl-meta"); if (ml) ml.innerHTML = line(m.genres.slice(0, 2).join(" / ")); }
     }).catch(() => {});
-    hero.querySelectorAll(".art img").forEach((im, i) => im.classList.toggle("on", i === index));
+    hero.querySelectorAll(".art img, .ambient img").forEach((im) => im.classList.toggle("on", Number(im.dataset.i) === index));
     hero.querySelectorAll(".pager i").forEach((d, i) => d.classList.toggle("on", i === index));
   };
   on("hero|play", () => playItem(items[index]));
@@ -299,7 +302,7 @@ function startHero(el, items) {
 // ============================== Movies, Series ==============================
 async function renderBrowse(el, kind, params) {
   const label = kind === "series" ? "Series" : "Movies";
-  el.innerHTML = `<div class="page" data-page data-anchor="96"><div class="scroller">
+  el.innerHTML = `<div class="page" data-page data-anchor="150"><div class="scroller">
     <section data-section><div class="page-head"><h1>${label}</h1><p>${esc(source.name)}</p></div><div class="chips-row" data-zone="chips" data-lock="x" data-track="x" data-prefer=".chip.on"><div class="track chips"></div></div></section>
     <section data-section class="grid-section"><div class="grid" data-zone="grid">${Array.from({ length: 12 }, () => '<div class="card poster skeleton"><div class="art"></div></div>').join("")}</div></section></div></div>`;
   const cats = await source.categories(kind);
@@ -348,7 +351,7 @@ async function renderMyList(el) {
     on("ml:movies", () => tabTo("movies")); on("ml:series", () => tabTo("series"));
     return;
   }
-  el.innerHTML = `<div class="page" data-page data-anchor="96"><div class="scroller">
+  el.innerHTML = `<div class="page" data-page data-anchor="150"><div class="scroller">
     <section data-section><div class="page-head"><h1>My List</h1><p>${items.length} saved</p></div>
     <div class="grid" data-zone="grid">${items.map((x, i) => P(x, "mylist").replace("<button", i ? "<button" : "<button data-start")).join("")}</div></section></div></div>`;
 }
@@ -412,23 +415,32 @@ async function renderLive(el) {
 const searchState = { query: "", type: () => {} };
 
 async function renderSearch(el) {
+  // Atlantic's search: the box and an on-screen keyboard on the left, what it finds on the right
+  const KEYS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   el.innerHTML = `<div class="search-page">
-    <label class="query">${U.icons.search}<input type="search" data-f data-start data-key="search:box" placeholder="Search films and series" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></label>
-    <div class="results" data-page data-anchor="0"><div class="scroller"><section data-section><div class="head"><div><h2>Top searches</h2><p>What people are looking for right now.</p></div></div>
+    <div class="search-left">
+      <label class="query">${U.icons.search}<input type="search" data-f data-key="search:box" placeholder="Search here" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></label>
+      <div class="kbd" data-zone="kbd">${KEYS.map((k, i) => `<button class="key" data-f ${i === 0 ? "data-start" : ""} data-key="kb:${k}">${k}</button>`).join("")}
+        <button class="key wide2" data-f data-key="kb:clear">Clear</button>
+        <button class="key space" data-f data-key="kb:space">Space</button>
+        <button class="key wide2" data-f data-key="kb:del" aria-label="Delete"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 3H7c-.69 0-1.23.35-1.59.88L0 12l5.41 8.11c.36.53.9.89 1.59.89h15a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-3 12.59L17.59 17 14 13.41 10.41 17 9 15.59 12.59 12 9 8.41 10.41 7 14 10.59 17.59 7 19 8.41 15.41 12z"/></svg></button></div>
+    </div>
+    <div class="results" data-page data-anchor="0"><div class="scroller"><section data-section><div class="head"><div><h2>Popular now</h2><p></p></div></div>
       <div class="grid" data-zone="grid"></div></section></div></div></div>`;
   const box = el.querySelector(".query input"), grid = el.querySelector(".results .grid"), head = el.querySelector(".results .head");
   let timer, seq = 0;
   const suggestions = (await source.home().catch(() => ({ sections: [] }))).sections.find((s) => s.type === "posters")?.items || [];
   const fill = (items, title, line) => {
     head.innerHTML = `<div><h2>${esc(title)}</h2><p>${esc(line)}</p></div>`;
+    grid.parentElement.parentElement.parentElement.dataset.y = 0; grid.closest(".scroller").style.transform = "";
     grid.innerHTML = items.length ? items.map((x) => P(x, "search")).join("") : `<div class="empty" style="padding:30px 0"><p>Nothing matches “${esc(searchState.query)}”. Try fewer letters.</p></div>`;
   };
-  fill(suggestions.slice(0, 18), "Top searches", "What people are looking for right now.");
+  fill(suggestions.slice(0, 20), "Popular now", "");
   const run = () => {
     searchState.query = box.value.slice(0, 40);
     clearTimeout(timer);
     const mine = ++seq;
-    if (!searchState.query.trim()) { fill(suggestions.slice(0, 18), "Top searches", "What people are looking for right now."); return; }
+    if (!searchState.query.trim()) { fill(suggestions.slice(0, 20), "Popular now", ""); return; }
     timer = setTimeout(async () => {
       const r = await source.search(searchState.query).catch(() => []);
       if (mine !== seq) return;
@@ -444,12 +456,18 @@ async function renderSearch(el) {
   box.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); const first = grid.querySelector("[data-f]"); if (first) F.focus(first); } });
   searchState.query = "";
   // a letter typed while the remote is down in the results goes into the box
-  searchState.type = (ch) => {
+  searchState.type = (ch, { stay = false } = {}) => {
     if (ch === null) box.value = box.value.slice(0, -1);
     else if (ch === "") box.value = "";
     else box.value = (box.value + ch).slice(0, 40);
-    open(); run();
+    if (!stay) open();
+    run();
   };
+  // the on-screen keyboard types without leaving the keyboard
+  for (const k of KEYS) on(`kb:${k}`, () => searchState.type(k.toLowerCase(), { stay: true }));
+  on("kb:space", () => searchState.type(" ", { stay: true }));
+  on("kb:del", () => searchState.type(null, { stay: true }));
+  on("kb:clear", () => searchState.type("", { stay: true }));
   return { cleanup: () => { clearTimeout(timer); searchState.type = () => {}; searchState.query = ""; } };
 }
 
@@ -510,29 +528,44 @@ async function renderDetail(el, params) {
   const next = meta?.nextEpisode && meta.nextEpisode.date >= new Date().toISOString().slice(0, 10) ? meta.nextEpisode : null;
   const when = (d) => new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
   const status = meta?.type === "tv" ? (next ? `New episode ${when(next.date)}` : meta.status === "Ended" ? "Ended" : meta.status === "Returning Series" ? "Returning series" : "") : "";
-  const credit = [meta?.directors?.length ? `<b>${meta.type === "tv" ? "Created by" : "Directed by"}</b> ${esc(meta.directors.join(", "))}` : "",
-    meta?.cast?.length ? `<b>Starring</b> ${esc(meta.cast.slice(0, 4).map((c) => c.name).join(", "))}` : (provider.cast ? `<b>Starring</b> ${esc(provider.cast)}` : "")].filter(Boolean);
+  const credit = [meta?.directors?.length ? `<b>${meta.type === "tv" ? "Creator" : "Director"}:</b> <span class="v">${esc(meta.directors.join(", "))}</span>` : "",
+    meta?.cast?.length ? `<b>Starring:</b> <span class="v">${esc(meta.cast.slice(0, 4).map((c) => c.name).join(", "))}</span>` : (provider.cast ? `<b>Starring:</b> <span class="v">${esc(provider.cast)}</span>` : "")].filter(Boolean);
 
+  const facts = [
+    t.rating ? `<span><i class="tmdb"><span>TMDB</span></i>${esc(t.rating)}</span>` : "",
+    `<span class="scores"></span>`,
+    t.year ? `<span>${esc(t.year)}</span>` : "",
+    t.runtime ? `<span>${esc(t.runtime)}</span>` : "",
+    status ? `<span class="${next ? "soon" : ""}">${esc(status)}</span>` : "",
+    onLine ? "" : "<span>Not on your line</span>",
+  ].filter(Boolean).join("");
+  const info = [
+    provider.kind === "series" && provider.seasons?.length ? ["Seasons", provider.seasons.length] : null,
+    meta?.released ? ["Release date", meta.released] : t.year ? ["Year", t.year] : null,
+    meta?.languages?.length ? ["Language", meta.languages[0]] : null,
+    cert ? ["Rating", cert.cert] : null,
+    meta?.directors?.length ? [meta.type === "tv" ? "Created by" : "Director", meta.directors.slice(0, 2).join(", ")] : null,
+    meta?.cast?.length ? ["Starring", meta.cast.slice(0, 3).map((c) => c.name).join(", ")] : null,
+  ].filter(Boolean);
   page.querySelector(".copy").innerHTML = `
-    <div class="badges">${U.badge(provider.badge)}${cert ? `<span class="badge b-cert" title="Rated in ${esc(cert.country)}">${esc(cert.cert)}</span>` : ""}${t.genres.slice(0, 3).map((g) => `<span class="badge b-plain">${esc(g)}</span>`).join("")}${onLine ? "" : '<span class="badge b-off">Not on your line</span>'}</div>
     ${meta?.logo ? `<img class="logo" src="${esc(meta.logo)}" alt="${esc(t.title)}">` : `<h1 dir="auto">${esc(t.title)}</h1>`}
-    <div class="meta">${t.rating ? `<span class="star">★ ${esc(t.rating)}</span>` : ""}<span class="scores"></span>${t.year ? `<span class="dot">${esc(t.year)}</span>` : ""}${t.runtime ? `<span class="dot">${esc(t.runtime)}</span>` : ""}${status ? `<span class="dot ${next ? "soon" : ""}">${esc(status)}</span>` : ""}</div>
-    ${meta?.tagline ? `<div class="tagline" dir="auto">${esc(meta.tagline)}</div>` : ""}
-    <p class="overview" dir="auto">${esc(t.overview || "No description from the provider.")}</p>
-    ${credit.length ? `<div class="cast">${credit.join('<span class="sep"></span>')}</div>` : ""}
-    ${meta?.networks?.some((n) => n.logo) ? `<div class="nets">${meta.networks.filter((n) => n.logo).slice(0, 3).map((n) => `<img src="${esc(n.logo)}" alt="${esc(n.name)}" title="${esc(n.name)}">`).join("")}</div>` : ""}
+    <div class="facts">${facts}</div>
     <div class="actions" data-zone="actions" data-lock="x">
       ${onLine ? `<button class="btn primary" data-f data-start data-key="d:play">${play}</button>` : ""}
       ${resume ? `<button class="btn" data-f data-key="d:restart">Start over</button>` : ""}
-      ${meta?.trailer ? `<button class="btn" data-f ${onLine ? "" : "data-start"} data-key="d:trailer">${U.icons.film}Trailer</button>` : ""}
-      ${onLine ? `<button class="btn ${saved ? "on" : ""}" data-f data-key="d:list">${saved ? U.icons.check : U.icons.plus}My List</button>` : ""}
+      ${onLine ? `<button class="btn icon ${saved ? "on" : ""}" data-f data-key="d:list" aria-label="My List">${saved ? U.icons.check : U.icons.plus}</button>` : ""}
+      ${meta?.trailer ? `<button class="btn icon" data-f ${onLine ? "" : "data-start"} data-key="d:trailer" aria-label="Trailer">${U.icons.film}</button>` : ""}
       ${onLine && provider?.source === "xtream" && Tg.signedIn() ? `<button class="btn" data-f data-key="d:together">${U.icons.play}Watch together</button>` : ""}
       ${!onLine && !meta?.trailer ? `<button class="btn" data-f data-start data-key="d:back">${U.icons.back}Back</button>` : ""}
-    </div>`;
+    </div>
+    <p class="overview" dir="auto">${esc(t.overview || "No description from the provider.")}</p>
+    ${t.genres.length ? `<div class="genres">${t.genres.slice(0, 4).map((g) => `<span>${esc(g)}</span>`).join("")}</div>` : ""}
+    ${info.length ? `<dl class="infogrid">${info.map(([k, v]) => `<div data-k="${esc(k)}"><dt>${esc(k)}</dt><dd dir="auto">${esc(v)}</dd></div>`).join("")}</dl>` : ""}`;
   if (meta?.imdbId) scores(meta.imdbId).then((s) => {
     const box = page.querySelector(".scores");
-    if (!s || !box) return;
-    box.innerHTML = [s.imdb && `<span class="dot sc imdb">IMDb ${esc(s.imdb)}</span>`, s.rt && `<span class="dot sc rt">🍅 ${esc(s.rt)}</span>`, s.mc && `<span class="dot sc mc">MC ${esc(s.mc)}</span>`].filter(Boolean).join("");
+    if (!box) return;
+    if (!s?.imdb) return box.remove();
+    box.outerHTML = `<span><i class="imdb">IMDb</i>${esc(s.imdb)}</span>`;
   });
   on("d:play", () => resume ? resumePlay(resume) : provider.kind === "series" ? playFirstEpisode(provider) : playItem(provider));
   on("d:restart", () => resume.episode ? playEpisode(provider, resume.episode, 0) : playItem(provider, 0));
@@ -540,7 +573,7 @@ async function renderDetail(el, params) {
   on("d:together", () => pickFriendFor(provider));
   on("d:list", (btn) => {
     const added = myList.toggle(provider);
-    btn.classList.toggle("on", added); btn.innerHTML = `${added ? U.icons.check : U.icons.plus}My List`;
+    btn.classList.toggle("on", added); btn.innerHTML = added ? U.icons.check : U.icons.plus;
     toast(added ? `Added to My List` : `Removed from My List`);
   });
 
@@ -551,10 +584,11 @@ async function renderDetail(el, params) {
   if (onLine && provider.kind === "series" && provider.seasons?.length) {
     const first = resume?.episode?.season || provider.seasons[0].number;
     scroller.insertAdjacentHTML("beforeend", `<section class="block" data-section>
-      <div class="head"><div><h2>Episodes</h2><p>${esc(provider.seasons.length)} season${provider.seasons.length === 1 ? "" : "s"} on your line</p></div></div>
+      <div class="ep-head"><h2>Seasons</h2>
       <div class="chips-row seasons" data-zone="seasons" data-lock="x" data-track="x" data-prefer=".chip.on"><div class="track">${provider.seasons.map((s) =>
-        `<button class="chip ${s.number === first ? "on" : ""}" data-f data-key="season:${s.number}">${esc(s.name || `Season ${s.number}`)}</button>`).join("")}</div></div>
-      <div class="row" data-zone="row" data-lock="x" data-track="x" style="margin-top:20px"><div class="track episodes"><div class="loading">Loading episodes…</div></div></div></section>`);
+        `<button class="chip ${s.number === first ? "on" : ""}" data-f data-key="season:${s.number}">S${esc(s.number)}</button>`).join("")}</div></div>
+      <h2>Episodes</h2></div>
+      <div class="ep-list" data-zone="eps" data-track="y" data-lock="y" data-leave="up down" data-pad="24"><div class="track episodes"><div class="loading">Loading episodes…</div></div></div></section>`);
     const epTrack = scroller.querySelector(".episodes");
     let shown = null;
     const showSeason = async (n) => {
@@ -575,9 +609,9 @@ async function renderDetail(el, params) {
         const key = `ep:${ep.id}`;
         on(key, () => playEpisode(provider, ep));
         const pct = U.pctOf(progress.forEpisode(ep));
-        return `<button class="card episode" data-f data-key="${esc(key)}"><div class="art">${ep.still ? `<img src="${esc(ep.still)}" alt="" loading="lazy" data-fallback="${esc(ep.title)}">` : `<div class="fallback">${esc(ep.title)}</div>`}
-          <span class="ep">E${ep.number}</span>${pct ? `<div class="meter"><i style="width:${pct}%"></i></div>` : ""}</div>
-          <div class="t" dir="auto">${ep.number}. ${esc(ep.title)}</div><div class="m">${esc(ep.runtime || "")}</div><div class="o" dir="auto">${esc(ep.overview)}</div></button>`;
+        return `<button class="ep-row episode" data-f data-key="${esc(key)}"><div class="th"><span class="epn">E${ep.number}</span>${ep.still ? `<img src="${esc(ep.still)}" alt="" loading="lazy" data-fallback="${esc(ep.title)}">` : `<div class="fallback"></div>`}
+          ${pct ? `<div class="meter"><i style="width:${pct}%"></i></div>` : ""}</div>
+          <div class="tx"><b dir="auto">${esc(ep.title)}${ep.runtime && !/^[0:]+$/.test(String(ep.runtime)) ? `<small>${esc(ep.runtime)}</small>` : ""}</b><span dir="auto">${esc(ep.overview || "")}</span></div></button>`;
       }).join("") || `<div class="loading">No episodes listed for this season.</div>`;
     };
     for (const s of provider.seasons) on(`season:${s.number}`, () => { const e = epTrack.querySelector(".episode"); if (e) F.focus(e); });
@@ -710,6 +744,7 @@ async function renderSettings(el, params) {
   const pane = params.pane || "look";
   el.innerHTML = `<div class="settings">
     <div class="side list" data-zone="side" data-lock="y" data-leave="up" data-prefer=".cat-item.on">
+      <button class="side-back" data-f data-key="set:back">${PL.back}<span>Back</span></button><span class="side-label">Settings</span>
       ${[["look", "Appearance"], ["lang", "Language & region"], ["source", "Source"], ["together", "Account & friends"], ["keys", "Keyboard & remote"], ["about", "About"]].map(([id, label]) =>
         `<button class="cat-item ${id === pane ? "on" : ""}" data-f data-key="set:${id}" ${id === pane ? "data-start" : ""}><span>${label}</span></button>`).join("")}
     </div><div class="pane"></div></div>`;
@@ -759,6 +794,7 @@ async function renderSettings(el, params) {
         <p class="note">Film and series data and images from TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB. Test stream: Big Buck Bunny, © Blender Foundation, CC BY 3.0.</p>`;
     }
   };
+  on("set:back", () => go("home", {}, { root: true }));
   // OK on a section moves into it; a click or a tap just opens it (there is no
   // focus to carry across, and the pane may still show the last section)
   for (const id of ["look", "lang", "source", "together", "keys", "about"]) on(`set:${id}`, () => {
@@ -911,6 +947,16 @@ async function joinWithCode(code) {
   playItem(r.item);
 }
 
+/* The menu's profile, Atlantic's way: initials in a circle and a name */
+function paintFace() {
+  const name = Tg.social.profile?.display_name || (Tg.signedIn() ? Tg.email().split("@")[0] : "Guest");
+  const face = document.querySelector(".round.face");
+  if (!face) return;
+  face.querySelector(".av").textContent = name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "G";
+  face.querySelector(".name").textContent = name;
+}
+Tg.onChange(paintFace); paintFace();
+
 /* Guest: an invitation, from a friend's Aurora (this app or the old one). */
 let offered = null;
 Tg.onChange(() => {
@@ -963,6 +1009,7 @@ async function attach(video, stream, { muted = false, startAt = 0 } = {}) {
 }
 
 let player = null;
+const PL = {"back": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20z\"/></svg>", "mark": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2zm0 15-5-2.18L7 18V5h10z\"/></svg>", "marked": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2z\"/></svg>", "vol": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z\"/></svg>", "eps": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M4 6H2v14a2 2 0 0 0 2 2h14v-2H4zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12z\"/></svg>", "next": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z\"/></svg>", "cc": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M19 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm-8 7H9.5v-.5h-2v3h2V13H11v1a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1zm7 0h-1.5v-.5h-2v3h2V13H18v1a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1z\"/></svg>", "tune": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M3 17v2h6v-2zM3 5v2h10V5zm10 16v-2h8v-2h-8v-2h-2v6zM7 9v2H3v2h4v2h2V9zm14 4v-2H11v2zm-6-4h2V7h4V5h-4V3h-2z\"/></svg>", "people": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z\"/></svg>", "chev": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z\"/></svg>", "check": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z\"/></svg>"};
 
 function playItem(item, startAt) {
   openPlayer({ item, startAt: startAt ?? startOf(progress.forItem(item)) });
@@ -978,19 +1025,27 @@ function openPlayer(opts) {
   const el = document.createElement("div");
   el.className = "player show";
   el.setAttribute("data-keys-own", "");
+  /* Atlantic's player: a top bar, a play button in the middle, a hairline
+     timeline across the bottom and a row of icons under it; its menus open
+     as a panel on the right (see the panel code below) */
   el.innerHTML = `<video playsinline></video><div class="spinner"></div>
     <div class="flash l"></div><div class="flash r"></div><div class="flash c"></div>
-    <div class="chrome"><div class="ttl"><small></small><b></b></div>
-      <div class="bottom"><div class="timeline"><span class="cur">0:00</span><div class="bar2"><div class="buf"></div><div class="pos"></div><div class="knob"></div></div><span class="dur"></span></div>
-        <div class="controls" data-zone="controls" data-lock="x">
-          <button class="btn icon" data-f data-key="pl:back10" aria-label="Back 10 seconds">${U.icons.back10}</button>
-          <button class="btn icon primary" data-f data-start data-key="pl:toggle" aria-label="Play or pause">${U.icons.pause}</button>
-          <button class="btn icon" data-f data-key="pl:fwd10" aria-label="Forward 10 seconds">${U.icons.fwd10}</button>
-          <span class="grow"></span>
-          <button class="btn" data-f data-key="pl:next" hidden>${U.icons.next}Next episode</button>
-          <button class="btn" data-f data-key="pl:party" hidden>${U.icons.play}Watch together</button>
-          <button class="btn" data-f data-key="pl:close">${U.icons.back}Back</button>
-        </div></div></div></div>`;
+    <div class="chrome">
+      <div class="pl-top" data-zone="pl-top" data-lock="x">
+        <button class="pl-ico" data-f data-key="pl:close" aria-label="Back">${PL.back}</button>
+        <div class="ttl"><b></b><small></small></div>
+        <button class="pl-ico" data-f data-key="pl:list" aria-label="My List">${PL.mark}</button>
+      </div>
+      <button class="pl-big" data-f data-start data-key="pl:toggle" aria-label="Play or pause">${U.icons.pause}</button>
+      <div class="timeline"><div class="bar2"><div class="buf"></div><div class="pos"></div><div class="knob"></div></div></div>
+      <div class="pl-bottom controls" data-zone="controls" data-lock="x">
+        <span class="pl-vol">${PL.vol}</span><span class="pl-time"><span class="cur">0:00</span><span class="dur"></span></span>
+        <span class="grow"></span>
+        <button class="pl-ico pl-text" data-f data-key="pl:eps" hidden>${PL.eps}<span>Episodes</span></button>
+        <button class="pl-ico" data-f data-key="pl:next" aria-label="Next episode" hidden>${PL.next}</button>
+        <button class="pl-ico" data-f data-key="pl:subs" aria-label="Subtitles">${PL.cc}</button>
+        <button class="pl-ico" data-f data-key="pl:settings" aria-label="Settings">${PL.tune}</button>
+      </div></div>`;
   stage.appendChild(el);
   const video = el.querySelector("video");
   const P0 = { ...opts, chIndex: opts.channels ? Math.max(0, opts.channels.findIndex((c) => c.id === opts.item.id)) : 0 };
@@ -998,12 +1053,14 @@ function openPlayer(opts) {
 
   const label = () => {
     const { item, episode, live } = P0;
-    el.querySelector(".ttl small").textContent = live ? `Live · ${item.category || "Channel"}` : episode ? `${item.title} · Season ${episode.season}` : U.kindLabel(item);
-    el.querySelector(".ttl b").textContent = episode ? `${episode.number}. ${episode.title}` : item.title;
+    el.querySelector(".ttl b").textContent = item.title;
+    el.querySelector(".ttl small").textContent = live ? `Live · ${item.category || "Channel"}` : episode ? `S${episode.season} · E${episode.number}` : [item.year, U.kindLabel(item)].filter(Boolean).join(" · ");
     el.querySelector(".timeline").style.visibility = live ? "hidden" : "";
-    const next = nextEpisode();
-    el.querySelector('[data-key="pl:next"]').hidden = !next;
-    ["pl:back10", "pl:fwd10"].forEach((k) => { el.querySelector(`[data-key="${k}"]`).hidden = !!live; });
+    el.querySelector(".pl-time").style.visibility = live ? "hidden" : "";
+    el.querySelector('[data-key="pl:next"]').hidden = !nextEpisode();
+    el.querySelector('[data-key="pl:eps"]').hidden = !(episode && item.seasons?.length);
+    const listBtn = el.querySelector('[data-key="pl:list"]');
+    listBtn.hidden = !!live; listBtn.innerHTML = myList.has(item) ? PL.marked : PL.mark;
   };
   function nextEpisode() {
     const { item, episode } = P0;
@@ -1039,8 +1096,9 @@ function openPlayer(opts) {
     el.querySelector(".knob").style.left = `${pct}%`;
     try { if (video.buffered.length && d) el.querySelector(".buf").style.width = `${(video.buffered.end(video.buffered.length - 1) / d) * 100}%`; } catch { /* nothing buffered yet */ }
     el.querySelector(".cur").textContent = fmt(t);
-    el.querySelector(".dur").textContent = d && isFinite(d) ? `-${fmt(d - t)}` : "";
+    el.querySelector(".dur").textContent = d && isFinite(d) ? ` / ${fmt(d)}` : "";
     el.querySelector('[data-key="pl:toggle"]').innerHTML = video.paused ? U.icons.play : U.icons.pause;
+    el.classList.toggle("paused", video.paused);
   };
   video.addEventListener("timeupdate", paint);
   video.addEventListener("play", paint); video.addEventListener("pause", paint);
@@ -1071,18 +1129,86 @@ function openPlayer(opts) {
     partyEl.querySelector("span").textContent = Tg.partyLine();
   };
   // Watch together from the player: films and series on a line, when signed in and not in a party
-  const partyBtn = el.querySelector('[data-key="pl:party"]');
-  const paintPartyBtn = () => { partyBtn.hidden = !!(P0.live || !Tg.signedIn() || Tg.party.id || P0.item.source !== "xtream"); };
-  paintPartyBtn();
+  const canParty = () => !(P0.live || !Tg.signedIn() || Tg.party.id || P0.item.source !== "xtream");
+  const paintPartyBtn = () => {};
   on("pl:party", () => pickFriendFor(P0.item, { playing: () => { unparty(); unparty = Tg.attachPlayer(video); paintParty(); paintPartyBtn(); showChrome(); } }));
   const stopPaint = Tg.onChange(() => { paintParty(); paintPartyBtn?.(); }); paintParty();
   on("pt:back", () => Tg.nudgeParty(-5)); on("pt:fwd", () => Tg.nudgeParty(5));
   on("pt:leave", () => { Tg.leaveParty(); toast("Left the party"); });
 
+  /* ---- the panel on the right: Episodes, Subtitles, Settings ---- */
+  let panel = null;
+  const closePanel = () => { if (!panel) return; const p = panel; panel = null; F.popLayer(p); p.remove(); showChrome(); };
+  function openPanel(title, rows, { grid = "", parent = false } = {}) {
+    closePanel();
+    panel = document.createElement("div");
+    panel.className = "pl-panel";
+    if (parent) panel.dataset.parent = "1";
+    panel.innerHTML = `${title ? `<div class="pp-head"><button class="pp-back" data-f data-key="pp:back" aria-label="Back">${PL.back}</button><b>${esc(title)}</b></div>` : ""}
+      ${grid}<div class="pp-list" data-zone="pp" data-track="y" data-lock="y" data-pad="24"><div class="track">${rows.map((r, i) => {
+        const key = `pp:${i}`; on(key, () => r.run?.());
+        return `<button class="pp-row ${r.on ? "on" : ""}" data-f data-key="${key}"><span class="pp-l"><b dir="auto">${esc(r.label)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ""}</span>${r.value ? `<span class="pp-v">${esc(r.value)}</span>` : ""}${r.toggle !== undefined ? `<i class="sw ${r.toggle ? "on" : ""}"></i>` : ""}${r.on ? `<i class="pp-check">${PL.check}</i>` : r.more ? `<i class="pp-more">${PL.chev}</i>` : r.icon ? `<i class="pp-more">${r.icon}</i>` : ""}</button>`;
+      }).join("")}</div></div>`;
+    el.appendChild(panel);
+    on("pp:back", () => (panel?.dataset.parent ? openSettings() : closePanel()));
+    F.pushLayer(panel);
+    F.focus(panel.querySelector(".pp-row.on") || panel.querySelector(".pp-row") || panel.querySelector("[data-f]"));
+    showChrome();
+  }
+  const hlsOf = () => (handle && handle.levels ? handle : null);
+  function openEpisodes(season = P0.episode?.season) {
+    const eps = P0.item.queue?.[season] || [];
+    const seasons = P0.item.seasons || [];
+    const rows = [
+      ...seasons.map((s) => ({ label: s.name || `Season ${s.number}`, sub: s.number === season ? `${eps.length} episodes` : "", on: s.number === season, run: () => loadSeason(s.number) })),
+      ...eps.map((ep) => ({ label: `E${ep.number} · ${ep.title}`, sub: ep.overview ? ep.overview.slice(0, 80) : "", on: ep.id === P0.episode?.id && false, run: () => { closePanel(); P0.episode = ep; start(startOf(progress.forEpisode(ep))); } })),
+    ];
+    openPanel("Episodes", rows);
+  }
+  async function loadSeason(n) {
+    if (!P0.item.queue?.[n]) { try { P0.item.queue = P0.item.queue || {}; P0.item.queue[n] = await source.episodes(P0.item, n); } catch { return toast("Could not load that season"); } }
+    openEpisodes(n);
+  }
+  function openSubs() {
+    const h = hlsOf();
+    const hlsSubs = h?.subtitleTracks || [];
+    const native = [...(video.textTracks || [])].filter((t) => t.kind === "subtitles" || t.kind === "captions");
+    const rows = [{ label: "Off", on: h ? h.subtitleTrack === -1 : native.every((t) => t.mode !== "showing"), run: () => { if (h) h.subtitleTrack = -1; native.forEach((t) => { t.mode = "disabled"; }); closePanel(); } }];
+    if (h) hlsSubs.forEach((t, i) => rows.push({ label: t.name || t.lang || `Track ${i + 1}`, on: h.subtitleTrack === i, run: () => { h.subtitleTrack = i; h.subtitleDisplay = true; closePanel(); } }));
+    else native.forEach((t, i) => rows.push({ label: t.label || t.language || `Track ${i + 1}`, on: t.mode === "showing", run: () => { native.forEach((x, j) => { x.mode = j === i ? "showing" : "disabled"; }); closePanel(); } }));
+    if (rows.length === 1) rows.push({ label: "This stream has no subtitles", sub: "Your line sends none for it" });
+    openPanel("Subtitles", rows);
+  }
+  const SPEEDS = [0.75, 1, 1.25, 1.5, 2];
+  const FITS = [["contain", "Fit"], ["cover", "Fill"], ["fill", "Stretch"]];
+  function openSettings() {
+    const h = hlsOf();
+    const lv = h?.levels || [];
+    const quality = !h || h.currentLevel === -1 || h.autoLevelEnabled ? "Auto" : lv[h.currentLevel]?.height ? `${lv[h.currentLevel].height}p` : "Auto";
+    const audios = h?.audioTracks || [];
+    const tile = (k, label, value) => `<button class="pp-tile" data-f data-key="${k}"><b>${label}</b><small>${esc(value)}</small></button>`;
+    const fit = FITS.find(([f]) => f === (video.style.objectFit || "contain"))[1];
+    on("pt:quality", () => openPanel("Quality", [{ label: "Auto", on: quality === "Auto", run: () => { h.currentLevel = -1; openSettings(); } },
+      ...lv.map((l, i) => ({ label: l.height ? `${l.height}p` : `Level ${i + 1}`, sub: l.bitrate ? `${(l.bitrate / 1e6).toFixed(1)} Mb/s` : "", on: h.currentLevel === i && !h.autoLevelEnabled, run: () => { h.currentLevel = i; openSettings(); } }))], { parent: true }));
+    on("pt:audio", () => openPanel("Audio", audios.length ? audios.map((a, i) => ({ label: a.name || a.lang || `Track ${i + 1}`, on: h.audioTrack === i, run: () => { h.audioTrack = i; openSettings(); } })) : [{ label: "One audio track in this stream" }], { parent: true }));
+    on("pt:subs", openSubs);
+    on("pt:fit", () => { const i = (FITS.findIndex(([f]) => f === (video.style.objectFit || "contain")) + 1) % FITS.length; video.style.objectFit = FITS[i][0]; openSettings(); });
+    const grid = `<div class="pp-grid" data-zone="pp-grid">${tile("pt:quality", "Quality", h && lv.length > 1 ? quality : "Auto")}${tile("pt:audio", "Audio", audios[h?.audioTrack]?.name || "Default")}${tile("pt:subs", "Subtitles", h?.subtitleTracks?.[h.subtitleTrack]?.name || "Off")}${tile("pt:fit", "Video mode", fit)}</div>`;
+    openPanel("", [
+      ...(canParty() ? [{ label: "Watch Party", icon: PL.people, run: () => { closePanel(); pickFriendFor(P0.item, { playing: () => { unparty(); unparty = Tg.attachPlayer(video); paintParty(); showChrome(); } }); } }] : []),
+      { label: "Playback speed", value: `${video.playbackRate.toFixed(2)}x`, run: () => { const i = (SPEEDS.indexOf(video.playbackRate) + 1) % SPEEDS.length; video.playbackRate = SPEEDS[i === -1 ? 1 : i]; openSettings(); } },
+      ...(nextEpisode() ? [{ label: "Next episode", more: true, run: () => { closePanel(); goNext(); } }] : []),
+    ], { grid });
+  }
+  on("pl:eps", () => openEpisodes());
+  on("pl:subs", openSubs);
+  on("pl:settings", openSettings);
+  on("pl:list", (btn) => { const added = myList.toggle(P0.item); btn.innerHTML = added ? PL.marked : PL.mark; toast(added ? "Added to My List" : "Removed from My List"); });
+
   function showChrome() {
     el.classList.add("show");
     clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => { if (!video.paused && !upNext) el.classList.remove("show"); }, 4000);
+    hideTimer = setTimeout(() => { if (!video.paused && !upNext && !panel) el.classList.remove("show"); }, 4000);
   }
   const chromeShown = () => el.classList.contains("show");
   const flash = (side, html) => { const f = el.querySelector(`.flash.${side}`); f.innerHTML = html; f.classList.add("on"); setTimeout(() => f.classList.remove("on"), 450); };
@@ -1115,6 +1241,7 @@ function openPlayer(opts) {
   // the player keeps the arrows for itself while its controls are hidden
   el.addEventListener("own:key", (e) => {
     const k = e.detail;
+    if (panel) return; // a menu is open: the arrows move in it
     // channel up and down always change channel, controls showing or not: a
     // channel that will not play must be one press from the next one
     if (P0.live && (k === "ArrowUp" || k === "ArrowDown")) { e.preventDefault(); zap(k === "ArrowUp" ? -1 : 1); return; }
@@ -1133,14 +1260,13 @@ function openPlayer(opts) {
   document.addEventListener("keydown", onKey, true);
 
   on("pl:toggle", toggle);
-  on("pl:back10", () => { seek(-10); showChrome(); });
-  on("pl:fwd10", () => { seek(10); showChrome(); });
   on("pl:next", goNext);
   on("pl:upnext", goNext);
   on("pl:close", () => api.close());
 
   const api = {
     back() {
+      if (panel) { closePanel(); return; }
       if (upNext) { upNext.remove(); upNext = null; F.focusStart(); return; }
       if (chromeShown() && !video.paused) { el.classList.remove("show"); return; }
       api.close();
@@ -1148,7 +1274,7 @@ function openPlayer(opts) {
     close(silent) {
       if (closed) return; closed = true;
       save(true);
-      unparty(); stopPaint();
+      closePanel(); unparty(); stopPaint();
       if (Tg.party.id && Tg.party.hosting) Tg.leaveParty();
       clearInterval(saveTimer); clearTimeout(hideTimer);
       document.removeEventListener("keydown", onKey, true);
