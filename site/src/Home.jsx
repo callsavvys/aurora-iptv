@@ -1,0 +1,232 @@
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { IMG, homeRows, extras, PROVIDERS, providerRow, providerLogos } from "./tmdb.js";
+import { PlayIcon, InfoIcon, BookmarkIcon, ChevronRight, ChevronLeft, Chevron } from "./icons.jsx";
+
+/* atlantic.bz's home page, element for element: the hero that turns over by
+   itself, two Top 10 rows, then rows of wide cards carrying each title's logo.
+   The class names are the site's own, so its stylesheet draws them. */
+
+const titleUrl = (it) => `/title/${it.type}/${it.id}`;
+
+/* the score as a ring: green when good, as on the site */
+export function Ring({ rating }) {
+  const r = Number(rating) || 0, c = 2 * Math.PI * 16;
+  const colour = r >= 7 ? "#4ade80" : r >= 5 ? "#facc15" : "#f87171";
+  return (
+    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm">
+      <svg width="40" height="40" viewBox="0 0 40 40" className="absolute inset-0 -rotate-90">
+        <circle cx="20" cy="20" r="16" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="3" />
+        <circle cx="20" cy="20" r="16" fill="none" stroke={colour} strokeWidth="3" strokeLinecap="round" strokeDasharray={`${(c * Math.min(r, 10)) / 10} ${c}`} />
+      </svg>
+      <span className="relative text-[11px] font-bold text-white">{rating}</span>
+    </div>
+  );
+}
+
+/* ---------- the hero ---------- */
+function Hero({ items }) {
+  const [index, setIndex] = useState(0);
+  const [meta, setMeta] = useState({});
+  const nav = useNavigate();
+  const paused = useRef(false);
+  useEffect(() => { items.forEach((it) => extras(it).then((m) => setMeta((s) => ({ ...s, [it.id]: m }))).catch(() => {})); }, [items]);
+  useEffect(() => {
+    const t = setInterval(() => { if (!paused.current) setIndex((i) => (i + 1) % items.length); }, 8000);
+    return () => clearInterval(t);
+  }, [items.length]);
+  const it = items[index];
+  if (!it) return <div className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full short:h-dvh short:min-h-0" />;
+  const m = meta[it.id] || {};
+  const genres = (m.genres || []).slice(0, 2).join(" / ");
+  return (
+    <>
+      {/* the hero's picture, blurred, glowing down the page behind the rows */}
+      <div className="pointer-events-none absolute inset-x-0 top-[-60px] z-0 h-[1700px] overflow-hidden" aria-hidden="true">
+        {items.map((x, i) => (
+          <img key={x.id} src={IMG("w300", x.backdrop)} alt="" decoding="async" className="absolute inset-0 h-full w-full object-cover transition-opacity duration-[1100ms]"
+            style={{ opacity: i === index ? 0.78 : 0, filter: "blur(64px) saturate(1.35)", transform: "scale(1.15)" }} />
+        ))}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgb(var(--page-bg-rgb, 5 11 18) / 0) 0%, rgb(var(--page-bg-rgb, 5 11 18) / 0.12) 25%, rgb(var(--page-bg-rgb, 5 11 18) / 0.5) 55%, rgb(var(--page-bg-rgb, 5 11 18) / 0.85) 80%, rgb(var(--page-bg-rgb, 5 11 18)) 100%)" }} />
+      </div>
+      <div className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full short:h-dvh short:min-h-0"
+        onMouseEnter={() => { paused.current = true; }} onMouseLeave={() => { paused.current = false; }}>
+        <div className="absolute inset-0" style={{ maskImage: "linear-gradient(rgb(0, 0, 0) 0%, rgb(0, 0, 0) 45%, rgba(0, 0, 0, 0.6) 72%, transparent 100%)", WebkitMaskImage: "linear-gradient(rgb(0, 0, 0) 0%, rgb(0, 0, 0) 45%, rgba(0, 0, 0, 0.6) 72%, transparent 100%)" }}>
+          {items.map((x, i) => (
+            <div key={x.id} className={`absolute inset-0 transition-opacity duration-[900ms] ${i === index ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+              {Math.abs(i - index) <= 1 || i === 0 ? <img src={IMG("original", x.backdrop)} alt={i === index ? x.title : ""} fetchpriority={i === index ? "high" : "low"} decoding="async" className="h-full w-full object-cover object-[center_20%]" /> : null}
+            </div>
+          ))}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/15 to-transparent" />
+          <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/35 to-transparent" />
+        </div>
+        <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(55% 42% at 14% 58%, rgba(0, 0, 0, 0.42), transparent 100%)" }} />
+        <div key={it.id} className="absolute bottom-[12%] left-6 w-[90%] max-w-xl animate-hero-in sm:left-[60px] short:left-6">
+          <div className="mb-4 flex min-h-[72px] items-end sm:min-h-[110px] short:mb-2 short:min-h-[48px]">
+            {m.logo
+              ? <img src={m.logo} alt={it.title} decoding="async" className="max-h-[110px] max-w-[78vw] object-contain object-left-bottom drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)] sm:max-h-[150px] sm:max-w-[520px] short:max-h-[72px] short:max-w-[78vw]" />
+              : <h1 className="text-4xl font-black tracking-tight text-white drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)] sm:text-6xl">{it.title}</h1>}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm font-semibold text-white/90">
+            <Ring rating={it.rating || "0.0"} />
+            {it.year ? <><span className="text-white/40">·</span><span>{it.year}</span></> : null}
+            {genres ? <><span className="text-white/40">·</span><span>{genres}</span></> : null}
+            {m.cert ? <><span className="text-white/40">·</span><span className="rounded-full border border-white/25 bg-white/10 px-2.5 py-0.5 text-[11px] font-bold tracking-wide backdrop-blur-sm">{m.cert}</span></> : null}
+          </div>
+          <p className="mt-4 line-clamp-3 text-sm text-white/80 drop-shadow sm:text-base short:mt-2 short:line-clamp-2 short:text-xs">{it.overview}</p>
+          <div className="mt-6 flex items-center gap-4 short:mt-3">
+            <button type="button" onClick={() => nav(`${titleUrl(it)}?play=1`)} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-atlantic-300 to-atlantic-500 px-6 py-3 text-sm font-bold text-abyss-950 shadow-[0_8px_24px_-6px_rgba(30,203,236,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-6px_rgba(30,203,236,0.7)] active:translate-y-0"><PlayIcon />Play</button>
+            <button type="button" onClick={() => nav(titleUrl(it))} className="flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-6 py-3 text-sm font-bold text-white shadow-lg backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/20 active:translate-y-0"><InfoIcon />More Info</button>
+          </div>
+        </div>
+        <div className="absolute bottom-5 left-1/2 flex -translate-x-1/2 items-center gap-2">
+          {items.map((x, i) => (
+            <button key={x.id} type="button" aria-label={`Show ${x.title}`} onClick={() => setIndex(i)}
+              className={`h-1.5 rounded-full transition-all duration-300 ${i === index ? "w-6 bg-white" : "w-1.5 bg-white/40 hover:bg-white/70"}`} />
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------- a row that scrolls sideways, with the site's arrow buttons ---------- */
+export function Scroller({ className, children }) {
+  const ref = useRef(null);
+  const [edges, setEdges] = useState({ left: false, right: true });
+  const update = () => { const el = ref.current; if (el) setEdges({ left: el.scrollLeft > 8, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 8 }); };
+  useEffect(update, [children]);
+  const by = (d) => ref.current?.scrollBy({ left: d * ref.current.clientWidth * 0.85, behavior: "smooth" });
+  const ARROW = "absolute top-1/2 z-30 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/65 text-white shadow-[0_8px_24px_-6px_rgba(0,0,0,0.8)] backdrop-blur-md transition-all duration-200 hover:scale-110 hover:border-atlantic-400/60 hover:bg-black/85 md:flex md:opacity-0 md:group-hover/row:opacity-100 focus-visible:opacity-100 short:hidden";
+  return (
+    <div className="group/row relative">
+      <div ref={ref} onScroll={update} className={className}>{children}</div>
+      {edges.left ? <button type="button" aria-label="Scroll left" onClick={() => by(-1)} className={`${ARROW} left-3`}><ChevronLeft /></button> : null}
+      {edges.right ? <button type="button" aria-label="Scroll right" onClick={() => by(1)} className={`${ARROW} right-3`}><ChevronRight /></button> : null}
+    </div>
+  );
+}
+
+/* an image that fades in once it has loaded, as every picture on the site does */
+export function Fade({ src, alt, className = "" }) {
+  const [on, setOn] = useState(false);
+  if (!src) return null;
+  return <img src={src} alt={alt} loading="lazy" decoding="async" onLoad={() => setOn(true)} className={`${className} transition-opacity duration-300 ${on ? "opacity-100" : "opacity-0"}`} />;
+}
+
+function Top10Row({ row }) {
+  const nav = useNavigate();
+  return (
+    <section className="relative mb-6">
+      <div className="mb-2 flex items-center px-6 sm:px-[60px] short:px-6"><h2 className="text-xl font-semibold text-white/90 drop-shadow-md">{row.title}</h2></div>
+      <Scroller className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-7 px-6 py-5 sm:gap-10 sm:px-[60px] short:gap-7 short:px-6">
+        {row.items.map((it, i) => (
+          <button key={it.id} type="button" onClick={() => nav(titleUrl(it))} className="group relative z-0 flex shrink-0 snap-start items-end text-left transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.04]">
+            <span className="pointer-events-none -mr-5 select-none text-[112px] font-black leading-[0.8] tracking-tighter text-abyss-950 sm:-mr-7 sm:text-[148px] short:-mr-5 short:text-[112px]"
+              style={{ WebkitTextStroke: "3px rgba(255, 255, 255, 0.55)", textShadow: "rgba(0, 0, 0, 0.6) 0px 0px 30px" }}>{i + 1}</span>
+            <div className="relative aspect-[2/3] w-[112px] overflow-hidden rounded-lg bg-abyss-800 shadow-lg shadow-black/50 transition-shadow duration-200 group-hover:shadow-2xl group-hover:shadow-black/70 sm:w-[140px] short:w-[112px]">
+              <Fade src={IMG("w342", it.poster)} alt={it.title} className="h-full w-full object-cover" />
+            </div>
+          </button>
+        ))}
+      </Scroller>
+    </section>
+  );
+}
+
+/* a wide card: the picture, a shade, the title's logo; on hover a play button and the year and score */
+export function WideCard({ it }) {
+  const [logo, setLogo] = useState(null);
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { io.disconnect(); extras(it).then((m) => setLogo(m.logo || "")).catch(() => setLogo("")); } }, { rootMargin: "300px" });
+    io.observe(el); return () => io.disconnect();
+  }, [it]);
+  return (
+    <div ref={ref} className="group relative z-0 w-[200px] shrink-0 snap-start transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.06] sm:w-[280px] lg:w-[320px] short:w-[200px] ">
+      <Link draggable="false" className="block w-full text-left" to={titleUrl(it)}>
+        <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-abyss-800 shadow-none transition-shadow duration-200 group-hover:shadow-2xl group-hover:shadow-black/60">
+          <Fade src={IMG("w780", it.backdrop || it.poster)} alt={it.title} className="h-full w-full object-cover" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3">
+            <div className="flex h-[38%] min-h-[34px] max-h-[64px] min-w-0 max-w-[62%] flex-1 items-end sm:max-h-[72px] short:max-h-[64px]">
+              {logo ? <Fade src={logo.replace("/w500/", "/w300/")} alt={it.title} className="max-h-full max-w-full object-contain object-left-bottom drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)]" />
+                : logo === "" ? <span className="line-clamp-2 text-sm font-bold text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] sm:text-base">{it.title}</span> : null}
+            </div>
+            <div className="hidden shrink-0 flex-col items-end gap-1.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100 md:flex">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90"><PlayIcon size={14} fill="#050b12" /></div>
+              <div className="flex items-center gap-2 text-xs text-white/70">{it.year ? <span>{it.year}</span> : null}{it.rating ? <span className="text-atlantic-300">★ {it.rating}</span> : null}</div>
+            </div>
+          </div>
+        </div>
+      </Link>
+      <button type="button" aria-label={`Save ${it.title} to a list`} aria-haspopup="dialog" aria-expanded="false" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 hover:scale-110 focus-visible:opacity-100 active:scale-95 opacity-100 md:opacity-0 md:group-hover:opacity-100 border-white/20 bg-black/55 text-white hover:border-white/40 hover:bg-black/75 "><BookmarkIcon /></button>
+    </div>
+  );
+}
+
+function WideRow({ title, all, items, head }) {
+  return (
+    <section className="relative mb-6">
+      <div className="mb-4 flex items-center justify-between px-6 sm:px-[60px] short:px-6">
+        {head || <h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">{title}</h2>}
+        {all ? <Link className="text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to={all}>View All →</Link> : null}
+      </div>
+      <Scroller className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-5 px-6 py-6 sm:px-[60px] short:px-6">
+        {items.length ? items.map((it) => <WideCard key={`${it.type}-${it.id}`} it={it} />)
+          : Array.from({ length: 5 }, (_, i) => <div key={i} className="aspect-video w-[200px] shrink-0 rounded-lg bg-abyss-800 sm:w-[280px] lg:w-[320px]" />)}
+      </Scroller>
+    </section>
+  );
+}
+
+/* "Popular on Netflix": a service picker and a Movies / Shows switch */
+function ProviderRow() {
+  const [provider, setProvider] = useState(PROVIDERS[0]);
+  const [type, setType] = useState("movie");
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState([]);
+  const [logos, setLogos] = useState({});
+  useEffect(() => { providerLogos().then(setLogos).catch(() => {}); }, []);
+  useEffect(() => { setItems([]); providerRow(provider.id, type).then(setItems).catch(() => {}); }, [provider, type]);
+  const pill = (t, label) => (
+    <button type="button" onClick={() => setType(t)} className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${type === t ? "bg-white text-abyss-950" : "text-white/60 hover:text-white"}`}>{label}</button>
+  );
+  const head = (
+    <div className="flex items-center gap-3">
+      <h2 className="text-xl font-semibold text-white/90 drop-shadow-md">Popular on</h2>
+      <div className="relative">
+        <button type="button" onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] py-1.5 pl-1.5 pr-4 text-sm font-semibold text-white transition-colors hover:border-white/25 hover:bg-white/[0.12]">{logos[provider.id] ? <img src={logos[provider.id]} alt="" className="h-6 w-6 rounded-full object-cover" /> : null}{provider.name}<Chevron className="" size={14} /></button>
+        {open ? (
+          <div className="absolute left-0 top-full z-40 mt-2 min-w-[180px] overflow-hidden rounded-xl border border-white/10 bg-pagebg/95 p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] backdrop-blur-md">
+            {PROVIDERS.map((p) => <button key={p.id} type="button" onClick={() => { setProvider(p); setOpen(false); }} className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-white/10 ${p.id === provider.id ? "text-atlantic-300" : "text-white/80"}`}>{logos[p.id] ? <img src={logos[p.id]} alt="" className="h-6 w-6 rounded-full object-cover" /> : null}{p.name}</button>)}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex items-center rounded-full border border-white/10 bg-white/[0.04] p-0.5">{pill("movie", "Movies")}{pill("tv", "Shows")}</div>
+    </div>
+  );
+  return <WideRow head={head} items={items} />;
+}
+
+export default function Home() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => { homeRows().then(setData).catch((e) => setError(e.message)); }, []);
+  useEffect(() => { document.title = "Aurora — Watch Movies and TV Shows"; }, []);
+  return (
+    <div className="transition-opacity duration-150 opacity-100">
+      <div className="relative">
+        <Hero items={data?.hero || []} />
+        <div className="relative z-10 mt-4">
+          {error ? <p className="px-6 text-white/60 sm:px-[60px]">Could not reach TMDB: {error}</p> : null}
+          {(data?.rows || []).map((row) =>
+            row.kind === "top10" ? <Top10Row key={row.id} row={row} />
+            : row.kind === "provider" ? <ProviderRow key={row.id} />
+            : <WideRow key={row.id} title={row.title} all={row.all} items={row.items} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
