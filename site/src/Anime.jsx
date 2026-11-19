@@ -52,7 +52,7 @@ function Hero({ items }) {
   );
 }
 
-function Card({ a }) {
+export function Card({ a }) {
   return (
     <div className="w-[140px] shrink-0 snap-start sm:w-[160px]">
       <Link draggable="false" className="group relative z-0 block w-full text-left transition-transform duration-200 hover:z-20 hover:-translate-y-1" to={`/anime/${a.id}`}>
@@ -63,10 +63,24 @@ function Card({ a }) {
             {a.score ? <span className="rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-atlantic-300">★ {a.score}</span> : null}
           </div>
         </div>
-        <p className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-white/90">{a.title}</p>
+        {a.label ? <p className="mt-2 text-[11px] font-semibold uppercase tracking-wide text-atlantic-300">{a.label}</p> : null}
+        <p className={`${a.label ? "" : "mt-2 "}line-clamp-2 text-sm font-semibold leading-snug text-white/90`}>{a.title}</p>
         {a.line ? <p className="text-xs text-white/45">{a.line}</p> : null}
       </Link>
     </div>
+  );
+}
+
+/* a row of covers, as every anime row on the site is laid out */
+export function AnimeRow({ title, items }) {
+  if (!items.length) return null;
+  return (
+    <section className="relative mb-6">
+      <div className="mb-4 flex items-center justify-between px-6 sm:px-[60px] short:px-6"><h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">{title}</h2></div>
+      <Scroller className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-5 px-6 py-6 sm:px-[60px] short:px-6">
+        {items.map((a) => <Card key={a.id} a={a} />)}
+      </Scroller>
+    </section>
   );
 }
 
@@ -78,14 +92,7 @@ export default function Anime() {
       <div className="relative">
         <Hero items={data.hero} />
         <div className="relative z-10 mt-4">
-          {data.rows.filter((r) => r.items.length).map((r) => (
-            <section key={r.title} className="relative mb-6">
-              <div className="mb-4 flex items-center justify-between px-6 sm:px-[60px] short:px-6"><h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">{r.title}</h2></div>
-              <Scroller className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-5 px-6 py-6 sm:px-[60px] short:px-6">
-                {r.items.map((a) => <Card key={a.id} a={a} />)}
-              </Scroller>
-            </section>
-          ))}
+          {data.rows.map((r) => <AnimeRow key={r.title} title={r.title} items={r.items} />)}
         </div>
       </div>
     </div>

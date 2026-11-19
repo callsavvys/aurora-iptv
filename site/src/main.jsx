@@ -11,6 +11,7 @@ import Search from "./Search.jsx";
 import Discover from "./Discover.jsx";
 import Parties from "./Parties.jsx";
 import Anime from "./Anime.jsx";
+import AnimeTitle from "./AnimeTitle.jsx";
 import Player from "./Player.jsx";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -48,6 +49,8 @@ function Shell() {
             <Route path="/discover" element={<Discover />} />
             <Route path="/parties" element={<Parties />} />
             <Route path="/anime" element={<Anime />} />
+            <Route path="/anime/:id" element={<AnimeTitle />} />
+            <Route path="/anime/watch/:id/:ep" element={<AnimeTitle />} />
             {import.meta.env.DEV ? <Route path="/player-test" element={<PlayerTest />} /> : null}
             <Route path="*" element={<Soon />} />
           </Routes>
