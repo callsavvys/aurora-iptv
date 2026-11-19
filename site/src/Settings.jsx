@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getLine, setLine, clearLine, testLine } from "./line.js";
+import { useAccount, signIn, signOut, displayName } from "./account.js";
 
 /* atlantic.bz's Settings: the gear and title, a row of tabs, the section in a
    card. Its Account tab's "Connect" boxes are where your IPTV line goes: the
@@ -68,11 +69,57 @@ function LineBox() {
   );
 }
 
+/* your Aurora account: the one the apps use, for watch parties and friends */
+function AccountBox() {
+  const { user, profile } = useAccount();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [state, setState] = useState({ busy: false, error: "", note: "" });
+  const go = async (create) => {
+    if (!form.email || !form.password) return setState({ busy: false, error: "Email and password are both needed.", note: "" });
+    setState({ busy: true, error: "", note: "" });
+    try {
+      const r = await signIn(form.email.trim(), form.password, { create });
+      setForm({ email: "", password: "" });
+      setState({ busy: false, error: "", note: r.confirm ? "Check your email for a confirmation link, then sign in here." : "" });
+      if (!r.confirm) setOpen(false);
+    } catch (err) { setState({ busy: false, error: err.message || "Could not sign in", note: "" }); }
+  };
+  return (
+    <div className="mb-3 rounded-lg border border-white/10 bg-black/20 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-white">Your Aurora account</p>
+          <p className="text-xs text-white/40">{user ? `Signed in as ${displayName()}${profile?.friend_code ? ` · friend code ${profile.friend_code}` : ""}` : "Sign in to join and start watch parties with the apps."}</p>
+        </div>
+        {user ? <button type="button" onClick={() => signOut()} className="shrink-0 rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-white/80 transition-colors hover:border-atlantic-400/40 hover:text-white">Sign out</button>
+          : open ? null : <button type="button" onClick={() => setOpen(true)} className={CONNECT}>Sign in</button>}
+      </div>
+      {!user && open ? (
+        <form className="mt-4 space-y-3" onSubmit={(e) => { e.preventDefault(); go(false); }}>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={LABEL}>Email</label><input type="email" autoComplete="username" spellCheck="false" className={INPUT} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+            <div><label className={LABEL}>Password</label><input type="password" autoComplete="current-password" className={INPUT} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></div>
+          </div>
+          {state.error ? <p className="text-xs text-red-300">{state.error}</p> : null}
+          <div className="flex gap-3">
+            <button type="submit" disabled={state.busy} className="w-full rounded-lg bg-atlantic-500 py-2 text-sm font-bold text-abyss-950 transition-colors hover:bg-atlantic-400 disabled:opacity-50">{state.busy ? "Signing in…" : "Sign in"}</button>
+            <button type="button" disabled={state.busy} onClick={() => go(true)} className="w-full rounded-lg border border-white/10 py-2 text-sm font-semibold text-white/80 transition-colors hover:border-atlantic-400/40 hover:text-white disabled:opacity-50">Create account</button>
+          </div>
+          <p className="text-xs text-white/40">The same account as the Aurora apps.</p>
+        </form>
+      ) : null}
+      {state.note ? <p className="mt-3 text-xs text-white/60">{state.note}</p> : null}
+    </div>
+  );
+}
+
 function Account() {
   return (
     <div>
       <h2 className="mb-1 text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">Account</h2>
       <p className="mb-4 text-sm text-white/40">Your line, and the services that sync your lists.</p>
+      <AccountBox />
       <LineBox />
     </div>
   );

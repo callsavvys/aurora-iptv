@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
+import { useAccount, displayName } from "./account.js";
 import { AuroraMark, NavIcon, AppsIcon, SearchIcon, Chevron, MenuIcon, MenuRowIcon } from "./icons.jsx";
 
 /* atlantic.bz's header: one floating pill — the mark, five links, then the
@@ -37,7 +38,7 @@ function AccountMenu({ name = "Guest" }) {
           <div className="ndd-surface" aria-hidden="true" />
           <button type="button" aria-haspopup="menu" aria-expanded={open} className="ndd-btn" onClick={() => setOpen((v) => !v)}>
             <span className="ndd-press ndd-press-start" style={{ width: "100%", height: "100%" }}>
-              <span className="ndd-trigger"><span className="ndd-avatar" aria-hidden="true">{name[0]}</span><span className="ndd-name">{name}</span><Chevron /></span>
+              <span className="ndd-trigger"><span className="ndd-avatar" aria-hidden="true">{name[0].toUpperCase()}</span><span className="ndd-name">{name}</span><Chevron /></span>
             </span>
           </button>
           <div className="ndd-wrap" inert={open ? undefined : ""} style={{ gridArea: "2 / 1" }}>
@@ -60,6 +61,7 @@ function AccountMenu({ name = "Guest" }) {
 }
 
 export default function Header() {
+  useAccount();   // the menu shows your name once you sign in
   return (
     <header className="fixed inset-x-0 top-0 z-50 flex h-[60px] items-center justify-center px-3">
       <div className="flex w-full max-w-4xl items-center gap-1 rounded-full border border-white/10 bg-pagebg/90 py-1.5 pl-4 pr-1.5 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] transition-colors duration-300">
@@ -74,7 +76,7 @@ export default function Header() {
         <div className="ml-auto flex items-center gap-0.5">
           <Link aria-label="Get the apps" title="Get the apps" className={ICON_BTN} to="/apps"><AppsIcon /></Link>
           <Link aria-label="Search" className={ICON_BTN} to="/search"><SearchIcon /></Link>
-          <AccountMenu />
+          <AccountMenu name={displayName() || "Guest"} />
           <button type="button" aria-label="Menu" className="flex items-center justify-center rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"><MenuIcon /></button>
         </div>
       </div>

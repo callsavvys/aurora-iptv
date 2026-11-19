@@ -52,8 +52,9 @@ export function loadLibrary(onProgress = () => {}) {
     const vs = await api("get_vod_streams");
     onProgress("Loading series from your line…");
     const ss = await api("get_series");
-    const movies = (vs || []).map((x) => ({ id: x.stream_id, kind: "movie", name: x.name, year: yearIn(x.year || x.releaseDate || x.name), ext: x.container_extension || "mp4", tmdb: Number(x.tmdb || x.tmdb_id) || 0 }));
-    const series = (ss || []).map((x) => ({ id: x.series_id, kind: "series", name: x.name, year: yearIn(x.releaseDate || x.name), tmdb: Number(x.tmdb || x.tmdb_id) || 0 }));
+    const movies = (vs || []).map((x) => ({ id: x.stream_id, kind: "movie", name: x.name, year: yearIn(x.year || x.releaseDate || x.name), ext: x.container_extension || "mp4", tmdb: Number(x.tmdb || x.tmdb_id) || 0, rawYear: x.year || String(x.releaseDate || "").slice(0, 4) }));
+    const series = (ss || []).map((x) => ({ id: x.series_id, kind: "series", name: x.name, year: yearIn(x.releaseDate || x.name), tmdb: Number(x.tmdb || x.tmdb_id) || 0, rawYear: String(x.releaseDate || "").slice(0, 4) }));
+    // rawYear is the year exactly as the apps read it, so watch-party fingerprints agree (web/js/sources.js)
     const byTmdb = new Map(), byName = new Map();
     for (const it of [...movies, ...series]) {
       if (it.tmdb) byTmdb.set(`${it.kind}|${it.tmdb}`, byTmdb.get(`${it.kind}|${it.tmdb}`) || it);

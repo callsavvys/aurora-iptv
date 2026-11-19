@@ -79,7 +79,7 @@ export default function Title() {
         const key = progressKey("movie", id);
         const p = getProgress(key);
         setNote("");
-        setPlayer({ src: streamUrl(hit), title: name, subtitle: (d.release_date || "").slice(0, 4), startAt: p && p.position < p.duration - 60 ? p.position : 0, key });
+        setPlayer({ src: streamUrl(hit), title: name, subtitle: (d.release_date || "").slice(0, 4), startAt: p && p.position < p.duration - 60 ? p.position : 0, key, item: hit });
         return;
       }
       const eps = await lineEpisodes(hit.id);
@@ -97,7 +97,7 @@ export default function Title() {
       // the episode's name from TMDB, when Play or Next started it without one
       if (!epName) epName = await tmdb(`/tv/${id}/season/${s}`).then((x) => (x.episodes || []).find((q) => q.episode_number === e)?.name || "").catch(() => "");
       setNote("");
-      setPlayer({ src: streamUrl(hit, ep), title: name, subtitle: `S${s} · E${e}${epName ? ` · ${epName}` : ""}`, startAt: p && p.position < p.duration - 60 ? p.position : 0, key,
+      setPlayer({ src: streamUrl(hit, ep), title: name, subtitle: `S${s} · E${e}${epName ? ` · ${epName}` : ""}`, startAt: p && p.position < p.duration - 60 ? p.position : 0, key, item: hit,
         next: nextEp ? () => play(nextEp.season, nextEp.number) : null });
     } catch (err) { setNote(err.message || "Your line did not answer."); }
   }, [d, type, id, nav]);
@@ -213,7 +213,7 @@ export default function Title() {
         </div>
       </div>
       {note ? <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-2xl border border-white/10 bg-pagebg/95 px-4 py-3 text-sm text-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] backdrop-blur-md">{note}</div> : null}
-      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => setPlayer(null)} onNext={player.next || undefined} onEnded={() => player.next?.()} /> : null}
+      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => setPlayer(null)} onNext={player.next || undefined} onEnded={() => player.next?.()} partyItem={player.item} /> : null}
     </div>
   );
 }

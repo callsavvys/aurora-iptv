@@ -9,6 +9,7 @@
 .apl-top { position: absolute; left: 24px; right: 24px; top: 16px; display: flex; align-items: center; gap: 6px; }
 .apl-ttl b { display: block; font-size: 18px; font-weight: 700; line-height: 26px; }
 .apl-ttl small { display: block; font-size: 14px; line-height: 20px; color: rgba(255,255,255,.7); }
+.apl-ttl small.apl-party { color: #5fd4f4; font-weight: 600; margin-top: 2px; }
 .apl-ico { height: 48px; min-width: 48px; padding: 0 12px; border: 0; border-radius: 24px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   color: #fff; background: none; cursor: pointer; position: relative; transition: background .15s; font: inherit; }
 .apl-ico svg { width: 26px; height: 26px; flex: 0 0 auto; }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import "./player.css";
+import { useAccount, signedIn, startParty, attachPlayer, leaveParty, partyLine, party } from "./account.js";
 
 /* The player, in Atlantic's look (its TV app's player, measured on the TV):
    a back arrow and the title at the top, one big play button in the middle,
@@ -16,14 +17,32 @@ const Icon = {
   next: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>,
   full: <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" /></svg>,
   back10: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12a8 8 0 1 0 2.6-5.9" /><path d="M4 4v4.5h4.5" /></svg>,
+  people: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>,
   fwd10: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12a8 8 0 1 1-2.6-5.9" /><path d="M20 4v4.5h-4.5" /></svg>,
 };
 
-export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext }) {
+/* partyItem: the title on your line, so Watch Party can start a party for it;
+   a party already open (joined by code) follows its host from the start. */
+export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, partyItem }) {
   const video = useRef(null), wrap = useRef(null), hideTimer = useRef(null);
   const [t, setT] = useState({ cur: 0, dur: 0, buf: 0, paused: false, muted: false, waiting: true });
   const [shown, setShown] = useState(true);
   const [error, setError] = useState("");
+  const [note, setNote] = useState("");
+  useAccount();
+  const unparty = useRef(() => {});
+  useEffect(() => { unparty.current = attachPlayer(video.current); return () => unparty.current(); }, []);
+  // closing the player leaves the party; Next episode remounts it and keeps the party
+  const close = () => { leaveParty(); onClose?.(); };
+  const watchParty = async () => {
+    if (!signedIn()) { setNote("Sign in first, in Settings → Account, to start a watch party."); return; }
+    setNote("Starting the party…");
+    const r = await startParty(partyItem);
+    if (r.error) { setNote(r.error); return; }
+    unparty.current(); unparty.current = attachPlayer(video.current);
+    setNote("");
+  };
+  const line = partyLine() || note;
 
   const poke = () => { setShown(true); clearTimeout(hideTimer.current); hideTimer.current = setTimeout(() => { if (!video.current?.paused) setShown(false); }, 3000); };
   const toggle = () => { const v = video.current; if (!v) return; if (v.paused) v.play().catch(() => {}); else v.pause(); poke(); };
@@ -73,7 +92,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
       else if (e.key === "ArrowRight") { e.preventDefault(); seek(10); }
       else if (e.key === "f") full();
       else if (e.key === "m") { video.current.muted = !video.current.muted; poke(); }
-      else if (e.key === "Escape" && !document.fullscreenElement) onClose?.();
+      else if (e.key === "Escape" && !document.fullscreenElement) close();
       else poke();
     };
     document.addEventListener("keydown", key);
@@ -91,8 +110,8 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
       {error ? <div className="apl-msg">{error}</div> : null}
       <div className="apl-chrome">
         <div className="apl-top">
-          <button type="button" className="apl-ico" aria-label="Back" onClick={onClose}>{Icon.back}</button>
-          <div className="apl-ttl"><b>{title}</b>{subtitle ? <small>{subtitle}</small> : null}</div>
+          <button type="button" className="apl-ico" aria-label="Back" onClick={close}>{Icon.back}</button>
+          <div className="apl-ttl"><b>{title}</b>{subtitle ? <small>{subtitle}</small> : null}{line ? <small className="apl-party" role="status">{line}</small> : null}</div>
         </div>
         <button type="button" className="apl-big" aria-label={t.paused ? "Play" : "Pause"} onClick={toggle}>{t.paused ? Icon.play : Icon.pause}</button>
         <div className="apl-line" onClick={scrub}><i className="apl-buf" style={{ width: `${bpct}%` }} /><i className="apl-pos" style={{ width: `${pct}%` }} /><i className="apl-knob" style={{ left: `${pct}%` }} /></div>
@@ -102,6 +121,8 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
           <span className="apl-grow" />
           <button type="button" className="apl-ico" aria-label="Back 10 seconds" onClick={() => seek(-10)}>{Icon.back10}<em>10</em></button>
           <button type="button" className="apl-ico" aria-label="Forward 10 seconds" onClick={() => seek(10)}>{Icon.fwd10}<em>10</em></button>
+          {partyItem && !party.id ? <button type="button" className="apl-ico apl-text" onClick={watchParty}>{Icon.people}<span>Watch Party</span></button> : null}
+          {party.id ? <button type="button" className="apl-ico apl-text" onClick={() => leaveParty()}>{Icon.people}<span>{party.hosting ? "End party" : "Leave party"}</span></button> : null}
           {onNext ? <button type="button" className="apl-ico apl-text" onClick={onNext}>{Icon.next}<span>Next episode</span></button> : null}
           <button type="button" className="apl-ico" aria-label="Full screen" onClick={full}>{Icon.full}</button>
         </div>

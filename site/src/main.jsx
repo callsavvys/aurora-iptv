@@ -9,6 +9,7 @@ import Browse from "./Browse.jsx";
 import Settings from "./Settings.jsx";
 import Search from "./Search.jsx";
 import Discover from "./Discover.jsx";
+import Parties from "./Parties.jsx";
 import Player from "./Player.jsx";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -44,6 +45,7 @@ function Shell() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/search" element={<Search />} />
             <Route path="/discover" element={<Discover />} />
+            <Route path="/parties" element={<Parties />} />
             {import.meta.env.DEV ? <Route path="/player-test" element={<PlayerTest />} /> : null}
             <Route path="*" element={<Soon />} />
           </Routes>
