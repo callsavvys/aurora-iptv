@@ -135,7 +135,9 @@ function Top10Row({ row }) {
 }
 
 /* a wide card: the picture, a shade, the title's logo; on hover a play button and the year and score */
-export function WideCard({ it }) {
+/* to, badge and progress are for Continue Watching (History): where Play
+   resumes, the "S2 E3" tag, and how far you got as a share */
+export function WideCard({ it, to, badge, progress }) {
   const [logo, setLogo] = useState(null);
   const ref = useRef(null);
   useEffect(() => {
@@ -145,9 +147,10 @@ export function WideCard({ it }) {
   }, [it]);
   return (
     <div ref={ref} className="group relative z-0 w-[200px] shrink-0 snap-start transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.06] sm:w-[280px] lg:w-[320px] short:w-[200px] ">
-      <Link draggable="false" className="block w-full text-left" to={titleUrl(it)}>
+      <Link draggable="false" className="block w-full text-left" to={to || titleUrl(it)}>
         <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-abyss-800 shadow-none transition-shadow duration-200 group-hover:shadow-2xl group-hover:shadow-black/60">
           <Fade src={IMG("w780", it.backdrop || it.poster)} alt={it.title} className="h-full w-full object-cover" />
+          {badge ? <div className="pointer-events-none absolute left-2 top-2 flex items-center border-l-[3px] border-atlantic-300 bg-black/60 px-2 py-1 text-xs font-bold text-white backdrop-blur-sm">{badge}</div> : null}
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3">
             <div className="flex h-[38%] min-h-[34px] max-h-[64px] min-w-0 max-w-[62%] flex-1 items-end sm:max-h-[72px] short:max-h-[64px]">
@@ -159,6 +162,7 @@ export function WideCard({ it }) {
               <div className="flex items-center gap-2 text-xs text-white/70">{it.year ? <span>{it.year}</span> : null}{it.rating ? <span className="text-atlantic-300">★ {it.rating}</span> : null}</div>
             </div>
           </div>
+          {progress != null ? <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50"><div className="h-full bg-atlantic-400" style={{ width: `${progress}%` }} /></div> : null}
         </div>
       </Link>
       <button type="button" aria-label={`Save ${it.title} to a list`} aria-haspopup="dialog" aria-expanded="false" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 hover:scale-110 focus-visible:opacity-100 active:scale-95 opacity-100 md:opacity-0 md:group-hover:opacity-100 border-white/20 bg-black/55 text-white hover:border-white/40 hover:bg-black/75 "><BookmarkIcon /></button>

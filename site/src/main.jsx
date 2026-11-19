@@ -12,6 +12,7 @@ import Discover from "./Discover.jsx";
 import Parties from "./Parties.jsx";
 import Anime from "./Anime.jsx";
 import AnimeTitle from "./AnimeTitle.jsx";
+import History from "./History.jsx";
 import Player from "./Player.jsx";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -51,6 +52,7 @@ function Shell() {
             <Route path="/anime" element={<Anime />} />
             <Route path="/anime/:id" element={<AnimeTitle />} />
             <Route path="/anime/watch/:id/:ep" element={<AnimeTitle />} />
+            <Route path="/history" element={<History />} />
             {import.meta.env.DEV ? <Route path="/player-test" element={<PlayerTest />} /> : null}
             <Route path="*" element={<Soon />} />
           </Routes>

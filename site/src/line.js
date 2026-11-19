@@ -107,6 +107,7 @@ const PKEY = "aurora-site-progress";
 const readAll = () => { try { return JSON.parse(localStorage.getItem(PKEY) || "{}"); } catch { return {}; } };
 export const progressKey = (type, id, season, episode) => `${type}:${id}${season ? `:s${season}e${episode}` : ""}`;
 export const getProgress = (key) => readAll()[key] || null;
+export const allProgress = () => readAll();
 export function saveProgress(key, data) {
   const all = readAll();
   all[key] = { ...data, at: Date.now() };
