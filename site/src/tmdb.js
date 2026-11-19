@@ -36,7 +36,7 @@ export function item(x, type) {
     genreIds: x.genre_ids || (x.genres || []).map((g) => g.id),
   };
 }
-const list = (r, type) => (r.results || []).filter((x) => x.media_type !== "person").map((x) => item(x, type));
+export const list = (r, type) => (r.results || []).filter((x) => x.media_type !== "person").map((x) => item(x, type));
 
 export async function genresOf(it) {
   const g = await genreNames();
@@ -62,8 +62,8 @@ export function extras(it) {
    TMDB queries: Popular uses TMDB's own popular lists; the genre rows take the
    most popular with at least 200 votes; In Cinemas is what opened in cinemas
    (theatrical or limited) in the last 21 days, most popular first. */
-const GENRE = { sort_by: "popularity.desc", "vote_count.gte": "200" };
-function inCinemas() {
+export const GENRE = { sort_by: "popularity.desc", "vote_count.gte": "200" };
+export function inCinemas() {
   // in local time, as the site does: toISOString would roll over to tomorrow in the evening
   const day = (d) => { const t = new Date(); t.setDate(t.getDate() + d); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`; };
   return { sort_by: "popularity.desc", with_release_type: "2|3", "release_date.gte": day(-21), "release_date.lte": day(0) };
@@ -110,6 +110,7 @@ export async function providerLogos() {
   return Object.fromEntries((r.results || []).map((p) => [p.provider_id, IMG("w92", p.logo_path)]));
 }
 export async function providerRow(providerId, type) {
-  const r = await tmdb(`/discover/${type}`, { with_watch_providers: String(providerId), watch_region: "US", sort_by: "popularity.desc" });
+  // the site's rule, matched title for title: US availability, at least 50 votes
+  const r = await tmdb(`/discover/${type}`, { with_watch_providers: String(providerId), watch_region: "US", sort_by: "popularity.desc", "vote_count.gte": "50" });
   return list(r, type);
 }

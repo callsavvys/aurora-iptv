@@ -2,6 +2,7 @@
 // (the DOM after scripts ran) and screenshots down the page. Used to copy
 // atlantic.bz for the site/ web app and to compare the two, page by page.
 //   npx electron scripts/snap-site.cjs <url> <outDir> <name> [width=1280] [height=720] [screens=4]
+// Env: SNAP_CLICK (a selector to click first), SNAP_TYPE (text to type after).
 // Writes <name>.html (the rendered DOM) and <name>-0.png … <name>-N.png
 // (one per screen, scrolling down by a screen each time).
 const { app, BrowserWindow } = require("electron");
@@ -20,6 +21,10 @@ app.whenReady().then(async () => {
   // close the banners and tours a first visit shows, so they do not cover the page
   await js(`[...document.querySelectorAll('button')].filter(b => /^(Skip|Close|×|✕)$/.test(b.textContent.trim()) || b.getAttribute('aria-label') === 'Close').forEach(b => b.click()); 1`).catch(() => {});
   await new Promise((r) => setTimeout(r, 800));
+  // SNAP_CLICK="css selector" clicks something first (a search button, a tab);
+  // SNAP_TYPE="text" then types it into whatever has focus
+  if (process.env.SNAP_CLICK) { await js(`document.querySelector(${JSON.stringify(process.env.SNAP_CLICK)})?.click(); 1`); await new Promise((r) => setTimeout(r, 1500)); }
+  if (process.env.SNAP_TYPE) { for (const ch of process.env.SNAP_TYPE) win.webContents.sendInputEvent({ type: "char", keyCode: ch }); await new Promise((r) => setTimeout(r, 3500)); }
   const n = Number(screens);
   for (let i = 0; i < n; i++) {
     await js(`window.scrollTo(0, ${i} * innerHeight); 1`);

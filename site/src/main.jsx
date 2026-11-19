@@ -7,6 +7,8 @@ import Home from "./Home.jsx";
 import Title from "./Title.jsx";
 import Browse from "./Browse.jsx";
 import Settings from "./Settings.jsx";
+import Search from "./Search.jsx";
+import Discover from "./Discover.jsx";
 import Player from "./Player.jsx";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -40,6 +42,8 @@ function Shell() {
             <Route path="/movies" element={<Browse type="movie" key="movie" />} />
             <Route path="/tv" element={<Browse type="tv" key="tv" />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/discover" element={<Discover />} />
             {import.meta.env.DEV ? <Route path="/player-test" element={<PlayerTest />} /> : null}
             <Route path="*" element={<Soon />} />
           </Routes>
