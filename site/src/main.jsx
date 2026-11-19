@@ -6,6 +6,14 @@ import Header from "./Header.jsx";
 import Home from "./Home.jsx";
 import Title from "./Title.jsx";
 import Browse from "./Browse.jsx";
+import Settings from "./Settings.jsx";
+import Player from "./Player.jsx";
+
+/* a page for trying the player on a public test stream, in development only */
+function PlayerTest() {
+  const src = `/api/proxy?u=${encodeURIComponent("https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8")}`;
+  return <Player src={src} title="Big Buck Bunny" subtitle="Test stream · Blender Foundation (CC BY 3.0)" onClose={() => history.back()} />;
+}
 
 /* pages still to be copied say so, in the site's own type */
 function Soon() {
@@ -31,6 +39,8 @@ function Shell() {
             <Route path="/title/:type/:id" element={<Title />} />
             <Route path="/movies" element={<Browse type="movie" key="movie" />} />
             <Route path="/tv" element={<Browse type="tv" key="tv" />} />
+            <Route path="/settings" element={<Settings />} />
+            {import.meta.env.DEV ? <Route path="/player-test" element={<PlayerTest />} /> : null}
             <Route path="*" element={<Soon />} />
           </Routes>
         </main>

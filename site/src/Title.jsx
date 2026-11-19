@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import Player from "./Player.jsx";
+import { getLine, findOnLine, lineEpisodes, streamUrl, progressKey, getProgress, saveProgress } from "./line.js";
 import { IMG, tmdb, item } from "./tmdb.js";
 import { WideCard, Scroller } from "./Home.jsx";
 
@@ -21,7 +23,7 @@ async function imdbScore(imdbId) {
   try { const r = await fetch(`https://www.omdbapi.com/?apikey=${OMDB}&i=${imdbId}`).then((x) => x.json()); return r.imdbRating && r.imdbRating !== "N/A" ? r.imdbRating : ""; } catch { return ""; }
 }
 
-function Episodes({ tvId, seasons }) {
+function Episodes({ tvId, seasons, onPlay }) {
   const real = seasons.filter((s) => s.season_number > 0);
   const [n, setN] = useState(real[0]?.season_number || 1);
   const [eps, setEps] = useState([]);
@@ -36,7 +38,7 @@ function Episodes({ tvId, seasons }) {
       </div>
       <div className="space-y-2">
         {eps.map((ep) => (
-          <button key={ep.id} type="button" className="flex w-full items-center gap-4 rounded-lg p-2 text-left hover:bg-white/5">
+          <button key={ep.id} type="button" onClick={() => onPlay(ep.season_number, ep.episode_number, ep.name)} className="flex w-full items-center gap-4 rounded-lg p-2 text-left hover:bg-white/5">
             <div className="relative aspect-video w-40 shrink-0 overflow-hidden rounded bg-abyss-800">{ep.still_path ? <img src={IMG("w300", ep.still_path)} alt={ep.name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : null}</div>
             <div className="min-w-0"><p className="truncate font-semibold text-white">{ep.episode_number}. {ep.name}</p><p className="line-clamp-2 text-sm text-white/50">{ep.overview}</p></div>
           </button>
@@ -52,12 +54,55 @@ export default function Title() {
   const [imdb, setImdb] = useState("");
   const [saved, setSaved] = useState(false);
   const [watched, setWatched] = useState(false);
+  const [player, setPlayer] = useState(null);
+  const [note, setNote] = useState("");
+  const [search] = useSearchParams();
+  const nav = useNavigate();
   useEffect(() => {
     setD(null); setImdb("");
     tmdb(`/${type}/${id}`, { append_to_response: `images,credits,recommendations,similar,external_ids,${type === "tv" ? "content_ratings" : "release_dates"}`, include_image_language: "en,null" })
       .then((x) => { setD(x); document.title = `Watch ${x.title || x.name} (${(x.release_date || x.first_air_date || "").slice(0, 4)}) — Aurora`; imdbScore(x.external_ids?.imdb_id || x.imdb_id).then(setImdb); })
       .catch(() => setD({ error: true }));
   }, [type, id]);
+
+  /* Play: the title is looked for on your line (by TMDB id, else by name and
+     year); a series starts where you left off, or at its first episode */
+  const play = useCallback(async (season, episode, epName) => {
+    if (!d || d.error) return;
+    if (!getLine()) { setNote("Connect your IPTV line in Settings to play."); setTimeout(() => nav("/settings"), 1200); return; }
+    const name = d.title || d.name;
+    setNote("Finding it on your line…");
+    try {
+      const hit = await findOnLine({ type, id: Number(id), title: name, originalTitle: d.original_title || d.original_name, year: (d.release_date || d.first_air_date || "").slice(0, 4) });
+      if (!hit) { setNote(`${name} is not on your line.`); return; }
+      if (type === "movie") {
+        const key = progressKey("movie", id);
+        const p = getProgress(key);
+        setNote("");
+        setPlayer({ src: streamUrl(hit), title: name, subtitle: (d.release_date || "").slice(0, 4), startAt: p && p.position < p.duration - 60 ? p.position : 0, key });
+        return;
+      }
+      const eps = await lineEpisodes(hit.id);
+      const seasonsOnLine = Object.keys(eps).map(Number).filter((n) => n > 0).sort((a, b) => a - b);
+      if (!seasonsOnLine.length) { setNote(`Your line lists no episodes for ${name}.`); return; }
+      let s = season, e = episode;
+      if (!s) { const last = JSON.parse(localStorage.getItem(`aurora-site-last:${id}`) || "null"); s = last?.s || seasonsOnLine[0]; e = last?.e || (eps[s]?.[0]?.number ?? 1); }
+      const ep = (eps[s] || []).find((x) => x.number === e);
+      if (!ep) { setNote(`Season ${s}, episode ${e} is not on your line.`); return; }
+      const key = progressKey("tv", id, s, e);
+      const p = getProgress(key);
+      const list = eps[s] || [];
+      const nextEp = list[list.findIndex((x) => x.number === e) + 1] || (eps[s + 1] || [])[0];
+      localStorage.setItem(`aurora-site-last:${id}`, JSON.stringify({ s, e }));
+      // the episode's name from TMDB, when Play or Next started it without one
+      if (!epName) epName = await tmdb(`/tv/${id}/season/${s}`).then((x) => (x.episodes || []).find((q) => q.episode_number === e)?.name || "").catch(() => "");
+      setNote("");
+      setPlayer({ src: streamUrl(hit, ep), title: name, subtitle: `S${s} · E${e}${epName ? ` · ${epName}` : ""}`, startAt: p && p.position < p.duration - 60 ? p.position : 0, key,
+        next: nextEp ? () => play(nextEp.season, nextEp.number) : null });
+    } catch (err) { setNote(err.message || "Your line did not answer."); }
+  }, [d, type, id, nav]);
+  useEffect(() => { if (d && !d.error && search.get("play") === "1") play(); }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
+  const onProgress = useCallback((position, duration) => { if (player?.key) saveProgress(player.key, { position, duration }); }, [player?.key]);
 
   if (!d) return <div className="relative z-10 -mt-[60px] h-[calc(75vh+60px)] min-h-[560px] w-full" />;
   if (d.error) return <div className="px-6 pt-32 sm:px-[60px]"><h1 className="text-3xl font-bold text-white">Not found</h1></div>;
@@ -104,7 +149,7 @@ export default function Title() {
               : <h1 className="mb-3 text-4xl font-black tracking-tight text-white drop-shadow-lg sm:text-5xl">{title}</h1>}
             <p className="mb-4 text-sm font-medium text-white/70">{(d.genres || []).map((g) => g.name).join(" • ")}</p>
             <div className="mb-4 flex items-center gap-3">
-              <button type="button" className="flex items-center gap-2 rounded-full bg-gradient-to-r from-atlantic-300 to-atlantic-500 px-6 py-2.5 text-sm font-bold text-abyss-950 shadow-[0_8px_24px_-6px_rgba(30,203,236,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-6px_rgba(30,203,236,0.7)] active:translate-y-0">
+              <button type="button" onClick={() => play()} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-atlantic-300 to-atlantic-500 px-6 py-2.5 text-sm font-bold text-abyss-950 shadow-[0_8px_24px_-6px_rgba(30,203,236,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-6px_rgba(30,203,236,0.7)] active:translate-y-0">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 2.69127C5 1.93067 5.81547 1.44851 6.48192 1.81506L23.4069 11.1238C24.0977 11.5037 24.0977 12.4963 23.4069 12.8762L6.48192 22.1849C5.81546 22.5515 5 22.0693 5 21.3087V2.69127Z" /></svg>Play
               </button>
               <div className="relative">
@@ -142,7 +187,7 @@ export default function Title() {
           </div>
         </div>
         <div className="relative z-10">
-          {type === "tv" && d.seasons?.length ? <Episodes tvId={id} seasons={d.seasons} /> : null}
+          {type === "tv" && d.seasons?.length ? <Episodes tvId={id} seasons={d.seasons} onPlay={play} /> : null}
           {d.credits?.cast?.length ? (
             <section className="px-6 py-10 sm:px-[60px]">
               <h2 className="mb-4 text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">Cast</h2>
@@ -167,6 +212,8 @@ export default function Title() {
           ) : null}
         </div>
       </div>
+      {note ? <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-2xl border border-white/10 bg-pagebg/95 px-4 py-3 text-sm text-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] backdrop-blur-md">{note}</div> : null}
+      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => setPlayer(null)} onNext={player.next || undefined} onEnded={() => player.next?.()} /> : null}
     </div>
   );
 }
