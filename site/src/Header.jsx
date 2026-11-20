@@ -20,7 +20,7 @@ const NAV = [
   ["/parties", "Watch Parties", "parties"],
 ];
 
-function AccountMenu({ name = "Guest" }) {
+function AccountMenu({ name = "Guest", signedIn = false }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const loc = useLocation();
@@ -32,7 +32,8 @@ function AccountMenu({ name = "Guest" }) {
     document.addEventListener("pointerdown", away); document.addEventListener("keydown", esc);
     return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
   }, [open]);
-  const rows = [["/settings", "Sign in", "signin"], ["/settings", "Settings", "settings"], ["/history", "Watch History", "history"], ["/live", "Live TV", "live"]];
+  // signed in, the site says "Account" where a guest sees "Sign in"
+  const rows = [signedIn ? ["/settings", "Account", "account"] : ["/settings", "Sign in", "signin"], ["/settings", "Settings", "settings"], ["/history", "Watch History", "history"], ["/live", "Live TV", "live"]];
   return (
     <div className="hidden md:block" ref={ref}>
       <div className="ndd" style={{ "--dd-size": "40px" }}>
@@ -63,7 +64,7 @@ function AccountMenu({ name = "Guest" }) {
 }
 
 export default function Header() {
-  useAccount();   // the menu shows your name once you sign in
+  const { user } = useAccount();   // the menu shows your name once you sign in
   return (
     <header className="fixed inset-x-0 top-0 z-50 flex h-[60px] items-center justify-center px-3">
       <div className="flex w-full max-w-4xl items-center gap-1 rounded-full border border-white/10 bg-pagebg/90 py-1.5 pl-4 pr-1.5 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] transition-colors duration-300">
@@ -77,7 +78,7 @@ export default function Header() {
         </nav>
         <div className="ml-auto flex items-center gap-0.5">
           <Link aria-label="Search" className={ICON_BTN} to="/search"><SearchIcon /></Link>
-          <AccountMenu name={displayName() || "Guest"} />
+          <AccountMenu name={displayName() || "Guest"} signedIn={!!user} />
           <button type="button" aria-label="Menu" className="flex items-center justify-center rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"><MenuIcon /></button>
         </div>
       </div>

@@ -2,14 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount, signedIn, startParty, attachPlayer, leaveParty, partyLine, party } from "./account.js";
 import { getLine } from "./line.js";
-import { parseSubtitles, cueAt, loadPrefs, savePrefs, DEFAULTS } from "./subs.js";
+import { parseSubtitles, cueAt, loadPrefs, savePrefs, DEFAULTS, FONTS } from "./subs.js";
 import PlayerMenu from "./PlayerMenu.jsx";
 
 /* The player, in atlantic.bz's markup (its /watch page): Back and the title at
-   the top; the timeline and the controls at the bottom (play, skip ±10 s,
+   the top; the timeline and the controls at the bottom (play, skip by the seek amount,
    volume, time, captions, settings, full screen), hidden after a moment
    without the mouse. The settings panel is PlayerMenu. Keys: space or K plays
-   and pauses, ←/→ skip 10 s (↑/↓ change channel when live), F is full screen,
+   and pauses, ←/→ skip (↑/↓ change channel when live; volume otherwise), F is full screen,
    M mutes, C toggles subtitles, Esc closes the panel, then the player.
 
    live: a channel — no timeline or skips, LIVE in place of the time.
@@ -31,7 +31,6 @@ const Svg = {
   prev: <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>,
 };
 const BTN = "inline-flex shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:p-2";
-const FONT = { Default: "inherit", Serif: "Georgia, 'Times New Roman', serif", Monospace: "ui-monospace, Menlo, monospace", "Trebuchet MS": "'Trebuchet MS', sans-serif", Verdana: "Verdana, sans-serif", "Comic Sans MS": "'Comic Sans MS', cursive" };
 const RATIO = { "16:9": 16 / 9, "4:3": 4 / 3, "21:9": 21 / 9 };
 
 export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, onPrev, partyItem, live = false }) {
@@ -156,6 +155,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
     return () => { clearTimeout(later); if (track) track.oncuechange = null; };
   }, [sub, tracks, prefs.native, prefs.delay]);
 
+  useEffect(() => { if (prefs.autoSubs && !sub && tracks.some((x) => x.kind !== "file")) setSub(tracks.find((x) => x.kind !== "file").id); }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
   const chooseSub = (id) => {
     if (id === "auto") { const lang = (navigator.language || "en").slice(0, 2).toLowerCase(); const hit = tracks.find((x) => x.label.toLowerCase().startsWith(lang) || x.label.toLowerCase().includes("english")) || tracks[0]; id = hit?.id || null; if (!hit) setNote("This stream has no subtitles of its own."); }
     setSub(id); setPref("subsOn", !!id); if (id) setPref("lastSub", id);
@@ -185,8 +185,8 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
     const key = (e) => {
       if (e.target.closest?.("input, textarea")) return;
       if (e.key === " " || e.key === "k") { e.preventDefault(); toggle(); }
-      else if (e.key === "ArrowLeft" && !live) { e.preventDefault(); seek(-10); }
-      else if (e.key === "ArrowRight" && !live) { e.preventDefault(); seek(10); }
+      else if (e.key === "ArrowLeft" && !live) { e.preventDefault(); seek(-prefs.seek); }
+      else if (e.key === "ArrowRight" && !live) { e.preventDefault(); seek(prefs.seek); }
       else if (e.key === "ArrowUp") { e.preventDefault(); if (live && onPrev) onPrev(); else if (video.current) video.current.volume = Math.min(1, video.current.volume + 0.1); poke(); }
       else if (e.key === "ArrowDown") { e.preventDefault(); if (live && onNext) onNext(); else if (video.current) video.current.volume = Math.max(0, video.current.volume - 0.1); poke(); }
       else if (e.key === "f") full();
@@ -229,7 +229,8 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
 
   return (
     <div ref={wrap} className="fixed inset-0 z-[60]">
-      <div className={`relative h-dvh w-full select-none overflow-hidden bg-black${visible ? "" : " cursor-none"}`} onMouseMove={poke} onClick={(e) => { if (menu) { setMenu(null); return; } if (e.target === e.currentTarget || e.target.tagName === "VIDEO") toggle(); }}>
+      <div className={`relative h-dvh w-full select-none overflow-hidden bg-black${visible ? "" : " cursor-none"}`} onMouseMove={poke} onClick={(e) => { if (menu) { setMenu(null); return; } if (e.target === e.currentTarget || e.target.tagName === "VIDEO") toggle(); }}
+        onDoubleClick={(e) => { if (!(e.target === e.currentTarget || e.target.tagName === "VIDEO")) return; toggle(); const x = e.clientX / window.innerWidth; if (prefs.doubleTap && !live && x < 1 / 3) seek(-prefs.seek); else if (prefs.doubleTap && !live && x > 2 / 3) seek(prefs.seek); else full(); }}>
         <div className="absolute inset-0 overflow-hidden bg-black">
           <div className="absolute overflow-hidden" style={frameStyle}>
             <video ref={video} autoPlay playsInline className="h-full w-full" style={{ objectFit: fit, transform: prefs.noBars ? "scale(1.25)" : "none", transformOrigin: "50% 50%", transition: "transform 250ms ease-out", filter: filter || undefined }} />
@@ -239,7 +240,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
         {error ? <div className="absolute left-1/2 top-1/2 max-w-md -translate-x-1/2 -translate-y-1/2 px-6 text-center text-sm text-white/80">{error}</div> : null}
         {cue && !(prefs.native && tracks.find((x) => x.id === sub)?.kind !== "file") ? (
           <div className="pointer-events-none absolute inset-x-0 flex justify-center px-6 transition-[bottom] duration-200" style={{ bottom: visible ? "118px" : "48px" }}>
-            <div className="whitespace-pre-line rounded-lg px-3 py-1 text-center font-semibold leading-snug" style={{ fontSize: `${prefs.size}px`, color: prefs.textColor, fontFamily: FONT[prefs.font], backgroundColor: "rgba(0,0,0,0.45)", backdropFilter: prefs.blur ? `blur(${prefs.blur}px)` : undefined, textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}>{cue}</div>
+            <div className="whitespace-pre-line rounded-lg px-3 py-1 text-center font-semibold leading-snug" style={{ fontSize: `${prefs.size}px`, color: prefs.textColor, fontFamily: FONTS[prefs.font], backgroundColor: `rgba(0,0,0,${prefs.bgOpacity / 100})`, backdropFilter: prefs.blur ? `blur(${prefs.blur}px)` : undefined, textShadow: "0 1px 3px rgba(0,0,0,0.9)" }}>{cue}</div>
           </div>
         ) : null}
         <div className={`absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent px-4 pb-16 pt-6 sm:px-8 short:pb-8 short:pt-3 text-white transition-[transform,opacity] duration-200 ${visible ? "translate-y-0 opacity-100" : "pointer-events-none -translate-y-4 opacity-0"}`}>
@@ -263,8 +264,8 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
               {onPrev ? <button type="button" className={BTN} aria-label="Previous channel" onClick={onPrev}>{Svg.prev}</button> : null}
               {onNext ? <button type="button" className={BTN} aria-label="Next channel" onClick={onNext}>{Svg.next}</button> : null}
             </> : <>
-              <button type="button" className="hidden shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:inline-flex sm:p-2" aria-label="Skip back" onClick={() => seek(-10)}>{Svg.skipBack}</button>
-              <button type="button" className="hidden shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:inline-flex sm:p-2" aria-label="Skip forward" onClick={() => seek(10)}>{Svg.skipFwd}</button>
+              <button type="button" className="hidden shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:inline-flex sm:p-2" aria-label="Skip back" onClick={() => seek(-prefs.seek)}>{Svg.skipBack}</button>
+              <button type="button" className="hidden shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:inline-flex sm:p-2" aria-label="Skip forward" onClick={() => seek(prefs.seek)}>{Svg.skipFwd}</button>
             </>}
             <div className="flex shrink-0 cursor-pointer touch-none items-center py-0" onMouseEnter={() => setVolOpen(true)} onMouseLeave={() => setVolOpen(false)}>
               <button type="button" className="px-2 text-white/80 hover:text-white" aria-label={t.muted ? "Unmute" : "Mute"} onClick={() => { video.current.muted = !video.current.muted; }}>{t.muted || t.volume === 0 ? Svg.muted : Svg.volume}</button>

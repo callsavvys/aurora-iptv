@@ -17,6 +17,7 @@ import LiveTV from "./LiveTV.jsx";
 import BrowseList from "./BrowseList.jsx";
 import Person from "./Person.jsx";
 import { ListPage, useLists } from "./lists.jsx";
+import { ThemeLayer } from "./themes.jsx";
 import Player from "./Player.jsx";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -55,6 +56,8 @@ function Shell() {
   const { pathname } = useLocation();
   React.useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   return (
+    <>
+    <ThemeLayer />
     <div className="relative z-[1]">
       <div className="relative min-h-dvh w-full overflow-x-hidden pb-20 lg:pb-16">
         <Header />
@@ -83,6 +86,7 @@ function Shell() {
         </main>
       </div>
     </div>
+    </>
   );
 }
 

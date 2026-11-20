@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { FONTS as FONT_FAMILIES } from "./subs.js";
 
 /* The player's settings panel, in atlantic.bz's markup (captured from its
    /watch page): quality, server, subtitles and audio tiles; Watch Party;
@@ -94,7 +95,7 @@ function Level({ label, icon, value, min, max, onChange }) {
 
 export const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
 export const PICTURES = ["Fit", "Fill", "Stretch", "16:9", "4:3", "21:9"];
-const FONTS = ["Default", "Serif", "Monospace", "Trebuchet MS", "Verdana", "Comic Sans MS"];
+const FONTS = Object.keys(FONT_FAMILIES);
 const COLORS = ["#ffffff", "#80b1fa", "#e2e535", "#10B239"];
 
 export default function PlayerMenu({ view, setView, prefs, setPref, resetSubs, quality, server, subs, audio, party, live }) {
