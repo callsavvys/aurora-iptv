@@ -1,4 +1,5 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { start as startParticles } from "./particles.js";
 import THEMES from "./themes.json";
 import "./themes.css";
 
@@ -28,6 +29,13 @@ const readRows = () => { if (cwRows !== null) return cwRows; try { cwRows = Numb
 export const useContinueRows = () => useSyncExternalStore(subscribe, readRows);
 export function setContinueRows(n) { cwRows = n; try { localStorage.setItem(RKEY, String(n)); } catch { /* private mode */ } listeners.forEach((fn) => fn()); }
 
+/* "Background Particles": the drifting stars, petals, embers and leaves (on by default) */
+const PKEY = "aurora-site-particles";
+let particles = null;
+const readParticles = () => { if (particles !== null) return particles; try { particles = localStorage.getItem(PKEY) !== "0"; } catch { particles = true; } return particles; };
+export const useParticles = () => useSyncExternalStore(subscribe, readParticles);
+export function setParticles(on) { particles = on; try { localStorage.setItem(PKEY, on ? "1" : "0"); } catch { /* private mode */ } listeners.forEach((fn) => fn()); }
+
 export function setTheme(id) { current = id; try { localStorage.setItem(KEY, id); } catch { /* private mode */ } listeners.forEach((fn) => fn()); }
 
 /* applies the chosen theme to the page and draws its background */
@@ -42,6 +50,18 @@ export function ThemeLayer() {
     if (theme.root) root.setAttribute("style", theme.root);
     document.body.style.backgroundColor = /background-color:\s*([^;]+)/.exec(theme.body)?.[1] || "";
   }, [theme]);
+  // the particles, in the theme's own accent colours (Autumn adds its reds and golds)
+  const box = useRef(null);
+  const moving = useParticles();
+  useEffect(() => {
+    const canvas = box.current?.querySelector("canvas");
+    if (!canvas || !theme.particles || !moving) return undefined;
+    const tone = (n) => new RegExp(`--atlantic-${n}:\\s*([^;]+)`).exec(theme.root)?.[1]?.trim();
+    // petals in the soft tone, as the site draws them; the rest in both accents
+    const colors = theme.particles === "petals" ? [tone(300)] : [tone(300), tone(400)];
+    if (theme.particles === "maple") colors.push("#c0392b", "#e2b13c", tone(500));
+    return startParticles(canvas, theme.particles, colors.filter(Boolean));
+  }, [theme, moving]);
   // the background is the site's own markup, saved with the theme
-  return theme.ambient ? <div dangerouslySetInnerHTML={{ __html: theme.ambient }} /> : null;
+  return theme.ambient ? <div ref={box} dangerouslySetInnerHTML={{ __html: theme.ambient }} /> : null;
 }

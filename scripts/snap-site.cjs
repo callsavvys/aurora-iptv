@@ -4,7 +4,8 @@
 //   npx electron scripts/snap-site.cjs <url> <outDir> <name> [width=1280] [height=720] [screens=4]
 // Env: SNAP_CLICK (a selector to click first), SNAP_TYPE (text to type after),
 // SNAP_THEN (a page to open after those, in the same browser, and capture instead),
-// SNAP_JS (a script to run in the page, awaited, just before capturing).
+// SNAP_JS (a script to run in the page, awaited, just before capturing),
+// SNAP_GPU=1 (keep graphics acceleration on).
 // Writes <name>.html (the rendered DOM) and <name>-0.png … <name>-N.png
 // (one per screen, scrolling down by a screen each time).
 const { app, BrowserWindow } = require("electron");
@@ -13,7 +14,8 @@ const fs = require("node:fs"), path = require("node:path");
 const [url, outDir, name, w = "1280", h = "720", screens = "4"] = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 if (!url || !outDir || !name) { console.error("usage: snap-site.cjs <url> <outDir> <name> [width] [height] [screens]"); process.exit(2); }
 
-app.disableHardwareAcceleration();
+// SNAP_GPU=1 keeps graphics acceleration (a site may draw fewer effects without it)
+if (!process.env.SNAP_GPU) app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   fs.mkdirSync(outDir, { recursive: true });
   const win = new BrowserWindow({ width: Number(w), height: Number(h), show: false, useContentSize: true, webPreferences: { sandbox: true, backgroundThrottling: false } });

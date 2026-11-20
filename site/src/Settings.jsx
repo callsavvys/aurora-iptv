@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getLine, setLine, clearLine, testLine } from "./line.js";
 import { useAccount, signIn, signOut, displayName } from "./account.js";
-import { THEMES, useTheme, setTheme, useAlwaysTitles, setAlwaysTitles, useContinueRows, setContinueRows } from "./themes.jsx";
+import { THEMES, useTheme, setTheme, useAlwaysTitles, setAlwaysTitles, useContinueRows, setContinueRows, useParticles, setParticles } from "./themes.jsx";
 import { loadPrefs, savePrefs, FONTS } from "./subs.js";
 
 /* atlantic.bz's Settings: the gear and title, a row of tabs, the section in a
@@ -146,6 +146,7 @@ function Appearance() {
   const current = useTheme();
   const always = useAlwaysTitles();
   const rows = useContinueRows();
+  const moving = useParticles();
   return (
     <div>
       <Head title="Appearance" line="Pick an ambient theme for the site's background and accent color." />
@@ -159,6 +160,10 @@ function Appearance() {
       <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div><p className="text-sm font-medium text-white">Always Show Titles</p><p className="mt-0.5 text-xs text-white/40">Show each card's title and rating without hovering.</p></div>
         <button type="button" role="switch" aria-checked={always} onClick={() => setAlwaysTitles(!always)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${always ? "bg-atlantic-400" : "bg-white/15"}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${always ? "translate-x-[20px]" : "translate-x-0"}`} /></button>
+      </div>
+      <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-sm font-medium text-white">Background Particles</p><p className="mt-0.5 text-xs text-white/40">Turn off drifting particles (stars, petals, embers, leaves) for a calmer, static background.</p></div>
+        <button type="button" role="switch" aria-checked={moving} onClick={() => setParticles(!moving)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${moving ? "bg-atlantic-400" : "bg-white/15"}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${moving ? "translate-x-[20px]" : "translate-x-0"}`} /></button>
       </div>
     </div>
   );
