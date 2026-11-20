@@ -25,6 +25,7 @@ import { PartyPill, Invite } from "./PartyUI.jsx";
 import { useAccount } from "./account.js";
 import { getLine } from "./line.js";
 import { useParty } from "./party.js";
+import { startSync, stopSync } from "./cloud.js";
 import { syncDaily } from "./trackers.js";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -66,11 +67,21 @@ function Gate({ children }) {
   const { user, loaded, accounts } = useAccount();
   const { pathname } = useLocation();
   const partying = useParty((p) => p.phase === "in" || p.phase === "reconnecting");
+  // signed in, your account's data comes down first (a few seconds at most), then pages draw
+  const [synced, setSynced] = React.useState(null);
+  React.useEffect(() => {
+    if (!loaded) return undefined;
+    if (!user) { stopSync(); setSynced(null); return undefined; }
+    let live = true;
+    Promise.race([startSync(), new Promise((r) => setTimeout(r, 4000))]).then(() => { if (live) setSynced(user.id); });
+    return () => { live = false; };
+  }, [loaded, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // a guest in a party (an account is not needed for a private one) may go where the party plays
   const open = pathname === "/welcome" || pathname === "/welcome-preview" || pathname.startsWith("/party/") || (partying && pathname.startsWith("/title/"));
   if (!accounts) return children;
   if (!loaded) return open ? children : null;
   if (!user && !open) return <Navigate to="/welcome" replace />;
+  if (user && synced !== user.id && !open) return null;
   if (user && pathname === "/welcome") return <Navigate to={getLine() ? "/" : "/sources?first=1"} replace />;
   let later = false;
   try { later = localStorage.getItem("aurora-site-source-later") === "1"; } catch { /* private mode */ }

@@ -14,6 +14,8 @@ import { Scroller } from "./Home.jsx";
 const KEY = "aurora-site-lists";
 const listeners = new Set();
 let cache = null;
+// another device's changes, just synced (cloud.js)
+if (typeof window !== "undefined") window.addEventListener("aurora-synced", () => { cache = null; listeners.forEach((fn) => fn()); });
 const read = () => { if (cache) return cache; try { cache = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { cache = []; } return cache; };
 const write = (lists) => { cache = lists; try { localStorage.setItem(KEY, JSON.stringify(lists)); } catch { /* private mode */ } listeners.forEach((fn) => fn()); };
 const subscribe = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
