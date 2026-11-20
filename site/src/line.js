@@ -6,8 +6,8 @@
 
 const KEY = "aurora-site-line";
 export const getLine = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch { return null; } };
-export const setLine = (cfg) => { localStorage.setItem(KEY, JSON.stringify(cfg)); lib = null; loading = null; };
-export const clearLine = () => { localStorage.removeItem(KEY); lib = null; loading = null; };
+export const setLine = (cfg) => { localStorage.setItem(KEY, JSON.stringify(cfg)); lib = null; loading = null; live = null; };
+export const clearLine = () => { localStorage.removeItem(KEY); lib = null; loading = null; live = null; };
 
 const relay = (url) => `/api/proxy?u=${encodeURIComponent(url)}`;
 function parts(cfg = getLine()) {
@@ -67,6 +67,40 @@ export function loadLibrary(onProgress = () => {}) {
   })().finally(() => { loading = null; }));
 }
 
+/* ---- live channels: the categories in the line's order, and each one's channels ---- */
+// category names tidied as the TV app does (web/js/tmdb.js tidyCategory): no emoji or
+// box-drawing furniture, separators as " · ", and no leading country code
+const CATEGORY_FURNITURE = /[\u2000-\u209F\u2190-\u2BFF\uFE00-\uFE0F]|[\u{1F000}-\u{1FAFF}]/gu;
+function tidyCategory(name) {
+  const raw = String(name || "").trim();
+  let text = raw.replace(CATEGORY_FURNITURE, " ").replace(/\s*[|/]\s*/g, " \u00b7 ").replace(/\s{2,}/g, " ").trim();
+  const KEEP = new Set(["TV", "HD", "4K", "ON", "MY", "NEW", "TOP", "OLD", "HBO"]);
+  const words = text.split(" ");
+  const lead = words[0] || "";
+  const coded = /^[a-z]{2,3}$/i.test(lead) || /^[a-z]{2,3}[-:]$/i.test(lead);
+  if (words.length > 1 && coded && !KEEP.has(lead.replace(/[-:]$/, "").toUpperCase())) text = words.slice(1).join(" ");
+  text = text.replace(/^[-:\s]+/, "").replace(/^[\s\u00b7-]+/, "").replace(/[\s\u00b7-]+$/, "").trim();
+  return text || raw;
+}
+
+let live = null;
+export function loadLive() {
+  return (live = live || (async () => {
+    const [cats, streams] = await Promise.all([api("get_live_categories"), api("get_live_streams")]);
+    const channels = (streams || []).map((x, i) => ({ id: x.stream_id, kind: "live", name: x.name, logo: x.stream_icon || "", number: x.num || i + 1, categoryId: String(x.category_id) }));
+    const count = new Map();
+    for (const c of channels) count.set(c.categoryId, (count.get(c.categoryId) || 0) + 1);
+    return { categories: (cats || []).map((c) => ({ id: String(c.category_id), name: tidyCategory(c.category_name), count: count.get(String(c.category_id)) || 0 })).filter((c) => c.count), channels };
+  })().catch((e) => { live = null; throw e; }));
+}
+
+/* what is on a channel now and next, from the line's guide (titles come base64-encoded) */
+const unbase = (s) => { try { return decodeURIComponent(escape(atob(s || ""))); } catch { return s || ""; } };
+export async function nowNext(ch) {
+  const r = await api("get_short_epg", `&stream_id=${ch.id}&limit=2`).catch(() => null);
+  return (r?.epg_listings || []).map((e) => ({ title: unbase(e.title), start: Number(e.start_timestamp) * 1000, end: Number(e.stop_timestamp) * 1000 }));
+}
+
 /* a TMDB title on your line, or null */
 export async function findOnLine({ type, id, title, originalTitle, year }) {
   const L = await loadLibrary();
@@ -94,10 +128,11 @@ export async function lineEpisodes(seriesId) {
   return out;
 }
 
-/* where to play it from, through the relay */
+/* where to play it from, through the relay (a live channel is HLS) */
 export function streamUrl(hit, episode) {
   const x = parts();
   if (!x) return "";
+  if (hit.kind === "live") return relay(`${x.server}/live/${x.u}/${x.p}/${hit.id}.m3u8`);
   const raw = episode ? `${x.server}/series/${x.u}/${x.p}/${episode.id}.${episode.ext || "mp4"}` : `${x.server}/movie/${x.u}/${x.p}/${hit.id}.${hit.ext || "mp4"}`;
   return relay(raw);
 }
@@ -113,3 +148,17 @@ export function saveProgress(key, data) {
   all[key] = { ...data, at: Date.now() };
   localStorage.setItem(PKEY, JSON.stringify(all));
 }
+
+/* ---- what you marked as watched (Mark as Watched on a title page), in this browser ---- */
+const WKEY = "aurora-site-watched";
+const readWatched = () => { try { return JSON.parse(localStorage.getItem(WKEY) || "{}"); } catch { return {}; } };
+const writeWatched = (all) => { try { localStorage.setItem(WKEY, JSON.stringify(all)); } catch { /* private mode */ } };
+export const allWatched = () => Object.values(readWatched()).sort((a, b) => (b.at || 0) - (a.at || 0));
+/* marks a title (type, id, title, poster, year) or, if it is marked, unmarks it; returns the new state */
+export function toggleWatched(t) {
+  const all = readWatched(), key = `${t.type}:${t.id}`;
+  if (all[key]) delete all[key]; else all[key] = { type: t.type, id: t.id, title: t.title, poster: t.poster || "", year: t.year || "", at: Date.now() };
+  writeWatched(all);
+  return !!all[key];
+}
+export function unwatch(type, id) { const all = readWatched(); delete all[`${type}:${id}`]; writeWatched(all); }

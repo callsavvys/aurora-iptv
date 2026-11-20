@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Player from "./Player.jsx";
-import { getLine, findOnLine, lineEpisodes, streamUrl, progressKey, getProgress, saveProgress } from "./line.js";
+import { getLine, findOnLine, lineEpisodes, streamUrl, progressKey, getProgress, saveProgress, toggleWatched } from "./line.js";
 import { IMG, tmdb, item } from "./tmdb.js";
 import { WideCard, Scroller } from "./Home.jsx";
 
@@ -53,7 +53,6 @@ export default function Title() {
   const [d, setD] = useState(null);
   const [imdb, setImdb] = useState("");
   const [saved, setSaved] = useState(false);
-  const [watched, setWatched] = useState(false);
   const [player, setPlayer] = useState(null);
   const [note, setNote] = useState("");
   const [search] = useSearchParams();
@@ -158,7 +157,7 @@ export default function Title() {
                     : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>}
                 </button>
               </div>
-              <button type="button" aria-label="Mark as Watched" onClick={() => setWatched((v) => !v)} className={`${ROUND}${watched ? " text-atlantic-300" : ""}`}>
+              <button type="button" aria-label="Mark as Watched" onClick={() => toggleWatched({ type, id: Number(id), title: d.title || d.name, poster: d.poster_path, year: (d.release_date || d.first_air_date || "").slice(0, 4) })} className={ROUND}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
               </button>
               <button type="button" aria-label="Download" title="Download" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-all duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/20 active:translate-y-0">
