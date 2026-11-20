@@ -8,6 +8,48 @@ import { PlayIcon, BookmarkIcon } from "./icons.jsx";
    a grid of posters that keeps going as you scroll. Hovering a poster shows
    its name, year and score. The markup and classes are the site's. */
 
+/* the site's "Load More" grid: two pages of 20 at first, then one more page
+   each press — or, with auto (the View All pages), as you scroll near the end.
+   pageOf(n) answers TMDB's page n; resetKey restarts it. Like the site, a
+   title on two of TMDB's pages shows twice (only people are left out). */
+export function LoadMoreGrid({ pageOf, type, resetKey, auto = false }) {
+  const [items, setItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [more, setMore] = useState(true);
+  const [done, setDone] = useState(false);
+  const end = useRef(null);
+  const next = () => setPage((n) => (n === 1 ? 2 : n + 1));
+  useEffect(() => { setItems([]); setPage(1); setMore(true); setDone(false); }, [resetKey]);
+  useEffect(() => {
+    let live = true;
+    setBusy(true);
+    const pages = page === 1 ? [1, 2] : [page + 1];
+    Promise.all(pages.map((n) => pageOf(n)))
+      .then((rs) => {
+        if (!live) return;
+        setItems((prev) => [...prev, ...rs.flatMap((r) => (r.results || []).filter((x) => x.media_type !== "person").map((x) => item(x, type)))]);
+        const last = rs[rs.length - 1];
+        setMore(last.page < last.total_pages);
+      })
+      .catch(() => live && setMore(false)).finally(() => { if (live) { setBusy(false); setDone(true); } });
+    return () => { live = false; };
+  }, [page, resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!auto || !more || busy || !end.current) return undefined;
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) { io.disconnect(); next(); } }, { rootMargin: "600px" });
+    io.observe(end.current);
+    return () => io.disconnect();
+  }, [auto, more, busy, items.length]);
+  return (
+    <div>
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">{items.map((it, i) => <PosterCard key={`${it.type}-${it.id}-${i}`} it={it} />)}</div>
+      {done && !items.length ? <p className="mt-10 text-center text-white/40">No results found.</p> : null}
+      {more && items.length ? <div ref={end} className="mt-10 flex justify-center"><button type="button" disabled={busy} onClick={next} className="rounded bg-atlantic-500 px-8 py-3 text-sm font-bold text-abyss-950 transition-colors hover:bg-atlantic-400 disabled:opacity-50">Load More</button></div> : null}
+    </div>
+  );
+}
+
 const CHIP = "shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors";
 const CHIP_ON = "bg-atlantic-500 text-abyss-950";
 const CHIP_OFF = "bg-white/5 text-white/70 hover:bg-white/10";
@@ -17,11 +59,12 @@ export function PosterCard({ it }) {
     <div className="group relative z-0 text-left transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.05]">
       <Link draggable="false" className="block w-full text-left" to={`/title/${it.type}/${it.id}`}>
         <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-abyss-800 shadow-none transition-shadow duration-200 group-hover:shadow-2xl group-hover:shadow-black/60">
-          <Fade src={IMG("w342", it.poster)} alt={it.title} className="h-full w-full object-cover" />
+          {it.poster ? <Fade src={IMG("w342", it.poster)} alt={it.title} className="h-full w-full object-cover" />
+            : <div className="flex h-full w-full items-center justify-center p-3 text-center text-xs text-white/40">{it.title}</div>}
           <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/10 to-transparent p-3 transition-opacity duration-200 opacity-100 md:opacity-0 md:group-hover:opacity-100">
             <div className="mb-2 hidden h-8 w-8 items-center justify-center rounded-full bg-white/90 transition-opacity duration-200 md:flex "><PlayIcon size={14} fill="#050b12" /></div>
             <p className="truncate text-sm font-semibold text-white">{it.title}</p>
-            <div className="flex items-center gap-2 text-xs text-white/60">{it.year ? <span>{it.year}</span> : null}{it.rating ? <span className="hidden text-atlantic-300 md:inline">★ {it.rating}</span> : null}</div>
+            <div className="flex items-center gap-2 text-xs text-white/60">{it.year ? <span>{it.year}</span> : null}{it.score ? <span className="hidden text-atlantic-300 md:inline">★ {it.score}</span> : null}</div>
           </div>
         </div>
       </Link>

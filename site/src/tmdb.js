@@ -31,6 +31,7 @@ export function item(x, type) {
     title: x.title || x.name || "",
     year: (x.release_date || x.first_air_date || "").slice(0, 4),
     rating: x.vote_average ? Number(x.vote_average).toFixed(1) : "",
+    score: x.vote_average != null ? Number(x.vote_average).toFixed(1) : "",   // the poster card shows ★ 0.0 too
     overview: x.overview || "",
     poster: x.poster_path, backdrop: x.backdrop_path,
     genreIds: x.genre_ids || (x.genres || []).map((g) => g.id),

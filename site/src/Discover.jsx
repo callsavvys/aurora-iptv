@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { IMG, tmdb, list, GENRE, inCinemas, PROVIDERS, providerLogos, providerRow } from "./tmdb.js";
 import { WideCard, Scroller } from "./Home.jsx";
-import { PosterCard } from "./Browse.jsx";
+import { LoadMoreGrid } from "./Browse.jsx";
 
 /* atlantic.bz's Discover page: a hero of this week's trending, a sticky bar
    (Movies or TV Shows, the genres, Filters), rows, and a grid to browse with
@@ -113,26 +113,11 @@ function ProviderRowD({ type }) {
 
 /* "Browse all": 20 more each time Load More is pressed */
 function BrowseAll({ type, genre, sort }) {
-  const [items, setItems] = useState([]);
-  const [page, setPage] = useState(1);
-  const [busy, setBusy] = useState(false);
-  const [more, setMore] = useState(true);
-  useEffect(() => { setItems([]); setPage(1); setMore(true); }, [type, genre, sort]);
-  useEffect(() => {
-    setBusy(true);
-    const votes = type === "tv" ? "100" : "50";
-    const pages = page === 1 ? [1, 2] : [page + 1];
-    Promise.all(pages.map((n) => tmdb(`/discover/${type}`, { sort_by: sort, "vote_count.gte": votes, page: String(n), ...(genre ? { with_genres: String(genre) } : {}) })))
-      .then((rs) => { setItems((prev) => { const seen = new Set(prev.map((x) => x.id)); return [...prev, ...rs.flatMap((r) => list(r, type)).filter((x) => !seen.has(x.id))]; }); setMore(rs[rs.length - 1].page < rs[rs.length - 1].total_pages); })
-      .catch(() => {}).finally(() => setBusy(false));
-  }, [page, type, genre, sort]);
+  const votes = type === "tv" ? "100" : "50";
   return (
     <div className="border-t border-white/10 px-6 pb-12 pt-8 sm:px-[60px]">
       <h2 className="mb-5 text-xl font-semibold text-white/90">Browse all {type === "tv" ? "TV Shows" : "Movies"}</h2>
-      <div>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4 sm:grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">{items.map((it) => <PosterCard key={it.id} it={it} />)}</div>
-        {more ? <div className="mt-10 flex justify-center"><button type="button" disabled={busy} onClick={() => setPage((n) => (n === 1 ? 2 : n + 1))} className="rounded bg-atlantic-500 px-8 py-3 text-sm font-bold text-abyss-950 transition-colors hover:bg-atlantic-400 disabled:opacity-50">Load More</button></div> : null}
-      </div>
+      <LoadMoreGrid type={type} resetKey={`${type}|${genre}|${sort}`} pageOf={(n) => tmdb(`/discover/${type}`, { sort_by: sort, "vote_count.gte": votes, page: String(n), ...(genre ? { with_genres: String(genre) } : {}) })} />
     </div>
   );
 }
