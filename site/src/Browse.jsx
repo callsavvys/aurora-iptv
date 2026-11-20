@@ -68,7 +68,7 @@ export default function Browse({ type }) {
   const [genres, setGenres] = useState([]);
   const [genre, setGenre] = useState(null);
   useEffect(() => { setGenre(null); tmdb(`/genre/${type}/list`).then((g) => setGenres(g.genres || [])).catch(() => {}); }, [type]);
-  useEffect(() => { document.title = `${type === "tv" ? "Watch TV Shows" : "Watch Movies"} — Aurora`; }, [type]);
+  useEffect(() => { document.title = `${type === "tv" ? "Watch Series" : "Watch Movies"} — Aurora`; }, [type]);
   // the site's list, found by matching its order exactly: TMDB's most popular
   // with at least 100 votes (genre pages add the genre)
   const load = (page) => tmdb(`/discover/${type}`, { sort_by: "popularity.desc", "vote_count.gte": "100", page: String(page), ...(genre ? { with_genres: String(genre) } : {}) })
@@ -76,7 +76,7 @@ export default function Browse({ type }) {
   return (
     <div className="transition-opacity duration-150 opacity-100">
       <div className="px-6 py-10 sm:px-[60px]">
-        <h1 className="mb-6 text-3xl font-bold text-white">{type === "tv" ? "TV Shows" : "Movies"}</h1>
+        <h1 className="mb-6 text-3xl font-bold text-white">{type === "tv" ? "Series" : "Movies"}</h1>
         <div className="no-scrollbar mb-8 flex gap-2 overflow-x-auto pb-1">
           <button type="button" onClick={() => setGenre(null)} className={`${CHIP} ${genre === null ? CHIP_ON : CHIP_OFF}`}>All</button>
           {genres.map((g) => <button key={g.id} type="button" onClick={() => setGenre(g.id)} className={`${CHIP} ${genre === g.id ? CHIP_ON : CHIP_OFF}`}>{g.name}</button>)}

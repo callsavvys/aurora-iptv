@@ -23,7 +23,9 @@ const Icon = {
 
 /* partyItem: the title on your line, so Watch Party can start a party for it;
    a party already open (joined by code) follows its host from the start. */
-export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, partyItem }) {
+/* live: a channel — no timeline or skips, LIVE in place of the time, and
+   onPrev/onNext change channel (also ↑/↓ on the keyboard) */
+export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, onPrev, partyItem, live = false }) {
   const video = useRef(null), wrap = useRef(null), hideTimer = useRef(null);
   const [t, setT] = useState({ cur: 0, dur: 0, buf: 0, paused: false, muted: false, waiting: true });
   const [shown, setShown] = useState(true);
@@ -88,8 +90,10 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   useEffect(() => {
     const key = (e) => {
       if (e.key === " " || e.key === "k") { e.preventDefault(); toggle(); }
-      else if (e.key === "ArrowLeft") { e.preventDefault(); seek(-10); }
-      else if (e.key === "ArrowRight") { e.preventDefault(); seek(10); }
+      else if (e.key === "ArrowLeft" && !live) { e.preventDefault(); seek(-10); }
+      else if (e.key === "ArrowRight" && !live) { e.preventDefault(); seek(10); }
+      else if (e.key === "ArrowUp" && live && onPrev) { e.preventDefault(); onPrev(); }
+      else if (e.key === "ArrowDown" && live && onNext) { e.preventDefault(); onNext(); }
       else if (e.key === "f") full();
       else if (e.key === "m") { video.current.muted = !video.current.muted; poke(); }
       else if (e.key === "Escape" && !document.fullscreenElement) close();
@@ -114,16 +118,20 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
           <div className="apl-ttl"><b>{title}</b>{subtitle ? <small>{subtitle}</small> : null}{line ? <small className="apl-party" role="status">{line}</small> : null}</div>
         </div>
         <button type="button" className="apl-big" aria-label={t.paused ? "Play" : "Pause"} onClick={toggle}>{t.paused ? Icon.play : Icon.pause}</button>
-        <div className="apl-line" onClick={scrub}><i className="apl-buf" style={{ width: `${bpct}%` }} /><i className="apl-pos" style={{ width: `${pct}%` }} /><i className="apl-knob" style={{ left: `${pct}%` }} /></div>
+        {live ? null : <div className="apl-line" onClick={scrub}><i className="apl-buf" style={{ width: `${bpct}%` }} /><i className="apl-pos" style={{ width: `${pct}%` }} /><i className="apl-knob" style={{ left: `${pct}%` }} /></div>}
         <div className="apl-bottom">
           <button type="button" className="apl-ico" aria-label={t.muted ? "Unmute" : "Mute"} onClick={() => { video.current.muted = !video.current.muted; }}>{t.muted ? Icon.muted : Icon.vol}</button>
-          <span className="apl-time">{fmt(t.cur)}{t.dur ? ` / ${fmt(t.dur)}` : ""}</span>
+          {live ? <span className="apl-live">Live</span> : <span className="apl-time">{fmt(t.cur)}{t.dur && Number.isFinite(t.dur) ? ` / ${fmt(t.dur)}` : ""}</span>}
           <span className="apl-grow" />
-          <button type="button" className="apl-ico" aria-label="Back 10 seconds" onClick={() => seek(-10)}>{Icon.back10}<em>10</em></button>
-          <button type="button" className="apl-ico" aria-label="Forward 10 seconds" onClick={() => seek(10)}>{Icon.fwd10}<em>10</em></button>
+          {live ? <>
+            {onPrev ? <button type="button" className="apl-ico apl-text" onClick={onPrev}><span>Previous channel</span></button> : null}
+          </> : <>
+            <button type="button" className="apl-ico" aria-label="Back 10 seconds" onClick={() => seek(-10)}>{Icon.back10}<em>10</em></button>
+            <button type="button" className="apl-ico" aria-label="Forward 10 seconds" onClick={() => seek(10)}>{Icon.fwd10}<em>10</em></button>
+          </>}
           {partyItem && !party.id ? <button type="button" className="apl-ico apl-text" onClick={watchParty}>{Icon.people}<span>Watch Party</span></button> : null}
           {party.id ? <button type="button" className="apl-ico apl-text" onClick={() => leaveParty()}>{Icon.people}<span>{party.hosting ? "End party" : "Leave party"}</span></button> : null}
-          {onNext ? <button type="button" className="apl-ico apl-text" onClick={onNext}>{Icon.next}<span>Next episode</span></button> : null}
+          {onNext ? <button type="button" className="apl-ico apl-text" onClick={onNext}>{Icon.next}<span>{live ? "Next channel" : "Next episode"}</span></button> : null}
           <button type="button" className="apl-ico" aria-label="Full screen" onClick={full}>{Icon.full}</button>
         </div>
       </div>

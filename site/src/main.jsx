@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import "./atlantic.css";
 import Header from "./Header.jsx";
 import Home from "./Home.jsx";
@@ -13,6 +13,7 @@ import Parties from "./Parties.jsx";
 import Anime from "./Anime.jsx";
 import AnimeTitle from "./AnimeTitle.jsx";
 import History from "./History.jsx";
+import LiveTV from "./LiveTV.jsx";
 import Player from "./Player.jsx";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -44,7 +45,8 @@ function Shell() {
             <Route path="/" element={<Home />} />
             <Route path="/title/:type/:id" element={<Title />} />
             <Route path="/movies" element={<Browse type="movie" key="movie" />} />
-            <Route path="/tv" element={<Browse type="tv" key="tv" />} />
+            <Route path="/series" element={<Browse type="tv" key="tv" />} />
+            <Route path="/tv" element={<Navigate to="/series" replace />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/search" element={<Search />} />
             <Route path="/discover" element={<Discover />} />
@@ -53,6 +55,7 @@ function Shell() {
             <Route path="/anime/:id" element={<AnimeTitle />} />
             <Route path="/anime/watch/:id/:ep" element={<AnimeTitle />} />
             <Route path="/history" element={<History />} />
+            <Route path="/live" element={<LiveTV />} />
             {import.meta.env.DEV ? <Route path="/player-test" element={<PlayerTest />} /> : null}
             <Route path="*" element={<Soon />} />
           </Routes>

@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAccount, displayName } from "./account.js";
-import { AuroraMark, NavIcon, AppsIcon, SearchIcon, Chevron, MenuIcon, MenuRowIcon } from "./icons.jsx";
+import { AuroraMark, NavIcon, SearchIcon, Chevron, MenuIcon, MenuRowIcon } from "./icons.jsx";
 
-/* atlantic.bz's header: one floating pill — the mark, five links, then the
-   apps, search and the account menu. The markup and classes are the site's. */
+/* atlantic.bz's header: one floating pill — the mark, the links, then search
+   and the account menu. The markup and classes are the site's; Aurora's own
+   changes: TV is "Series", Live TV is added, and the apps link is left out. */
 const LINK = "flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm leading-5 transition-colors";
 const ON = "bg-white font-semibold text-abyss-950";
 const OFF = "font-normal text-white/60 hover:text-white";
@@ -13,8 +14,9 @@ const ICON_BTN = "flex items-center justify-center rounded-full p-2 text-white/8
 const NAV = [
   ["/discover", "Discover", "discover"],
   ["/movies", "Movies", "movies"],
-  ["/tv", "TV", "tv"],
+  ["/series", "Series", "tv"],
   ["/anime", "Anime", "anime"],
+  ["/live", "Live TV", "live"],
   ["/parties", "Watch Parties", "parties"],
 ];
 
@@ -74,7 +76,6 @@ export default function Header() {
           </ul>
         </nav>
         <div className="ml-auto flex items-center gap-0.5">
-          <Link aria-label="Get the apps" title="Get the apps" className={ICON_BTN} to="/apps"><AppsIcon /></Link>
           <Link aria-label="Search" className={ICON_BTN} to="/search"><SearchIcon /></Link>
           <AccountMenu name={displayName() || "Guest"} />
           <button type="button" aria-label="Menu" className="flex items-center justify-center rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"><MenuIcon /></button>
