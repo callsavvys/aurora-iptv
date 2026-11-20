@@ -9,11 +9,15 @@ const require = createRequire(import.meta.url);
 const { extractKeys } = require("../scripts/extract-keys.cjs");
 const keys = extractKeys();
 const { relayPlugin } = require("./relay.cjs");
+// your own free Trakt and Simkl apps (Settings → Account → Trakt, Simkl), kept
+// out of git in trackers.local.json; only the public client ids reach the page
+const trackers = (() => { try { return require("./trackers.local.json"); } catch { return {}; } })();
 
 export default defineConfig({
   plugins: [react(), relayPlugin()],
   define: { __TMDB_KEY__: JSON.stringify(keys.tmdb || ""), __OMDB_KEY__: JSON.stringify(keys.omdb || ""),
-    __SUPABASE_URL__: JSON.stringify(keys.supabaseUrl || ""), __SUPABASE_KEY__: JSON.stringify(keys.supabaseKey || "") },
+    __SUPABASE_URL__: JSON.stringify(keys.supabaseUrl || ""), __SUPABASE_KEY__: JSON.stringify(keys.supabaseKey || ""),
+    __TRAKT_ID__: JSON.stringify(trackers.trakt?.client_id || ""), __SIMKL_ID__: JSON.stringify(trackers.simkl?.client_id || "") },
   // web/js/sync-core.js is shared with the apps (title fingerprints for parties)
   server: { port: 5180, strictPort: true, fs: { allow: [searchForWorkspaceRoot(process.cwd()), "../web/js"] } },
 });

@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { FONTS as FONT_FAMILIES } from "./subs.js";
 import { flagOf } from "./extras.js";
+import { PartyPanel } from "./PartyUI.jsx";
+import { useParty } from "./party.js";
 import "flag-icons/css/flag-icons.min.css";
 
 /* The player's settings panel, in atlantic.bz's markup (captured from its
@@ -103,8 +105,8 @@ const COLORS = ["#ffffff", "#80b1fa", "#e2e535", "#10B239"];
 export default function PlayerMenu({ view, setView, prefs, setPref, resetSubs, quality, server, subs, audio, party, live }) {
   const file = useRef(null);
   const [paste, setPaste] = useState("");
-  const [name, setName] = useState(party.name || "");
-  const [mode, setMode] = useState("private");
+  const partyRole = useParty((p) => p.role);
+  const inParty = useParty((p) => p.phase === "in" || p.phase === "reconnecting");
   const subLabel = subs.current ? (subs.tracks.find((t) => t.id === subs.current)?.label || "On") : "Off";
   let body;
   if (view === "quality") {
@@ -170,19 +172,7 @@ export default function PlayerMenu({ view, setView, prefs, setPref, resetSubs, q
     body = (
       <div className="flex flex-col gap-1">
         <Back label="Watch Party" onClick={() => setView("main")} /><Rule />
-        <div className="flex flex-col gap-3 pb-1">
-          <input className="w-full rounded-xl border border-white/15 bg-black/40 px-3 py-2 text-sm text-white/90 outline-none placeholder:text-white/30 focus:border-primary" maxLength={24} placeholder="Your display name" value={name} onChange={(e) => setName(e.target.value)} />
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2 rounded-xl bg-white/5 p-1">{["private", "public"].map((m) => <button key={m} type="button" onClick={() => setMode(m)} className={`flex-1 rounded-lg py-1.5 text-sm font-medium capitalize transition-colors ${mode === m ? "bg-white/15 text-white" : "text-white/50 hover:text-white/80"}`}>{m}</button>)}</div>
-            <p className="px-1 text-xs text-white/40">{mode === "private" ? "Only people with the code can join." : "Your friends see it under Public rooms."}</p>
-            {party.code ? <p className="px-1 text-sm font-semibold text-atlantic-300">Party code {party.code}</p> : null}
-            {party.note ? <p className="px-1 text-xs text-white/60">{party.note}</p> : null}
-            {party.active
-              ? <button type="button" onClick={party.leave} className="w-full rounded-xl py-2.5 text-center text-sm font-bold transition-all active:scale-[0.99] bg-white/10 text-white/90 hover:bg-white/20">{party.hosting ? "End the party" : "Leave the party"}</button>
-              : <button type="button" onClick={() => party.host(name)} className="w-full rounded-xl py-2.5 text-center text-sm font-bold transition-all active:scale-[0.99] bg-primary text-on-primary hover:brightness-110"><span className="flex items-center justify-center gap-2">{I.sparkles}Host a Watch Party</span></button>}
-            <button type="button" onClick={party.join} className="w-full rounded-xl py-2.5 text-center text-sm font-bold transition-all active:scale-[0.99] bg-white/10 text-white/90 hover:bg-white/20">Join a Watch Party</button>
-          </div>
-        </div>
+        <PartyPanel getHostPayload={party.getHostPayload} onClose={() => setView(null)} />
       </div>
     );
   } else if (view === "playback") {
@@ -240,7 +230,7 @@ export default function PlayerMenu({ view, setView, prefs, setPref, resetSubs, q
           <button type="button" disabled={audio.tracks.length < 2} onClick={() => setView("audio")} className={audio.tracks.length < 2 ? TILE_OFF : TILE}><div className={TILE_HEAD}>{I.volume("size-3.5 stroke-[2.5] text-white/80")}<span>AUDIO</span></div><div className="mt-2 truncate text-base font-bold tracking-tight text-white">{audio.tracks.find((a) => a.id === audio.current)?.label || "Default"}</div></button>
         </div>
         <div className="flex flex-col gap-0.5 pt-1">
-          <button type="button" onClick={() => setView("party")} className={ROW}><div className="flex items-center gap-3">{I.users}<span>Watch Party</span></div><div className="flex items-center gap-1.5">{I.right()}</div></button>
+          <button type="button" onClick={() => setView("party")} className={ROW}><div className="flex items-center gap-3">{I.users}<span>Watch Party</span></div><div className="flex items-center gap-1.5">{inParty ? <span className="rounded-full border border-[var(--pm-primary-30)] bg-[var(--pm-primary-10)] px-2 py-0.5 text-[10px] font-bold text-atlantic-300">{partyRole === "host" ? "Hosting" : "In party"}</span> : null}{I.right()}</div></button>
           <Rule m="my-1.5" />
           <div className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-label-md font-semibold text-white/90"><div className="flex items-center gap-3">{I.captions("size-4.5 stroke-[2.5] text-white/90")}<span>Enable Subtitles</span></div><Switch on={!!subs.current} onChange={subs.toggle} label="Enable Subtitles" /></div>
           <button type="button" onClick={() => setView("playback")} className={ROW}><div className="flex items-center gap-3">{I.gauge}<span>Playback Settings</span></div>{I.right()}</button>

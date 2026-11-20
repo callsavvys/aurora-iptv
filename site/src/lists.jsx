@@ -220,3 +220,11 @@ export function ListPage({ id }) {
     </div>
   );
 }
+/* Settings → Account → Clear All Lists */
+export function clearAll() { write([]); }
+/* adds entries to the list of that name, making it if need be (Trakt's and Simkl's watchlists) */
+export function addTo(name, entries) {
+  let lists = read();
+  if (!lists.some((l) => l.name === name)) lists = [...lists, { id: uid(), name, items: [], createdAt: Date.now() }];
+  write(lists.map((l) => (l.name !== name ? l : { ...l, items: [...l.items, ...entries.filter((e) => !has(l, e))] })));
+}

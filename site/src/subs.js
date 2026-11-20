@@ -34,7 +34,8 @@ export function cueAt(cues, t, delay = 0) {
 const KEY = "aurora-site-player";
 export const DEFAULTS = {
   speed: 1, picture: "Fit", noBars: false, boost: 100, brightness: 100, contrast: 100, color: 100, autoplayNext: true,
-  autoSubs: false, autoSkip: false, seek: 10, doubleTap: true,
+  autoSubs: false, autoSkip: false, autoSkipTypes: ["intro", "recap", "preview"], seek: 10, doubleTap: true,
+  buttonOrder: ["play", "rewind", "forward", "next", "volume", "captions", "episodes", "settings", "fullscreen"], hiddenButtons: [],
   native: false, delay: 0, size: 18, blur: 4, bgOpacity: 55, font: "Default", textColor: "#ffffff", subsOn: false,
 };
 /* the subtitle fonts, as the site names and sets them */

@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAccount, signedIn, startParty, attachPlayer, leaveParty, partyLine, party } from "./account.js";
+import { attachPlayer, hostMedia, useParty, getParty } from "./party.js";
+import { PartyStatus, PartyChat } from "./PartyUI.jsx";
+import { report } from "./trackers.js";
 import { getLine } from "./line.js";
 import { parseSubtitles, cueAt, loadPrefs, savePrefs, DEFAULTS, FONTS } from "./subs.js";
 import PlayerMenu from "./PlayerMenu.jsx";
+import { Svg, SIDE, fullOrder } from "./playerButtons.jsx";
 import { segments as loadSegments, subtitles as loadSubtitles, subtitleText } from "./extras.js";
 import { tmdb } from "./tmdb.js";
 
@@ -15,32 +17,25 @@ import { tmdb } from "./tmdb.js";
    M mutes, C toggles subtitles, Esc closes the panel, then the player.
 
    live: a channel — no timeline or skips, LIVE in place of the time.
-   partyItem: the title on your line, so Watch Party can start a party.
-   meta: {type, tmdb, imdb, season, episode} — for TheIntroDB's skip times
+   meta: {type, tmdb, imdb, season, episode, title, poster, backdrop} — what a
+   watch party hosts (party.js), what Trakt and Simkl hear about, TheIntroDB's skip times
    (Skip Intro, the timeline's marks, Next Episode in the credits) and
    OpenSubtitles' languages in the subtitles panel (extras.js). */
 
 const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`; };
-const Svg = {
-  back: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>,
-  play: <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15l12.5-7.5z" /></svg>,
-  pause: <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z" /></svg>,
-  skipBack: <svg width="25" height="24" viewBox="0 0 25 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13.6667 12.3333L9 7.66667M9 7.66667L13.6667 3M9 7.66667H18.3333C19.571 7.66667 20.758 8.15833 21.6332 9.0335C22.5083 9.90867 23 11.0957 23 12.3333C23 13.571 22.5083 14.758 21.6332 15.6332C20.758 16.5083 19.571 17 18.3333 17H16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M4.50426 14.2727V23H2.65909V16.0241H2.60795L0.609375 17.277V15.6406L2.76989 14.2727H4.50426ZM10.0004 23.1918C9.2674 23.1889 8.63672 23.0085 8.10831 22.6506C7.58274 22.2926 7.17791 21.7741 6.89382 21.0952C6.61257 20.4162 6.47337 19.5994 6.47621 18.6449C6.47621 17.6932 6.61683 16.8821 6.89808 16.2116C7.18217 15.5412 7.587 15.0312 8.11257 14.6818C8.64098 14.3295 9.27024 14.1534 10.0004 14.1534C10.7305 14.1534 11.3583 14.3295 11.8839 14.6818C12.4123 15.0341 12.8185 15.5455 13.1026 16.2159C13.3867 16.8835 13.5273 17.6932 13.5245 18.6449C13.5245 19.6023 13.3825 20.4205 13.0984 21.0994C12.8171 21.7784 12.4137 22.2969 11.8881 22.6548C11.3626 23.0128 10.7333 23.1918 10.0004 23.1918ZM10.0004 21.6619C10.5004 21.6619 10.8995 21.4105 11.1978 20.9077C11.4961 20.4048 11.6438 19.6506 11.641 18.6449C11.641 17.983 11.5728 17.4318 11.4364 16.9915C11.3029 16.5511 11.1126 16.2202 10.8654 15.9986C10.6211 15.777 10.3327 15.6662 10.0004 15.6662C9.5032 15.6662 9.10547 15.9148 8.80717 16.4119C8.50888 16.9091 8.35831 17.6534 8.35547 18.6449C8.35547 19.3153 8.42223 19.875 8.55575 20.3239C8.69212 20.7699 8.88388 21.1051 9.13104 21.3295C9.3782 21.5511 9.66797 21.6619 10.0004 21.6619Z" fill="currentColor" /></svg>,
-  skipFwd: <svg width="26" height="24" viewBox="0 0 26 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M11.3333 12.3333L16 7.66667M16 7.66667L11.3333 3M16 7.66667H6.66667C5.42899 7.66667 4.242 8.15833 3.36684 9.0335C2.49167 9.90867 2 11.0957 2 12.3333C2 13.571 2.49167 14.758 3.36684 15.6332C4.242 16.5083 5.42899 17 6.66667 17H9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /><path d="M16.5043 14.2727V23H14.6591V16.0241H14.608L12.6094 17.277V15.6406L14.7699 14.2727H16.5043ZM22.0004 23.1918C21.2674 23.1889 20.6367 23.0085 20.1083 22.6506C19.5827 22.2926 19.1779 21.7741 18.8938 21.0952C18.6126 20.4162 18.4734 19.5994 18.4762 18.6449C18.4762 17.6932 18.6168 16.8821 18.8981 16.2116C19.1822 15.5412 19.587 15.0312 20.1126 14.6818C20.641 14.3295 21.2702 14.1534 22.0004 14.1534C22.7305 14.1534 23.3583 14.3295 23.8839 14.6818C24.4123 15.0341 24.8185 15.5455 25.1026 16.2159C25.3867 16.8835 25.5273 17.6932 25.5245 18.6449C25.5245 19.6023 25.3825 20.4205 25.0984 21.0994C24.8171 21.7784 24.4137 22.2969 23.8881 22.6548C23.3626 23.0128 22.7333 23.1918 22.0004 23.1918ZM22.0004 21.6619C22.5004 21.6619 22.8995 21.4105 23.1978 20.9077C23.4961 20.4048 23.6438 19.6506 23.641 18.6449C23.641 17.983 23.5728 17.4318 23.4364 16.9915C23.3029 16.5511 23.1126 16.2202 22.8654 15.9986C22.6211 15.777 22.3327 15.6662 22.0004 15.6662C21.5032 15.6662 21.1055 15.9148 20.8072 16.4119C20.5089 16.9091 20.3583 17.6534 20.3555 18.6449C20.3555 19.3153 20.4222 19.875 20.5558 20.3239C20.6921 20.7699 20.8839 21.1051 21.131 21.3295C21.3782 21.5511 21.668 21.6619 22.0004 21.6619Z" fill="currentColor" /></svg>,
-  volume: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>,
-  muted: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" /></svg>,
-  captions: <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" /><path d="M7 13h3M13 13h4M7 9h4" /></svg>,
-  settings: <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M9.25 22l-.4-3.2q-.325-.125-.612-.3q-.288-.175-.563-.375L4.7 19.375l-2.75-4.75l2.575-1.95Q4.5 12.5 4.5 12.337v-.675q0-.162.025-.337L1.95 9.375l2.75-4.75l2.975 1.25q.275-.2.575-.375q.3-.175.6-.3l.4-3.2h5.5l.4 3.2q.325.125.613.3q.287.175.562.375l2.975-1.25l2.75 4.75l-2.575 1.95q.025.175.025.337v.675q0 .163-.05.338l2.575 1.95l-2.75 4.75l-2.95-1.25q-.275.2-.575.375q-.3.175-.6.3l-.4 3.2h-5.5Zm2.8-6.5q1.45 0 2.475-1.025Q15.55 13.45 15.55 12q0-1.45-1.025-2.475Q13.5 8.5 12.05 8.5q-1.475 0-2.488 1.025Q8.55 10.55 8.55 12q0 1.45 1.012 2.475Q10.575 15.5 12.05 15.5Z" /></svg>,
-  full: <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" /></svg>,
-  next: <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" /></svg>,
-  prev: <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" /></svg>,
-};
 const BTN = "inline-flex shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:p-2";
 const RATIO = { "16:9": 16 / 9, "4:3": 4 / 3, "21:9": 21 / 9 };
 
-export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, onPrev, partyItem, live = false, meta }) {
-  const nav = useNavigate();
+export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, onPrev, onEpisodes, live: liveProp = false, meta }) {
   const video = useRef(null), wrap = useRef(null), hlsRef = useRef(null), hideTimer = useRef(null), audioCtx = useRef(null);
+  // live: true for a channel, or "auto" to tell from the stream (no end means live)
+  const [live, setLive] = useState(liveProp === true);
+  useEffect(() => {
+    const v = video.current; if (!v || liveProp !== "auto") return undefined;
+    const check = () => setLive(v.duration === Infinity);
+    v.addEventListener("loadedmetadata", check); v.addEventListener("durationchange", check);
+    return () => { v.removeEventListener("loadedmetadata", check); v.removeEventListener("durationchange", check); };
+  }, [liveProp]);
   const [t, setT] = useState({ cur: 0, dur: 0, buf: 0, paused: false, muted: false, volume: 1, waiting: true });
   const [shown, setShown] = useState(true);
   const [error, setError] = useState("");
@@ -58,15 +53,38 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   const [segs, setSegs] = useState([]);
   const [online, setOnline] = useState(null);   // OpenSubtitles' languages, once looked up
   const skipped = useRef(new Set());
-  useAccount();
-  const unparty = useRef(() => {});
+  const partyPhase = useParty((p) => p.phase), partyRole = useParty((p) => p.role);
 
   const setPref = useCallback((k, v) => setPrefs((p) => { const n = { ...p, [k]: v }; savePrefs(n); return n; }), []);
   const poke = useCallback(() => { setShown(true); clearTimeout(hideTimer.current); hideTimer.current = setTimeout(() => { if (!video.current?.paused) setShown(false); }, 3000); }, []);
   const toggle = () => { const v = video.current; if (!v) return; if (v.paused) v.play().catch(() => {}); else v.pause(); poke(); };
   const seek = (d) => { const v = video.current; if (!v || !v.duration || live) return; v.currentTime = Math.max(0, Math.min(v.duration - 1, v.currentTime + d)); poke(); };
   const full = () => { const el = wrap.current; if (!document.fullscreenElement) el?.requestFullscreen?.().catch(() => {}); else document.exitFullscreen?.(); };
-  const close = () => { leaveParty(); onClose?.(); };
+  const close = () => { onClose?.(); };
+
+  // (declared before the stream, so on closing these let go while the video still has its position)
+  // the watch party: the host's video is the room's clock, a guest's follows it (party.js);
+  // a host who moves to another episode takes the room along
+  const media = meta?.tmdb && !live ? { type: meta.type, tmdb: meta.tmdb, season: meta.season || 0, episode: meta.episode || 0, title: meta.title || title, poster: meta.poster || "", backdrop: meta.backdrop || "" } : null;
+  useEffect(() => (partyPhase === "in" ? attachPlayer(video.current, media) : undefined), [partyPhase, partyRole]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (partyPhase === "in" && partyRole === "host" && media) hostMedia(media); }, [partyPhase, partyRole, media?.tmdb, media?.season, media?.episode]); // eslint-disable-line react-hooks/exhaustive-deps
+  const getHostPayload = media ? () => { const v = video.current; return { media, playing: !!v && !v.paused, time: v?.currentTime || 0, rate: v?.playbackRate || 1 }; } : null;
+
+  // Trakt and Simkl hear start, pause and stop, with how far it got
+  const lastPos = useRef({ cur: 0, dur: 0 });
+  useEffect(() => {
+    const v = video.current; if (!v || !media) return undefined;
+    const pct = () => (v.duration ? (v.currentTime / v.duration) * 100 : 0);
+    const keep = () => { if (v.duration) lastPos.current = { cur: v.currentTime, dur: v.duration }; };
+    v.addEventListener("timeupdate", keep);
+    const start = () => report(media, "start", pct()), pause = () => { if (!v.ended) report(media, "pause", pct()); }, stop = () => report(media, "stop", pct());
+    v.addEventListener("playing", start); v.addEventListener("pause", pause); v.addEventListener("ended", stop);
+    return () => {
+      v.removeEventListener("playing", start); v.removeEventListener("pause", pause); v.removeEventListener("ended", stop); v.removeEventListener("timeupdate", keep);
+      const { cur, dur } = lastPos.current;
+      if (dur && !v.ended) { const p = (cur / dur) * 100; report(media, p >= 90 ? "stop" : "pause", p); }
+    };
+  }, [src]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // the stream
   useEffect(() => {
@@ -139,7 +157,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   }, [meta?.tmdb, meta?.season, meta?.episode, live]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // speed, the volume booster, the window's size (for fixed picture shapes)
-  useEffect(() => { const v = video.current; if (v && !live && !party.id) v.playbackRate = prefs.speed; }, [prefs.speed, live]);
+  useEffect(() => { const v = video.current; if (v && !live && getParty().phase !== "in") v.playbackRate = prefs.speed; }, [prefs.speed, live]);
   useEffect(() => {
     const v = video.current; if (!v || (prefs.boost <= 100 && !audioCtx.current)) return;
     try {
@@ -187,18 +205,6 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
     setSub(id); setPref("subsOn", true);
   };
 
-  // the watch party: a party already open (joined by code) follows its host from the start
-  useEffect(() => { unparty.current = attachPlayer(video.current); return () => unparty.current(); }, []);
-  const hostParty = async () => {
-    if (!signedIn()) { setNote("Sign in first, in Settings → Account, to start a watch party."); return; }
-    if (!partyItem) { setNote("Start a watch party from a film or an episode."); return; }
-    setNote("Starting the party…");
-    const r = await startParty(partyItem);
-    if (r.error) { setNote(r.error); return; }
-    unparty.current(); unparty.current = attachPlayer(video.current);
-    setNote("");
-  };
-
   // keys
   useEffect(() => {
     const key = (e) => {
@@ -238,7 +244,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   const segLabel = !seg ? "" : seg.kind === "credits" ? (onNext ? "Next Episode" : "Skip Credits") : `Skip ${seg.kind[0].toUpperCase()}${seg.kind.slice(1)}`;
   const skipSeg = () => { const v = video.current; if (!v || !seg) return; if (seg.kind === "credits" && onNext) onNext(); else v.currentTime = Math.min((seg.end ?? v.duration) || v.duration, v.duration - 0.25); poke(); };
   useEffect(() => {
-    if (!prefs.autoSkip || !seg || seg.kind === "credits") return;
+    if (!prefs.autoSkip || !seg || !(prefs.autoSkipTypes || []).includes(seg.kind)) return;
     const k = `${seg.kind}:${seg.start}`;
     if (skipped.current.has(k)) return;
     skipped.current.add(k); skipSeg();
@@ -253,7 +259,33 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   const filter = [prefs.brightness !== 100 && `brightness(${prefs.brightness}%)`, prefs.contrast !== 100 && `contrast(${prefs.contrast}%)`, prefs.color !== 100 && `saturate(${prefs.color}%)`].filter(Boolean).join(" ");
   const chosen = levels.find((l) => l.id === level.current);
   const qualityLabel = levels.length ? (level.auto ? `Auto${chosen ? ` (${chosen.height}p)` : ""}` : `${chosen?.height || ""}p`) : (video.current?.videoHeight ? `${video.current.videoHeight}p` : "Original");
-  const line = partyLine() || note;
+  const line = note;
+  // the bar's buttons in the order Settings → Playback → Your Player keeps (hidden ones left out)
+  const order = fullOrder(prefs.buttonOrder).filter((id) => !(prefs.hiddenButtons || []).includes(id));
+  const button = (id) => {
+    switch (id) {
+      case "play": return <button key={id} type="button" className="inline-flex shrink-0 items-center justify-center p-1.5 sm:p-2 text-white hover:text-atlantic-300" aria-label={t.paused ? "Play" : "Pause"} onClick={toggle}>{t.paused ? Svg.play : Svg.pause}</button>;
+      case "rewind": return live ? (onPrev ? <button key={id} type="button" className={BTN} aria-label="Previous channel" onClick={onPrev}>{Svg.prev}</button> : null)
+        : <button key={id} type="button" className="hidden shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:inline-flex sm:p-2" aria-label="Skip back" onClick={() => seek(-prefs.seek)}>{Svg.skipBack}</button>;
+      case "forward": return live ? (onNext ? <button key={id} type="button" className={BTN} aria-label="Next channel" onClick={onNext}>{Svg.next}</button> : null)
+        : <button key={id} type="button" className="hidden shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:inline-flex sm:p-2" aria-label="Skip forward" onClick={() => seek(prefs.seek)}>{Svg.skipFwd}</button>;
+      case "next": return !live && onNext ? <button key={id} type="button" className={BTN} aria-label="Next episode" title="Next episode" onClick={onNext}>{Svg.next}</button> : null;
+      case "volume": return (
+        <div key={id} className="flex shrink-0 cursor-pointer touch-none items-center py-0" onMouseEnter={() => setVolOpen(true)} onMouseLeave={() => setVolOpen(false)}>
+          <button type="button" className="px-2 text-white/80 hover:text-white" aria-label={t.muted ? "Unmute" : "Mute"} onClick={() => { video.current.muted = !video.current.muted; }}>{t.muted || t.volume === 0 ? Svg.muted : Svg.volume}</button>
+          <div className={`linear -ml-1 overflow-hidden transition-[width,opacity] duration-300 ${volOpen ? "w-20 opacity-100" : "w-0 opacity-0"}`}>
+            <div className="flex h-8 w-20 items-center px-2" onPointerDown={volume}><div className="relative h-1 flex-1 rounded-full bg-white/25"><div className="absolute inset-y-0 left-0 flex items-center justify-end rounded-full bg-atlantic-400" style={{ width: `${t.muted ? 0 : t.volume * 100}%` }}><div className="h-3 w-3 translate-x-1/2 rounded-full bg-white" /></div></div></div>
+          </div>
+        </div>
+      );
+      case "captions": return <div key={id} className="relative"><button type="button" className={`inline-flex shrink-0 items-center justify-center p-1.5 hover:text-white sm:p-2 ${sub ? "text-atlantic-300" : "text-white/80"}`} aria-label="Captions" data-tour="player-captions" onClick={() => setMenu((m) => (m === "subtitles" ? null : "subtitles"))}>{Svg.captions}</button></div>;
+      case "episodes": return onEpisodes && !live ? <button key={id} type="button" className={BTN} aria-label="Episodes" onClick={onEpisodes}>{Svg.episodes}</button> : null;
+      case "settings": return <div key={id} className="relative"><button type="button" className={BTN} aria-label="Settings" data-tour="player-settings" onClick={() => setMenu((m) => (m ? null : "main"))}>{Svg.settings}</button></div>;
+      case "fullscreen": return <button key={id} type="button" className={BTN} aria-label="Fullscreen" onClick={full}>{Svg.full}</button>;
+      default: return null;
+    }
+  };
+  const left = order.filter((id) => SIDE[id] === "left"), right = order.filter((id) => SIDE[id] === "right");
   const lastSub = () => (prefs.lastSub && tracks.some((x) => x.id === prefs.lastSub) ? prefs.lastSub : "auto");
 
   return (
@@ -290,29 +322,15 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
             </div></div></div></div>
           )}
           <div className="mt-1 flex items-center gap-0.5 overflow-x-auto sm:gap-1">
-            <button type="button" className="inline-flex shrink-0 items-center justify-center p-1.5 sm:p-2 text-white hover:text-atlantic-300" aria-label={t.paused ? "Play" : "Pause"} onClick={toggle}>{t.paused ? Svg.play : Svg.pause}</button>
-            {live ? <>
-              {onPrev ? <button type="button" className={BTN} aria-label="Previous channel" onClick={onPrev}>{Svg.prev}</button> : null}
-              {onNext ? <button type="button" className={BTN} aria-label="Next channel" onClick={onNext}>{Svg.next}</button> : null}
-            </> : <>
-              <button type="button" className="hidden shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:inline-flex sm:p-2" aria-label="Skip back" onClick={() => seek(-prefs.seek)}>{Svg.skipBack}</button>
-              <button type="button" className="hidden shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:inline-flex sm:p-2" aria-label="Skip forward" onClick={() => seek(prefs.seek)}>{Svg.skipFwd}</button>
-            </>}
-            <div className="flex shrink-0 cursor-pointer touch-none items-center py-0" onMouseEnter={() => setVolOpen(true)} onMouseLeave={() => setVolOpen(false)}>
-              <button type="button" className="px-2 text-white/80 hover:text-white" aria-label={t.muted ? "Unmute" : "Mute"} onClick={() => { video.current.muted = !video.current.muted; }}>{t.muted || t.volume === 0 ? Svg.muted : Svg.volume}</button>
-              <div className={`linear -ml-1 overflow-hidden transition-[width,opacity] duration-300 ${volOpen ? "w-20 opacity-100" : "w-0 opacity-0"}`}>
-                <div className="flex h-8 w-20 items-center px-2" onPointerDown={volume}><div className="relative h-1 flex-1 rounded-full bg-white/25"><div className="absolute inset-y-0 left-0 flex items-center justify-end rounded-full bg-atlantic-400" style={{ width: `${t.muted ? 0 : t.volume * 100}%` }}><div className="h-3 w-3 translate-x-1/2 rounded-full bg-white" /></div></div></div>
-              </div>
-            </div>
+            {left.map(button)}
             {live ? <span className="ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-md bg-red-600 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-white">Live</span>
-              : <span className="shrink-0 whitespace-nowrap px-1 text-xs text-white/80 sm:px-2 sm:text-sm">{fmt(t.cur)} / {fmt(t.dur)}</span>}
+              : left.length ? <span className="shrink-0 whitespace-nowrap px-1 text-xs text-white/80 sm:px-2 sm:text-sm">{fmt(t.cur)} / {fmt(t.dur)}</span> : null}
             <div className="flex-1" />
-            {!live && onNext ? <button type="button" className={BTN} aria-label="Next episode" title="Next episode" onClick={onNext}>{Svg.next}</button> : null}
-            <div className="relative"><button type="button" className={`inline-flex shrink-0 items-center justify-center p-1.5 hover:text-white sm:p-2 ${sub ? "text-atlantic-300" : "text-white/80"}`} aria-label="Captions" data-tour="player-captions" onClick={() => setMenu((m) => (m === "subtitles" ? null : "subtitles"))}>{Svg.captions}</button></div>
-            <div className="relative"><button type="button" className={BTN} aria-label="Settings" data-tour="player-settings" onClick={() => setMenu((m) => (m ? null : "main"))}>{Svg.settings}</button></div>
-            <button type="button" className={BTN} aria-label="Fullscreen" onClick={full}>{Svg.full}</button>
+            {right.map(button)}
           </div>
         </div>
+        <PartyStatus controlsVisible={visible} />
+        <PartyChat controlsVisible={visible} />
         {menu ? (
           <PlayerMenu view={menu} setView={setMenu} prefs={prefs} setPref={setPref} live={live}
             resetSubs={() => setPrefs((p) => { const n = { ...p, native: DEFAULTS.native, delay: DEFAULTS.delay, size: DEFAULTS.size, blur: DEFAULTS.blur, font: DEFAULTS.font, textColor: DEFAULTS.textColor }; savePrefs(n); return n; })}
@@ -325,7 +343,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
               online, chosenOnline: tracks.find((x) => x.id === sub)?.os,
               pickOnline: (lang, file) => { setNote(`Loading ${lang.name} subtitles…`); subtitleText(file).then((txt) => { addFile(lang.name, txt, file.id); setNote(""); setMenu(null); }).catch(() => setNote("Those subtitles did not download. Try another.")); } }}
             audio={{ tracks: audios.tracks, current: audios.current, choose: (id) => { if (hlsRef.current) hlsRef.current.audioTrack = id; else if (video.current?.audioTracks) [...video.current.audioTracks].forEach((a, i) => { a.enabled = i === id; }); setAudios((a) => ({ ...a, current: id })); } }}
-            party={{ code: party.code, active: !!party.id, hosting: party.hosting, note, host: hostParty, leave: () => leaveParty(), join: () => { close(); nav("/parties"); } }}
+            party={{ getHostPayload }}
           />
         ) : null}
       </div>

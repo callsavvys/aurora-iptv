@@ -30,7 +30,7 @@ function Episodes({ tvId, seasons, onPlay }) {
   const [eps, setEps] = useState([]);
   useEffect(() => { setEps([]); tmdb(`/tv/${tvId}/season/${n}`).then((s) => setEps(s.episodes || [])).catch(() => {}); }, [tvId, n]);
   return (
-    <section className="px-6 py-10 sm:px-[60px]">
+    <section id="episodes" className="px-6 py-10 sm:px-[60px]">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">Episodes</h2>
         <select value={n} onChange={(e) => setN(Number(e.target.value))} className="rounded border border-white/10 bg-abyss-900 px-3 py-1.5 text-sm text-white outline-none">
@@ -78,7 +78,7 @@ export default function Title() {
         const key = progressKey("movie", id);
         const p = getProgress(key);
         setNote("");
-        setPlayer({ src: streamUrl(hit), title: name, subtitle: "", startAt: p && p.position < p.duration - 60 ? p.position : 0, key, item: hit, meta: { type, tmdb: Number(id), imdb: d.external_ids?.imdb_id || d.imdb_id } });
+        setPlayer({ src: streamUrl(hit), title: name, subtitle: "", startAt: p && p.position < p.duration - 60 ? p.position : 0, key, item: hit, meta: { type, tmdb: Number(id), imdb: d.external_ids?.imdb_id || d.imdb_id, title: name, poster: d.poster_path || "", backdrop: d.backdrop_path || "" } });
         return;
       }
       const eps = await lineEpisodes(hit.id);
@@ -96,11 +96,12 @@ export default function Title() {
       // the episode's name from TMDB, when Play or Next started it without one
       if (!epName) epName = await tmdb(`/tv/${id}/season/${s}`).then((x) => (x.episodes || []).find((q) => q.episode_number === e)?.name || "").catch(() => "");
       setNote("");
-      setPlayer({ src: streamUrl(hit, ep), title: name, subtitle: `S${s}E${e}${epName ? ` - ${epName}` : ""}`, startAt: p && p.position < p.duration - 60 ? p.position : 0, key, item: hit, meta: { type, tmdb: Number(id), imdb: d.external_ids?.imdb_id, season: s, episode: e },
+      setPlayer({ src: streamUrl(hit, ep), title: name, subtitle: `S${s}E${e}${epName ? ` - ${epName}` : ""}`, startAt: p && p.position < p.duration - 60 ? p.position : 0, key, item: hit, meta: { type, tmdb: Number(id), imdb: d.external_ids?.imdb_id, season: s, episode: e, title: name, poster: d.poster_path || "", backdrop: d.backdrop_path || "" },
         next: nextEp ? () => play(nextEp.season, nextEp.number) : null });
     } catch (err) { setNote(err.message || "Your line did not answer."); }
   }, [d, type, id, nav]);
-  useEffect(() => { if (d && !d.error && search.get("play") === "1") play(); }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
+  // ?play=1 plays it (a watch party sends guests here, with &s=&e= for an episode)
+  useEffect(() => { if (d && !d.error && search.get("play") === "1") play(Number(search.get("s")) || undefined, Number(search.get("e")) || undefined); }, [d, search.toString()]); // eslint-disable-line react-hooks/exhaustive-deps
   const onProgress = useCallback((position, duration) => { if (player?.key) saveProgress(player.key, { position, duration }); }, [player?.key]);
 
   if (!d) return <div className="relative z-10 -mt-[60px] h-[calc(75vh+60px)] min-h-[560px] w-full" />;
@@ -204,7 +205,8 @@ export default function Title() {
         </div>
       </div>
       {note ? <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-2xl border border-white/10 bg-pagebg/95 px-4 py-3 text-sm text-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] backdrop-blur-md">{note}</div> : null}
-      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => setPlayer(null)} onNext={player.next || undefined} onEnded={() => player.next?.()} partyItem={player.item} meta={player.meta} /> : null}
+      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (search.get("play")) nav(`/title/${type}/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} meta={player.meta}
+        onEpisodes={type === "tv" ? () => { setPlayer(null); setTimeout(() => document.getElementById("episodes")?.scrollIntoView({ behavior: "smooth" }), 100); } : undefined} /> : null}
     </div>
   );
 }

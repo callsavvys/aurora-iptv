@@ -1,13 +1,90 @@
-/* Your IPTV line: the login you type in Settings → Source, kept in this
-   browser only; the line's film and series lists; and finding a TMDB title on
-   them — by the TMDB id the provider attaches when it has one, else by the
-   cleaned name and year (the TV app's matcher, web/js/sources.js). Every
-   request goes through the site's relay (relay.cjs). */
+/* Your source, kept in this browser only: an Xtream Codes login
+   ({kind: "xtream", server, username, password}) or an M3U playlist
+   ({kind: "m3u", url} for a link, {kind: "m3u", file} for a file you picked,
+   kept in IndexedDB); its film, series and channel lists; and finding a TMDB
+   title on them — by the TMDB id the provider attaches when it has one, else
+   by the cleaned name and year (the TV app's matcher, web/js/sources.js).
+   Every request goes through the site's relay (relay.cjs). */
 
 const KEY = "aurora-site-line";
 export const getLine = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch { return null; } };
-export const setLine = (cfg) => { localStorage.setItem(KEY, JSON.stringify(cfg)); lib = null; loading = null; live = null; };
-export const clearLine = () => { localStorage.removeItem(KEY); lib = null; loading = null; live = null; };
+export const setLine = (cfg) => { localStorage.setItem(KEY, JSON.stringify(cfg)); lib = null; loading = null; live = null; m3u = null; };
+export const clearLine = () => { localStorage.removeItem(KEY); lib = null; loading = null; live = null; m3u = null; };
+const isM3u = (cfg = getLine()) => cfg?.kind === "m3u";
+/* what the source is, in a few words */
+export function lineLabel(cfg = getLine()) {
+  if (!cfg) return "";
+  if (isM3u(cfg)) return `M3U playlist · ${cfg.name || (cfg.file ? cfg.file : "link")}`;
+  return `Xtream Codes · ${cfg.name || cfg.server}`;
+}
+
+/* ---- an M3U playlist: kept as text (a picked file lives in IndexedDB) ---- */
+function idb(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open("aurora-site", 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("files");
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => { const tx = open.result.transaction("files", mode); const req = fn(tx.objectStore("files")); tx.oncomplete = () => resolve(req?.result); tx.onerror = () => reject(tx.error); };
+  });
+}
+export const savePlaylistFile = (text) => idb("readwrite", (st) => st.put(text, "m3u"));
+const playlistFile = () => idb("readonly", (st) => st.get("m3u"));
+
+const ATTR = /([\w-]+)="([^"]*)"/g;
+const SE = /\bS(\d{1,2})\s*[._ -]?\s*E(\d{1,3})\b/i;
+const FILE = /\.(mp4|mkv|avi|mov|m4v|webm|wmv|flv)(\?|$)/i;
+/* each entry sorted into channels, films, and series' episodes (by its address and name) */
+export function parseM3u(text) {
+  const lines = String(text || "").replace(/\r/g, "").split("\n");
+  const out = { live: [], movies: [], series: [] };
+  const shows = new Map();
+  let info = null;
+  for (const raw of lines) {
+    const ln = raw.trim();
+    if (!ln) continue;
+    if (ln.startsWith("#EXTINF")) {
+      const attrs = {};
+      for (const m of ln.matchAll(ATTR)) attrs[m[1].toLowerCase()] = m[2];
+      const comma = ln.indexOf(",", ln.lastIndexOf('"') + 1 || 0);
+      info = { name: (comma >= 0 ? ln.slice(comma + 1) : "").trim() || attrs["tvg-name"] || "Untitled", logo: attrs["tvg-logo"] || "", group: attrs["group-title"] || "", tmdb: Number(attrs["tvg-tmdb"] || attrs["tmdb"] || 0) || 0 };
+      continue;
+    }
+    if (ln.startsWith("#")) continue;
+    const it = info || { name: ln.split("/").pop() || "Untitled", logo: "", group: "", tmdb: 0 };
+    info = null;
+    const se = SE.exec(it.name);
+    if (/\/series\//i.test(ln) || se) {
+      const showName = (se ? it.name.slice(0, se.index) : it.name).replace(/[\s\-–|:]+$/, "").trim() || it.group || "Series";
+      const key = norm(cleanTitle(showName));
+      if (!shows.has(key)) shows.set(key, { id: `s${shows.size}`, kind: "series", name: showName, year: yearIn(showName), rawYear: yearIn(showName), tmdb: 0, episodes: {} });
+      const show = shows.get(key);
+      const season = se ? Number(se[1]) : 1;
+      const eps = (show.episodes[season] = show.episodes[season] || []);
+      eps.push({ id: `${show.id}e${season}-${eps.length}`, season, number: se ? Number(se[2]) : eps.length + 1, title: it.name, url: ln });
+    } else if (/\/movie\//i.test(ln) || FILE.test(ln)) {
+      out.movies.push({ id: `m${out.movies.length}`, kind: "movie", name: it.name, year: yearIn(it.name), rawYear: yearIn(it.name), tmdb: it.tmdb, url: ln, logo: it.logo });
+    } else {
+      out.live.push({ id: `l${out.live.length}`, kind: "live", name: it.name, logo: it.logo, number: out.live.length + 1, group: it.group || "Channels", url: ln });
+    }
+  }
+  out.series = [...shows.values()];
+  for (const s of out.series) for (const list of Object.values(s.episodes)) list.sort((a, b) => a.number - b.number);
+  return out;
+}
+let m3u = null;
+async function playlist(cfg = getLine()) {
+  if (m3u) return m3u;
+  let text = "";
+  if (cfg?.text) text = cfg.text;   // a file being tried, before it is kept
+  else if (cfg?.url) {
+    const r = await fetch(relay(cfg.url));
+    if (!r.ok) throw new Error(`The playlist's server answered ${r.status}`);
+    text = await r.text();
+  } else if (!cfg?.text) text = (await playlistFile()) || "";
+  if (!/#EXTM3U|#EXTINF/i.test(text)) throw new Error("That is not an M3U playlist");
+  m3u = parseM3u(text);
+  return m3u;
+}
 
 const relay = (url) => `/api/proxy?u=${encodeURIComponent(url)}`;
 function parts(cfg = getLine()) {
@@ -25,6 +102,13 @@ async function api(action = "", extra = "", cfg) {
 }
 
 export async function testLine(cfg) {
+  if (isM3u(cfg)) {
+    m3u = null;
+    const p = await playlist(cfg);
+    const n = p.live.length + p.movies.length + p.series.length;
+    if (!n) throw new Error("The playlist has nothing in it");
+    return { live: p.live.length, movies: p.movies.length, series: p.series.length };
+  }
   const a = await api("", "", cfg);
   if (Number(a?.user_info?.auth) !== 1) throw new Error("The provider did not accept this login");
   if (a.user_info.status && a.user_info.status !== "Active") throw new Error(`The account is ${a.user_info.status.toLowerCase()}`);
@@ -48,12 +132,18 @@ let lib = null, loading = null;
 export function loadLibrary(onProgress = () => {}) {
   if (lib) return Promise.resolve(lib);
   return (loading = loading || (async () => {
-    onProgress("Loading films from your line…");
-    const vs = await api("get_vod_streams");
-    onProgress("Loading series from your line…");
-    const ss = await api("get_series");
-    const movies = (vs || []).map((x) => ({ id: x.stream_id, kind: "movie", name: x.name, year: yearIn(x.year || x.releaseDate || x.name), ext: x.container_extension || "mp4", tmdb: Number(x.tmdb || x.tmdb_id) || 0, rawYear: x.year || String(x.releaseDate || "").slice(0, 4) }));
-    const series = (ss || []).map((x) => ({ id: x.series_id, kind: "series", name: x.name, year: yearIn(x.releaseDate || x.name), tmdb: Number(x.tmdb || x.tmdb_id) || 0, rawYear: String(x.releaseDate || "").slice(0, 4) }));
+    let movies, series;
+    if (isM3u()) {
+      onProgress("Loading your playlist…");
+      ({ movies, series } = await playlist());
+    } else {
+      onProgress("Loading films from your line…");
+      const vs = await api("get_vod_streams");
+      onProgress("Loading series from your line…");
+      const ss = await api("get_series");
+      movies = (vs || []).map((x) => ({ id: x.stream_id, kind: "movie", name: x.name, year: yearIn(x.year || x.releaseDate || x.name), ext: x.container_extension || "mp4", tmdb: Number(x.tmdb || x.tmdb_id) || 0, rawYear: x.year || String(x.releaseDate || "").slice(0, 4) }));
+      series = (ss || []).map((x) => ({ id: x.series_id, kind: "series", name: x.name, year: yearIn(x.releaseDate || x.name), tmdb: Number(x.tmdb || x.tmdb_id) || 0, rawYear: String(x.releaseDate || "").slice(0, 4) }));
+    }
     // rawYear is the year exactly as the apps read it, so watch-party fingerprints agree (web/js/sources.js)
     const byTmdb = new Map(), byName = new Map();
     for (const it of [...movies, ...series]) {
@@ -86,6 +176,12 @@ function tidyCategory(name) {
 let live = null;
 export function loadLive() {
   return (live = live || (async () => {
+    if (isM3u()) {
+      const { live: chans } = await playlist();
+      const groups = [];
+      const channels = chans.map((c) => { if (!groups.includes(c.group)) groups.push(c.group); return { ...c, categoryId: String(groups.indexOf(c.group)) }; });
+      return { categories: groups.map((g, i) => ({ id: String(i), name: tidyCategory(g), count: channels.filter((c) => c.categoryId === String(i)).length })), channels };
+    }
     const [cats, streams] = await Promise.all([api("get_live_categories"), api("get_live_streams")]);
     const channels = (streams || []).map((x, i) => ({ id: x.stream_id, kind: "live", name: x.name, logo: x.stream_icon || "", number: x.num || i + 1, categoryId: String(x.category_id) }));
     const count = new Map();
@@ -97,6 +193,7 @@ export function loadLive() {
 /* what is on a channel now and next, from the line's guide (titles come base64-encoded) */
 const unbase = (s) => { try { return decodeURIComponent(escape(atob(s || ""))); } catch { return s || ""; } };
 export async function nowNext(ch) {
+  if (isM3u()) return [];
   const r = await api("get_short_epg", `&stream_id=${ch.id}&limit=2`).catch(() => null);
   return (r?.epg_listings || []).map((e) => ({ title: unbase(e.title), start: Number(e.start_timestamp) * 1000, end: Number(e.stop_timestamp) * 1000 }));
 }
@@ -119,6 +216,7 @@ export async function findOnLine({ type, id, title, originalTitle, year }) {
 
 /* a series' seasons and episodes as the line has them */
 export async function lineEpisodes(seriesId) {
+  if (isM3u()) return (await playlist()).series.find((s) => s.id === seriesId)?.episodes || {};
   const r = await api("get_series_info", `&series_id=${seriesId}`);
   const eps = r.episodes || {};
   const out = {};
@@ -129,7 +227,16 @@ export async function lineEpisodes(seriesId) {
 }
 
 /* where to play it from, through the relay (a live channel is HLS) */
+/* an M3U channel as HLS: browsers cannot play MPEG-TS, and an Xtream
+   server's playlist lists channels as …/user/pass/123(.ts) */
+function hlsOf(url) {
+  if (/\.m3u8(\?|$)/i.test(url)) return url;
+  const m = /^(https?:\/\/[^/]+)\/(?:live\/)?([^/]+)\/([^/]+)\/(\d+)(?:\.ts)?$/i.exec(url);
+  return m ? `${m[1]}/live/${m[2]}/${m[3]}/${m[4]}.m3u8` : url;
+}
 export function streamUrl(hit, episode) {
+  if (episode?.url) return relay(episode.url);
+  if (hit.url) return relay(hit.kind === "live" ? hlsOf(hit.url) : hit.url);
   const x = parts();
   if (!x) return "";
   if (hit.kind === "live") return relay(`${x.server}/live/${x.u}/${x.p}/${hit.id}.m3u8`);
@@ -164,7 +271,7 @@ export function forgetProgress(type, id) {
 }
 export function saveProgress(key, data) {
   const all = readAll();
-  all[key] = { ...data, at: Date.now() };
+  all[key] = { at: Date.now(), ...data };
   localStorage.setItem(PKEY, JSON.stringify(all));
 }
 
@@ -181,3 +288,17 @@ export function toggleWatched(t) {
   return !!all[key];
 }
 export function unwatch(type, id) { const all = readWatched(); delete all[`${type}:${id}`]; writeWatched(all); }
+
+/* Settings → Account → Clear Watch History: progress, watched marks and where each series was left */
+export function clearHistory() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k === PKEY || k === WKEY || k.startsWith("aurora-site-last:")) localStorage.removeItem(k);
+  } catch { /* private mode */ }
+}
+/* marks a title watched (Trakt and Simkl's history), leaving one already marked as it is */
+export function markWatched(t) {
+  const all = readWatched(), key = `${t.type}:${t.id}`;
+  if (all[key]) return;
+  all[key] = { type: t.type, id: t.id, title: t.title, poster: t.poster || "", year: t.year || "", at: t.at || Date.now() };
+  writeWatched(all);
+}

@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import "./atlantic.css";
 import Header from "./Header.jsx";
 import Home from "./Home.jsx";
@@ -19,6 +19,13 @@ import Person from "./Person.jsx";
 import { ListPage, useLists } from "./lists.jsx";
 import { ThemeLayer } from "./themes.jsx";
 import Player from "./Player.jsx";
+import Welcome from "./Welcome.jsx";
+import Sources from "./Sources.jsx";
+import { PartyPill, Invite } from "./PartyUI.jsx";
+import { useAccount } from "./account.js";
+import { getLine } from "./line.js";
+import { useParty } from "./party.js";
+import { syncDaily } from "./trackers.js";
 
 /* a page for trying the player on a public test stream, in development only */
 function PlayerTest() {
@@ -52,9 +59,47 @@ function List() {
   return useLists().some((l) => l.id === id) ? <ListPage id={id} /> : <NotFound />;
 }
 
+/* Netflix's way in: no account → the welcome page (sign up or log in);
+   signed in with no source yet → Connect a source, once. A party invite and
+   the welcome page itself are open to anyone. */
+function Gate({ children }) {
+  const { user, loaded, accounts } = useAccount();
+  const { pathname } = useLocation();
+  const partying = useParty((p) => p.phase === "in" || p.phase === "reconnecting");
+  // a guest in a party (an account is not needed for a private one) may go where the party plays
+  const open = pathname === "/welcome" || pathname === "/welcome-preview" || pathname.startsWith("/party/") || (partying && pathname.startsWith("/title/"));
+  if (!accounts) return children;
+  if (!loaded) return open ? children : null;
+  if (!user && !open) return <Navigate to="/welcome" replace />;
+  if (user && pathname === "/welcome") return <Navigate to={getLine() ? "/" : "/sources?first=1"} replace />;
+  let later = false;
+  try { later = localStorage.getItem("aurora-site-source-later") === "1"; } catch { /* private mode */ }
+  if (user && !getLine() && !later && pathname !== "/sources" && !open) return <Navigate to="/sources?first=1" replace />;
+  return children;
+}
+
 function Shell() {
   const { pathname } = useLocation();
+  const [search] = useSearchParams();
   React.useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  React.useEffect(() => { syncDaily(); }, []);
+  const bare = pathname === "/welcome" || (import.meta.env.DEV && pathname === "/welcome-preview") || (pathname === "/sources" && search.get("first") === "1");
+  if (bare) {
+    return (
+      <>
+      <ThemeLayer />
+      <div className="relative z-[1]">
+        <Gate>
+          <Routes>
+            <Route path="/welcome" element={<Welcome />} />
+            {import.meta.env.DEV ? <Route path="/welcome-preview" element={<Welcome />} /> : null}
+            <Route path="/sources" element={<Sources />} />
+          </Routes>
+        </Gate>
+      </div>
+      </>
+    );
+  }
   return (
     <>
     <ThemeLayer />
@@ -62,6 +107,7 @@ function Shell() {
       <div className="relative min-h-dvh w-full overflow-x-hidden pb-20 lg:pb-16">
         <Header />
         <main className="pt-[60px]">
+          <Gate>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/title/:type/:id" element={<Title />} />
@@ -72,6 +118,8 @@ function Shell() {
             <Route path="/search" element={<Search />} />
             <Route path="/discover" element={<Discover />} />
             <Route path="/parties" element={<Parties />} />
+            <Route path="/party/:code" element={<Invite />} />
+            <Route path="/sources" element={<Sources />} />
             <Route path="/anime" element={<Anime />} />
             <Route path="/anime/:id" element={<AnimeTitle />} />
             <Route path="/anime/watch/:id/:ep" element={<AnimeTitle />} />
@@ -83,9 +131,11 @@ function Shell() {
             <Route path="/list/:id" element={<List />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Gate>
         </main>
       </div>
     </div>
+    <PartyPill />
     </>
   );
 }

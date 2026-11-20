@@ -111,7 +111,7 @@ export default function AnimeTitle() {
       if (!hit) { setNote(`${a.title} is not on your line.`); return; }
       if (film) {
         const p = getProgress(key());
-        setPlayer({ src: streamUrl(hit), title: a.title, subtitle: "", startAt: p && p.position < p.duration - 60 ? p.position : 0, key: key(), item: hit, meta: { type: "movie", tmdb: tmdbId } });
+        setPlayer({ src: streamUrl(hit), title: a.title, subtitle: "", startAt: p && p.position < p.duration - 60 ? p.position : 0, key: key(), item: hit, meta: { type: "movie", tmdb: tmdbId, title: a.title, poster: "", backdrop: "" } });
         setNote(""); return;
       }
       const eps = await lineEpisodes(hit.id);
@@ -126,7 +126,7 @@ export default function AnimeTitle() {
       if (!e) { setNote(`Episode ${num} is not on your line yet.`); return; }
       localStorage.setItem(`aurora-site-last:anime:${id}`, String(num));
       const p = getProgress(key(num));
-      setPlayer({ src: streamUrl(hit, e), title: a.title, subtitle: `Episode ${num}`, startAt: p && p.position < p.duration - 60 ? p.position : 0, key: key(num), item: hit, meta: { type: "tv", tmdb: tmdbId, season: e.season, episode: e.number },
+      setPlayer({ src: streamUrl(hit, e), title: a.title, subtitle: `Episode ${num}`, startAt: p && p.position < p.duration - 60 ? p.position : 0, key: key(num), item: hit, meta: { type: "tv", tmdb: tmdbId, season: e.season, episode: e.number, title: a.title },
         next: flat[num] ? () => play(num + 1) : null });
       setNote("");
     } catch (err) { setNote(err.message || "Your line did not answer."); }
@@ -210,7 +210,7 @@ export default function AnimeTitle() {
         </div>
       </div>
       {note ? <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-white/10 bg-abyss-900/90 px-5 py-2.5 text-sm text-white/90 shadow-lg backdrop-blur-md">{note}</div> : null}
-      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (ep) nav(`/anime/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} partyItem={player.item} meta={player.meta} /> : null}
+      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (ep) nav(`/anime/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} meta={player.meta} /> : null}
     </div>
   );
 }

@@ -44,6 +44,28 @@ async function proxy(req, res, target) {
   }
 }
 
+/* Trakt's sign-in needs the app's client secret, which stays here (in
+   trackers.local.json) and never reaches the page: /api/trakt/token takes
+   {code} (the device code) or {refresh_token} and asks Trakt for the tokens */
+async function traktToken(req, res) {
+  let app = {};
+  try { app = JSON.parse(require("node:fs").readFileSync(require("node:path").join(__dirname, "trackers.local.json"), "utf8")).trakt || {}; } catch { /* not set up */ }
+  if (!app.client_id || !app.client_secret) { res.writeHead(400, { "content-type": "application/json" }); return res.end(JSON.stringify({ error: "not_configured" })); }
+  let body = "";
+  for await (const chunk of req) body += chunk;
+  let ask = {};
+  try { ask = JSON.parse(body || "{}"); } catch { /* empty */ }
+  const url = ask.refresh_token ? "https://api.trakt.tv/oauth/token" : "https://api.trakt.tv/oauth/device/token";
+  const payload = ask.refresh_token
+    ? { refresh_token: ask.refresh_token, client_id: app.client_id, client_secret: app.client_secret, redirect_uri: "urn:ietf:wg:oauth:2.0:oob", grant_type: "refresh_token" }
+    : { code: ask.code, client_id: app.client_id, client_secret: app.client_secret };
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "user-agent": "Aurora-IPTV/web" }, body: JSON.stringify(payload) });
+    res.writeHead(r.status, { "content-type": "application/json", "cache-control": "no-store" });
+    res.end(await r.text());
+  } catch { res.writeHead(502); res.end("{}"); }
+}
+
 /* a Vite plugin that mounts it */
 function relayPlugin() {
   return {
@@ -51,6 +73,7 @@ function relayPlugin() {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const u = new URL(req.url, "http://localhost");
+        if (u.pathname === "/api/trakt/token" && req.method === "POST") return traktToken(req, res);
         if (u.pathname !== "/api/proxy") return next();
         proxy(req, res, u.searchParams.get("u") || "");
       });
