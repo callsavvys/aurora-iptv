@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { IMG, tmdb, list, GENRE, inCinemas, PROVIDERS, providerLogos, providerRow } from "./tmdb.js";
+import { IMG, tmdb, list, extras, GENRE, inCinemas, PROVIDERS, providerLogos, providerRow } from "./tmdb.js";
 import { WideCard, Scroller } from "./Home.jsx";
 import { LoadMoreGrid } from "./Browse.jsx";
 
@@ -35,6 +35,9 @@ function Hero() {
   useEffect(() => { tmdb("/trending/all/week").then((r) => setItems(list(r).filter((x) => x.backdrop).slice(0, 6))).catch(() => {}); }, []);
   useEffect(() => { if (!items.length) return; const t = setInterval(() => setI((x) => (x + 1) % items.length), 8000); return () => clearInterval(t); }, [items.length]);
   const it = items[i];
+  // each title's logo, as on Home and the title pages; its name in text only when TMDB has no logo
+  const [logos, setLogos] = useState({});
+  useEffect(() => { items.forEach((x) => extras(x).then((m) => setLogos((l) => ({ ...l, [x.id]: m.logo || "" }))).catch(() => setLogos((l) => ({ ...l, [x.id]: "" })))); }, [items]);
   return (
     <section className="relative -mt-[60px] mb-2 h-[56vh] min-h-[380px] max-h-[600px] w-full overflow-hidden" aria-roledescription="carousel" aria-label="Trending this week">
       {items.map((x, k) => <img key={x.id} src={IMG("original", x.backdrop)} alt="" aria-hidden="true" decoding="async" loading={k ? "lazy" : "eager"} className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-700 ${k === i ? "opacity-100" : "opacity-0"}`} />)}
@@ -43,7 +46,8 @@ function Hero() {
       {it ? (
         <div className="absolute inset-x-0 bottom-0 flex flex-col gap-4 px-6 pb-10 sm:px-[60px]">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/70"><span className="rounded-full bg-white/15 px-2.5 py-1 backdrop-blur">{it.type === "tv" ? "TV Show" : "Movie"}</span><span>Trending this week</span></div>
-          <h2 className="max-w-3xl text-3xl font-extrabold leading-tight text-white drop-shadow-lg sm:text-5xl">{it.title}</h2>
+          {logos[it.id] ? <img src={logos[it.id]} alt={it.title} decoding="async" className="max-h-[110px] max-w-[78vw] object-contain object-left-bottom drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)] sm:max-h-[150px] sm:max-w-[520px] short:max-h-[72px] short:max-w-[78vw]" />
+            : logos[it.id] === "" ? <h2 className="max-w-3xl text-3xl font-extrabold leading-tight text-white drop-shadow-lg sm:text-5xl">{it.title}</h2> : <div className="h-[110px] sm:h-[150px] short:h-[72px]" />}
           <div className="flex items-center gap-3 text-sm text-white/80">{it.year ? <span>{it.year}</span> : null}{it.rating ? <span className="flex items-center gap-1 font-semibold text-amber-300">★ {it.rating}</span> : null}</div>
           <p className="line-clamp-3 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">{it.overview}</p>
           <div className="flex flex-wrap items-center gap-3">
