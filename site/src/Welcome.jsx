@@ -40,8 +40,8 @@ export default function Welcome() {
       <Wall />
       <div className="relative z-10 flex min-h-dvh flex-col">
         <header className="flex items-center gap-3 px-6 py-5 sm:px-12"><AuroraMark size={44} /><span className="text-2xl font-bold tracking-tight text-white">Aurora</span></header>
-        <div className="flex flex-1 flex-col items-center justify-center gap-10 px-4 pb-16 lg:flex-row">
-          <div className="max-w-xl text-center">
+        <div className="flex flex-1 flex-col items-center justify-center gap-10 px-4 pb-16 md:flex-row">
+          <div className="max-w-xl text-center md:text-left">
             <h1 className="text-4xl font-extrabold leading-tight tracking-tight text-white sm:text-5xl">Your films, series and live TV, in one place.</h1>
             <p className="mt-4 text-lg text-white/70">Bring your own IPTV line or playlist. Aurora finds every title on it, remembers where you stopped, and lets you watch together.</p>
             <p className="mt-6 text-sm text-white/50">Create an account to start. It takes a username and a password.</p>

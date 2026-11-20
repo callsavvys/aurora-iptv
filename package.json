@@ -17,7 +17,8 @@
     "web": "node web/server.cjs",
     "test:tv:web": "node tests/platform-core.cjs && electron tests/web-boot.cjs && node tests/tv-build.cjs",
     "test:tv:app": "electron tests/tv-nav.cjs && node tests/tv-scale.cjs && node tests/tv-chrome.cjs && electron tests/tv-sweep.cjs --strict",
-    "tv:web": "AURORA_STAGE_ONLY=1 AURORA_TV_UI=web bash mobile/scripts/build-android.sh && electron scripts/tv-preview.cjs"
+    "tv:web": "AURORA_STAGE_ONLY=1 AURORA_TV_UI=web bash mobile/scripts/build-android.sh && electron scripts/tv-preview.cjs",
+    "tv:site": "AURORA_STAGE_ONLY=1 AURORA_TV_UI=site bash mobile/scripts/build-android.sh && electron scripts/tv-preview.cjs"
   },
   "dependencies": {
     "hls.js": "^1.6.13"

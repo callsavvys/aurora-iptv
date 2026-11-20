@@ -14,6 +14,16 @@ npm run tv:web
 
 This stages `mobile/www` with the new interface (`web/`) and opens it in a 960×540 window. That is the TV's own viewport, so what you see is what the TV draws. Arrows move, Enter is OK, and Backspace or Escape is the remote's Back.
 
+## Preview the website as the TV app
+
+```bash
+npm run tv:site
+```
+
+This builds `site/` for the app (`vite build --mode app`: relative paths, routes after a `#`, the provider asked directly instead of through the relay) into `mobile/www` and opens it at 960×540. The remote is the arrows, Enter and Backspace. In the browser you can also add `?tv=1` to any page of the dev site (`http://localhost:5180/?tv=1`) to try the remote navigation there, signed in.
+
+A test APK of it: `AURORA_TV_UI=site AURORA_TEST_VERSION=0.38.9N bash mobile/scripts/build-android.sh`. On first start it copies the old app's saved line, so the TV stays connected. See docs/plans/site-to-apps.md for what is still to do.
+
 ## A test build for the real TV
 
 Test builds take a version from 0.38.90 to 0.38.99. Their versionCodes stay below the 0.39.0 release, so the release still installs over them. Each code is used once. `mobile/test-codes.log` records them, and the script refuses one that is already used and names the next free one.

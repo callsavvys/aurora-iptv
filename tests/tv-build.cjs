@@ -99,6 +99,22 @@ console.log("— the new interface, staged —");
   check("a stage-only run records no test code", fs.existsSync(testLedger) ? fs.readFileSync(testLedger, "utf8").includes("9.9.99") : false, false);
 }
 
+console.log("— the website (site/), staged —");
+{
+  const r = build({ AURORA_TV_UI: "site", AURORA_STAGE_ONLY: "1" });
+  check("stages without the Android SDK", r.code, 0);
+  check("the banner names the site", / interface site /.test(r.out), true);
+  const html = read("index.html");
+  check("it knows it is the site on a television", /class="platform-tv ui-site"/.test(html), true);
+  check("its scripts load from the APK's own files (relative paths)", /src="\.\/assets\/index-[\w-]+\.js"/.test(html) && !/src="\/assets\//.test(html), true);
+  check("the version is written", read("version.js").includes("AURORA_VERSION"), true);
+  const js = fs.readdirSync(path.join(WWW, "assets")).filter((f) => f.endsWith(".js")).map((f) => read(`assets/${f}`)).join("\n");
+  check("it asks the provider directly, not through the dev server's relay", js.includes("/api/proxy?u="), false);
+  check("routes follow a # (no server for /title/... in the app)", /createHashRouter|HashRouter|hashchange/.test(js), true);
+  check("the remote's navigation is in it", js.includes("backButton"), true);
+  check("neither old interface is in it", ["renderer.js", "platform-boot-app.js", "js/boot.js"].some((f) => fs.existsSync(path.join(WWW, f))), false);
+}
+
 console.log("— the old interface, staged as before —");
 {
   const r = build({ AURORA_STAGE_ONLY: "1" });

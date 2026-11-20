@@ -1,7 +1,8 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useParams, useSearchParams } from "react-router-dom";
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import "./atlantic.css";
+import "./tv.css";
 import Header from "./Header.jsx";
 import Home from "./Home.jsx";
 import Title from "./Title.jsx";
@@ -26,6 +27,8 @@ import { useAccount } from "./account.js";
 import { getLine } from "./line.js";
 import { useParty } from "./party.js";
 import { startSync, stopSync } from "./cloud.js";
+import { IS_APP, isTV, appStart } from "./platform.js";
+import { startTvNav } from "./tvnav.js";
 import { syncDaily } from "./trackers.js";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -151,4 +154,7 @@ function Shell() {
   );
 }
 
-createRoot(document.getElementById("root")).render(<BrowserRouter><Shell /></BrowserRouter>);
+// the app has no server for /title/... addresses, so its routes follow a #
+const Router = IS_APP ? HashRouter : BrowserRouter;
+if (isTV()) { document.documentElement.classList.add("platform-tv"); startTvNav(); }
+appStart().finally(() => createRoot(document.getElementById("root")).render(<Router><Shell /></Router>));

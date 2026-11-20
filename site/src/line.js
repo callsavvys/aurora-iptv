@@ -6,10 +6,12 @@
    by the cleaned name and year (the TV app's matcher, web/js/sources.js).
    Every request goes through the site's relay (relay.cjs). */
 
+import { relay, keepLine } from "./platform.js";
+
 const KEY = "aurora-site-line";
 export const getLine = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch { return null; } };
-export const setLine = (cfg) => { localStorage.setItem(KEY, JSON.stringify(cfg)); lib = null; loading = null; live = null; m3u = null; };
-export const clearLine = () => { localStorage.removeItem(KEY); lib = null; loading = null; live = null; m3u = null; };
+export const setLine = (cfg) => { localStorage.setItem(KEY, JSON.stringify(cfg)); keepLine(JSON.stringify(cfg)); lib = null; loading = null; live = null; m3u = null; };
+export const clearLine = () => { localStorage.removeItem(KEY); keepLine(null); lib = null; loading = null; live = null; m3u = null; };
 const isM3u = (cfg = getLine()) => cfg?.kind === "m3u";
 /* what the source is, in a few words */
 export function lineLabel(cfg = getLine()) {
@@ -86,7 +88,6 @@ async function playlist(cfg = getLine()) {
   return m3u;
 }
 
-const relay = (url) => `/api/proxy?u=${encodeURIComponent(url)}`;
 function parts(cfg = getLine()) {
   if (!cfg?.server) return null;
   const server = cfg.server.replace(/\/+$/, "").replace(/^(?!https?:\/\/)/, "http://");

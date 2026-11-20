@@ -1,0 +1,10 @@
+/* the TV: where focus is, clearly (the remote's only pointer) */
+.platform-tv :focus { outline: none; }
+.platform-tv :focus-visible, .platform-tv a:focus, .platform-tv button:focus, .platform-tv input:focus, .platform-tv select:focus {
+  outline: 3px solid var(--atlantic-300, #67e8f9); outline-offset: 3px; border-radius: 12px;
+}
+.platform-tv a:focus .aspect-video, .platform-tv a:focus img { transform: scale(1.04); transition: transform 150ms ease-out; }
+.platform-tv { cursor: none; }
+/* no scrollbars on a television */
+.platform-tv, .platform-tv * { scrollbar-width: none; }
+.platform-tv ::-webkit-scrollbar { display: none; }

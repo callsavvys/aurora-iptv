@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { getLine, setLine, testLine, lineLabel, savePlaylistFile } from "./line.js";
 import { AuroraMark } from "./icons.jsx";
 import Player from "./Player.jsx";
+import { relay } from "./platform.js";
 
 /* Connect a source: right after you sign up (?first=1, full screen, with
    "Set up later"), and from Settings → Account. Aurora plays from what you
@@ -26,7 +27,6 @@ const KINDS = [
 ];
 const readStreams = () => { try { return JSON.parse(localStorage.getItem(STREAMS) || "[]"); } catch { return []; } };
 const writeStreams = (list) => { try { localStorage.setItem(STREAMS, JSON.stringify(list.slice(0, 20))); } catch { /* private mode */ } };
-const relay = (url) => `/api/proxy?u=${encodeURIComponent(url)}`;
 const field = (form, setForm, k, label, type = "text", auto = "off", placeholder = "") => (
   <div><label className={LABEL}>{label}</label><input type={type} autoComplete={auto} spellCheck="false" placeholder={placeholder} className={INPUT} value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} /></div>
 );

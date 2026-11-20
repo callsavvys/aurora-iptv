@@ -13,7 +13,8 @@ import { tmdb, IMG } from "./tmdb.js";
 import { markWatched, saveProgress, progressKey, getProgress } from "./line.js";
 import { addTo } from "./lists.jsx";
 
-const APPS = { trakt: __TRAKT_ID__, simkl: __SIMKL_ID__ };
+import { canTrakt } from "./platform.js";
+const APPS = { trakt: canTrakt ? __TRAKT_ID__ : "", simkl: __SIMKL_ID__ };
 const NAMES = { trakt: "Trakt", simkl: "Simkl" };
 const KEY = (id) => `aurora-site-${id}`;
 const read = (id) => { try { return JSON.parse(localStorage.getItem(KEY(id)) || "null"); } catch { return null; } };

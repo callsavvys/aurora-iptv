@@ -210,6 +210,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   useEffect(() => {
     const key = (e) => {
       if (e.target.closest?.("input, textarea")) return;
+      if (e.key.startsWith("Arrow") && e.target.closest?.("button") && document.documentElement.classList.contains("platform-tv")) return;   // the remote is moving between the controls
       if (e.key === " " || e.key === "k") { e.preventDefault(); toggle(); }
       else if (e.key === "ArrowLeft" && !live) { e.preventDefault(); seek(-prefs.seek); }
       else if (e.key === "ArrowRight" && !live) { e.preventDefault(); seek(prefs.seek); }
