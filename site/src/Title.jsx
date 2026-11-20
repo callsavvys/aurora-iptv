@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import Player from "./Player.jsx";
 import { getLine, findOnLine, lineEpisodes, streamUrl, progressKey, getProgress, saveProgress, toggleWatched } from "./line.js";
 import { IMG, tmdb, item } from "./tmdb.js";
+import { AddToList } from "./lists.jsx";
 import { WideCard, Scroller } from "./Home.jsx";
 
 /* atlantic.bz's title page, element for element: the backdrop with the facts
@@ -52,7 +53,6 @@ export default function Title() {
   const { type, id } = useParams();
   const [d, setD] = useState(null);
   const [imdb, setImdb] = useState("");
-  const [saved, setSaved] = useState(false);
   const [player, setPlayer] = useState(null);
   const [note, setNote] = useState("");
   const [search] = useSearchParams();
@@ -151,17 +151,9 @@ export default function Title() {
               <button type="button" onClick={() => play()} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-atlantic-300 to-atlantic-500 px-6 py-2.5 text-sm font-bold text-abyss-950 shadow-[0_8px_24px_-6px_rgba(30,203,236,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-6px_rgba(30,203,236,0.7)] active:translate-y-0">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 2.69127C5 1.93067 5.81547 1.44851 6.48192 1.81506L23.4069 11.1238C24.0977 11.5037 24.0977 12.4963 23.4069 12.8762L6.48192 22.1849C5.81546 22.5515 5 22.0693 5 21.3087V2.69127Z" /></svg>Play
               </button>
-              <div className="relative">
-                <button type="button" aria-label="Add to List" onClick={() => setSaved((v) => !v)} className={ROUND}>
-                  {saved ? <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.5L5 21V4a1 1 0 0 1 1-1Z" /></svg>
-                    : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>}
-                </button>
-              </div>
+              <AddToList e={{ id: String(id), type, title: d.title || d.name, poster: d.poster_path ? IMG("w342", d.poster_path) : "", year: (d.release_date || d.first_air_date || "").slice(0, 4) }} className={ROUND} />
               <button type="button" aria-label="Mark as Watched" onClick={() => toggleWatched({ type, id: Number(id), title: d.title || d.name, poster: d.poster_path, year: (d.release_date || d.first_air_date || "").slice(0, 4) })} className={ROUND}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
-              </button>
-              <button type="button" aria-label="Download" title="Download" className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition-all duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/20 active:translate-y-0">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-download size-[18px] stroke-[2.4]" aria-hidden="true"><path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /></svg>
               </button>
             </div>
             <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-white/70">

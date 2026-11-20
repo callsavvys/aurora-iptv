@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { IMG, tmdb, item } from "./tmdb.js";
 import { Fade } from "./Home.jsx";
-import { PlayIcon, BookmarkIcon } from "./icons.jsx";
+import { PlayIcon } from "./icons.jsx";
+import { SaveButton } from "./lists.jsx";
 
 /* atlantic.bz's Movies and TV Shows pages: a title, the genres as chips, and
    a grid of posters that keeps going as you scroll. Hovering a poster shows
@@ -68,7 +69,7 @@ export function PosterCard({ it }) {
           </div>
         </div>
       </Link>
-      <button type="button" aria-label={`Save ${it.title} to a list`} aria-haspopup="dialog" aria-expanded="false" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 hover:scale-110 focus-visible:opacity-100 active:scale-95 opacity-100 md:opacity-0 md:group-hover:opacity-100 border-white/20 bg-black/55 text-white hover:border-white/40 hover:bg-black/75 "><BookmarkIcon /></button>
+      <SaveButton it={it} />
     </div>
   );
 }

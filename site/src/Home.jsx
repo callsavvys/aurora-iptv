@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { IMG, homeRows, extras, PROVIDERS, providerRow, providerLogos } from "./tmdb.js";
-import { PlayIcon, InfoIcon, BookmarkIcon, ChevronRight, ChevronLeft, Chevron } from "./icons.jsx";
+import { PlayIcon, InfoIcon, ChevronRight, ChevronLeft, Chevron } from "./icons.jsx";
+import { SaveButton, ListRows } from "./lists.jsx";
 
 /* atlantic.bz's home page, element for element: the hero that turns over by
    itself, two Top 10 rows, then rows of wide cards carrying each title's logo.
@@ -165,7 +166,7 @@ export function WideCard({ it, to, badge, progress }) {
           {progress != null ? <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50"><div className="h-full bg-atlantic-400" style={{ width: `${progress}%` }} /></div> : null}
         </div>
       </Link>
-      <button type="button" aria-label={`Save ${it.title} to a list`} aria-haspopup="dialog" aria-expanded="false" className="absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md transition-all duration-200 hover:scale-110 focus-visible:opacity-100 active:scale-95 opacity-100 md:opacity-0 md:group-hover:opacity-100 border-white/20 bg-black/55 text-white hover:border-white/40 hover:bg-black/75 "><BookmarkIcon /></button>
+      <SaveButton it={it} />
     </div>
   );
 }
@@ -225,6 +226,7 @@ export default function Home() {
         <Hero items={data?.hero || []} />
         <div className="relative z-10 mt-4">
           {error ? <p className="px-6 text-white/60 sm:px-[60px]">Could not reach TMDB: {error}</p> : null}
+          <ListRows />
           {(data?.rows || []).map((row) =>
             row.kind === "top10" ? <Top10Row key={row.id} row={row} />
             : row.kind === "provider" ? <ProviderRow key={row.id} />
