@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { IMG, tmdb, list, extras, GENRE, inCinemas, PROVIDERS, providerLogos, providerRow } from "./tmdb.js";
 import { WideCard, Scroller } from "./Home.jsx";
 import { LoadMoreGrid } from "./Browse.jsx";
+import ForYouBlock from "./ForYou.jsx";
 
 /* atlantic.bz's Discover page: a hero of this week's trending, a sticky bar
    (Movies or TV Shows, the genres, Filters), rows, and a grid to browse with
@@ -171,6 +172,7 @@ export default function Discover() {
         <div className="flex flex-col pt-8">
           {genre || sort !== "popularity.desc" ? null : (
             <>
+              <ForYouBlock key={type} mediaType={type} />
               {ROWS[type].map((r) => <Row key={r.title} title={r.title} items={rows[r.title] || []} all={r.all} />)}
               <GenreRow type={type} genres={genres} />
               <ProviderRowD type={type} />

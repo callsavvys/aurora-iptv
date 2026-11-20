@@ -11,9 +11,7 @@ import { PosterCard } from "./Browse.jsx";
    - counts: every credited title, once; Movies and TV Shows split them
    - Career: the first and last year of the credits that are not talk shows
      or appearances as oneself, up to this year
-   - Known For: the person's own department (acting, else that crew job),
-     best by average × log(votes) — the same 12 titles as the site, though
-     the site's order differs a little
+   - Known For: the site's own ranking (see below)
    - Filmography: newest year first and, within a year, most popular; a
      title once, as its first credit; 24 at a time (see films below) */
 
@@ -57,8 +55,24 @@ export default function Person() {
     const cast = p.combined_credits?.cast || [], crew = p.combined_credits?.crew || [];
     const all = once([...cast, ...crew]);
     const years = [...cast, ...crew].filter(plain).map(yearOf).filter((y) => y && y <= new Date().getFullYear());
-    const own = p.known_for_department === "Acting" || !p.known_for_department ? cast.filter(plain) : crew.filter((c) => c.department === p.known_for_department);
-    const known = once([...own].sort((a, b) => (b.vote_average || 0) * Math.log1p(b.vote_count || 0) - (a.vote_average || 0) * Math.log1p(a.vote_count || 0))).slice(0, 12);
+    // Known For, as atlantic.bz picks it: one entry per title (its departments, episodes, and
+    // whether every credit is a self appearance); titles with a poster and 20+ votes, from the
+    // person's own department when it has 4 or more; ranked by log10(votes + 1) × 2 + rating +
+    // popularity / 200, less 3 for a series they were in for only one or two episodes
+    const titles = new Map();
+    for (const c of [...cast.map((x) => ({ ...x, department: "Acting" })), ...crew]) {
+      const k = keyOf(c);
+      const e = titles.get(k) || { c, departments: new Set(), episodes: 0, self: true };
+      e.departments.add(c.department);
+      if (c.department === "Acting") e.episodes += c.episode_count || 0;
+      if (c.department !== "Acting" || plain(c)) e.self = false;
+      titles.set(k, e);
+    }
+    const score = (e) => Math.log10((e.c.vote_count || 0) + 1) * 2 + (e.c.vote_average || 0) + (e.c.popularity || 0) / 200 - (e.c.media_type === "tv" && e.episodes > 0 && e.episodes < 3 ? 3 : 0);
+    const eligible = [...titles.values()].filter((e) => !e.self && e.c.poster_path && (e.c.vote_count || 0) >= 20);
+    const dept = p.known_for_department || "Acting";
+    const ownDept = eligible.filter((e) => e.departments.has(dept));
+    const known = (ownDept.length >= 4 ? ownDept : eligible).sort((a, b) => score(b) - score(a)).slice(0, 12).map((e) => e.c);
     const roles = [["Acting", once(cast).length], ...Object.entries(crew.reduce((m, c) => { (m[c.department] ||= new Set()).add(keyOf(c)); return m; }, {})).map(([k, v]) => [k, v.size]).sort((a, b) => b[1] - a[1])].filter(([, n]) => n);
     return { cast, crew, all, known, roles, career: years.length ? (Math.min(...years) === Math.max(...years) ? String(years[0]) : `${Math.min(...years)} - ${Math.max(...years)}`) : "" };
   }, [p]);

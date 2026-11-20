@@ -206,7 +206,7 @@ export default function Title() {
       </div>
       {note ? <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-2xl border border-white/10 bg-pagebg/95 px-4 py-3 text-sm text-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] backdrop-blur-md">{note}</div> : null}
       {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (search.get("play")) nav(`/title/${type}/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} meta={player.meta}
-        onEpisodes={type === "tv" ? () => { setPlayer(null); setTimeout(() => document.getElementById("episodes")?.scrollIntoView({ behavior: "smooth" }), 100); } : undefined} /> : null}
+        episodes={type === "tv" ? { tvId: Number(id), seasons: (d.seasons || []).filter((x) => x.season_number > 0).length || d.number_of_seasons || 1, play } : undefined} /> : null}
     </div>
   );
 }

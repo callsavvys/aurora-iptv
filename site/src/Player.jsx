@@ -5,6 +5,7 @@ import { report } from "./trackers.js";
 import { getLine } from "./line.js";
 import { parseSubtitles, cueAt, loadPrefs, savePrefs, DEFAULTS, FONTS } from "./subs.js";
 import PlayerMenu from "./PlayerMenu.jsx";
+import EpisodesPanel from "./EpisodesPanel.jsx";
 import { Svg, SIDE, fullOrder } from "./playerButtons.jsx";
 import { segments as loadSegments, subtitles as loadSubtitles, subtitleText } from "./extras.js";
 import { tmdb } from "./tmdb.js";
@@ -26,7 +27,7 @@ const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s
 const BTN = "inline-flex shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:p-2";
 const RATIO = { "16:9": 16 / 9, "4:3": 4 / 3, "21:9": 21 / 9 };
 
-export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, onPrev, onEpisodes, live: liveProp = false, meta }) {
+export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, onPrev, episodes, live: liveProp = false, meta }) {
   const video = useRef(null), wrap = useRef(null), hlsRef = useRef(null), hideTimer = useRef(null), audioCtx = useRef(null);
   // live: true for a channel, or "auto" to tell from the stream (no end means live)
   const [live, setLive] = useState(liveProp === true);
@@ -279,7 +280,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
         </div>
       );
       case "captions": return <div key={id} className="relative"><button type="button" className={`inline-flex shrink-0 items-center justify-center p-1.5 hover:text-white sm:p-2 ${sub ? "text-atlantic-300" : "text-white/80"}`} aria-label="Captions" data-tour="player-captions" onClick={() => setMenu((m) => (m === "subtitles" ? null : "subtitles"))}>{Svg.captions}</button></div>;
-      case "episodes": return onEpisodes && !live ? <button key={id} type="button" className={BTN} aria-label="Episodes" onClick={onEpisodes}>{Svg.episodes}</button> : null;
+      case "episodes": return episodes && !live ? <button key={id} type="button" className={`${BTN}${menu === "episodes" ? " text-atlantic-300" : ""}`} aria-label="Episodes" onClick={() => setMenu((m) => (m === "episodes" ? null : "episodes"))}>{Svg.episodes}</button> : null;
       case "settings": return <div key={id} className="relative"><button type="button" className={BTN} aria-label="Settings" data-tour="player-settings" onClick={() => setMenu((m) => (m ? null : "main"))}>{Svg.settings}</button></div>;
       case "fullscreen": return <button key={id} type="button" className={BTN} aria-label="Fullscreen" onClick={full}>{Svg.full}</button>;
       default: return null;
@@ -331,7 +332,8 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
         </div>
         <PartyStatus controlsVisible={visible} />
         <PartyChat controlsVisible={visible} />
-        {menu ? (
+        {menu === "episodes" && episodes ? <EpisodesPanel tvId={episodes.tvId} seasons={episodes.seasons} season={meta?.season} episode={meta?.episode} onSelect={(s, e, name) => { setMenu(null); episodes.play(s, e, name); }} /> : null}
+        {menu && menu !== "episodes" ? (
           <PlayerMenu view={menu} setView={setMenu} prefs={prefs} setPref={setPref} live={live}
             resetSubs={() => setPrefs((p) => { const n = { ...p, native: DEFAULTS.native, delay: DEFAULTS.delay, size: DEFAULTS.size, blur: DEFAULTS.blur, font: DEFAULTS.font, textColor: DEFAULTS.textColor }; savePrefs(n); return n; })}
             quality={{ label: qualityLabel, levels: levels.length ? levels.map((l) => ({ id: l.id, label: `${l.height}p` })) : [{ id: 0, label: qualityLabel }], current: levels.length ? level.current : 0, auto: levels.length ? level.auto : false,

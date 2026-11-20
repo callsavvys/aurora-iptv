@@ -5,6 +5,7 @@ import { PlayIcon, InfoIcon, ChevronRight, ChevronLeft, Chevron } from "./icons.
 import { SaveButton, ListRows } from "./lists.jsx";
 import { titlesWatched, forgetProgress } from "./line.js";
 import { useContinueRows } from "./themes.jsx";
+import ForYouBlock from "./ForYou.jsx";
 
 /* atlantic.bz's home page, element for element: the hero that turns over by
    itself, two Top 10 rows, then rows of wide cards carrying each title's logo.
@@ -210,7 +211,7 @@ function ContinueWatching() {
 
 /* "Because you watched …": TMDB's recommendations for a title you watched
    (matched with the site, title for title); the title is a menu of your history */
-function BecauseRow({ history, start }) {
+export function BecauseRow({ history, start }) {
   const [pick, setPick] = useState(history[start]);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
@@ -246,7 +247,7 @@ function BecauseRow({ history, start }) {
   );
 }
 
-function WideRow({ title, all, items, head }) {
+export function WideRow({ title, all, items, head }) {
   return (
     <section className="relative mb-6">
       <div className="mb-4 flex items-center justify-between px-6 sm:px-[60px] short:px-6">
@@ -292,7 +293,6 @@ function ProviderRow() {
 
 export default function Home() {
   const [data, setData] = useState(null);
-  const [history] = useState(() => titlesWatched({ all: true }));
   const [error, setError] = useState("");
   useEffect(() => { homeRows().then(setData).catch((e) => setError(e.message)); }, []);
   useEffect(() => { document.title = "Aurora — Watch Movies and TV Shows"; }, []);
@@ -308,8 +308,8 @@ export default function Home() {
             row.kind === "top10" ? <Top10Row key={row.id} row={row} />
             : row.kind === "provider" ? <ProviderRow key={row.id} />
             : <WideRow key={row.id} title={row.title} all={row.all} items={row.items} />,
-            // after the Top 10s, "Because you watched" your two latest titles
-            row.kind === "top10" && all[i + 1]?.kind !== "top10" ? history.slice(0, 2).map((h, n) => <BecauseRow key={`because-${h.type}-${h.id}`} history={history} start={n} />) : null,
+            // after the Top 10s: For You, "Because you watched" your two latest titles, and Top picks (ForYou.jsx)
+            row.kind === "top10" && all[i + 1]?.kind !== "top10" ? <ForYouBlock key="for-you" /> : null,
           ])}
         </div>
       </div>
