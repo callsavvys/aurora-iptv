@@ -15,6 +15,7 @@ import AnimeTitle from "./AnimeTitle.jsx";
 import History from "./History.jsx";
 import LiveTV from "./LiveTV.jsx";
 import BrowseList from "./BrowseList.jsx";
+import Person from "./Person.jsx";
 import Player from "./Player.jsx";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -58,6 +59,7 @@ function Shell() {
             <Route path="/history" element={<History />} />
             <Route path="/live" element={<LiveTV />} />
             <Route path="/browse" element={<BrowseList />} />
+            <Route path="/person/:id" element={<Person />} />
             {import.meta.env.DEV ? <Route path="/player-test" element={<PlayerTest />} /> : null}
             <Route path="*" element={<Soon />} />
           </Routes>
