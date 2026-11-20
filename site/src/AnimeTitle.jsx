@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { anime } from "./anilist.js";
+import { tmdb } from "./tmdb.js";
 import { AnimeRow } from "./Anime.jsx";
 import { getLine, findOnLine, lineEpisodes, streamUrl, getProgress, saveProgress } from "./line.js";
 import Player from "./Player.jsx";
@@ -9,8 +10,8 @@ import Player from "./Player.jsx";
    Play, list and watched buttons and Sub/Dub, the year, length, format and
    score, the studio and story; the episodes 20 to a page; then Seasons &
    Related and More Like This. The markup and classes are the site's.
-   Play finds the anime on your IPTV line by its English or Japanese title,
-   and episode N is the Nth episode the line lists for it. */
+   Play finds the anime on your IPTV line (findAnime, below); episode N is
+   the Nth episode of its season there, or the Nth the line lists. */
 
 const ROUND = "flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 border-white/15 bg-white/10 text-white hover:border-white/25 hover:bg-white/20";
 const PILL_ON = "rounded-full px-3.5 py-1.5 text-sm transition-colors bg-white font-semibold text-abyss-950";
@@ -38,6 +39,44 @@ function Pager({ page, pages, onPage }) {
       <button type="button" aria-label="Next page" disabled={page >= pages} onClick={() => onPage(page + 1)} className={BTN}>{chevron("m9 18 6-6-6-6")}</button>
     </nav>
   );
+}
+
+/* AniList lists each season on its own ("Attack on Titan Season 2", "Black
+   Clover 2nd Season", "Final Season", "… II"); a line keeps one series with
+   seasons. The base title and the season number (last for "Final") */
+function seasonOf(title) {
+  const t = String(title || "");
+  const pats = [[/\s*[:\-–]?\s*Season\s*(\d+)\b.*$/i, 1], [/\s*[:\-–]?\s*(\d+)(?:st|nd|rd|th)\s+Season\b.*$/i, 1], [/\s*[:\-–]?\s*(?:The\s+)?Final\s+Season\b.*$/i, "last"], [/\s+(II|III|IV|V)$/, "roman"]];
+  for (const [re, kind] of pats) {
+    const m = re.exec(t);
+    if (!m) continue;
+    const season = kind === "last" ? "last" : kind === "roman" ? ({ II: 2, III: 3, IV: 4, V: 5 })[m[1]] : Number(m[1]);
+    return { base: t.slice(0, m.index).trim(), season };
+  }
+  return { base: t, season: 0 };
+}
+
+/* the anime on your line: by its AniList names first; then as a season of its
+   series; then by the TMDB title it is (lines often carry TMDB's id and name,
+   as with "A Silent Voice: The Movie" for AniList's "A Silent Voice") */
+export async function findAnime(a, film) {
+  const type = film ? "movie" : "tv";
+  const direct = await findOnLine({ type, id: 0, title: a.english || a.romaji, originalTitle: a.romaji, year: a.year });
+  if (direct) return { hit: direct, season: 0 };
+  const sEn = seasonOf(a.english), sRo = seasonOf(a.romaji);
+  const season = sEn.season || sRo.season;
+  if (!film && season) {
+    const base = await findOnLine({ type, id: 0, title: sEn.base || sRo.base, originalTitle: sRo.base, year: 0 });
+    if (base) return { hit: base, season };
+  }
+  for (const query of [sEn.base || a.english, sRo.base || a.romaji].filter(Boolean)) {
+    const r = await tmdb(`/search/${type}`, { query, ...(a.year && !season ? { [film ? "year" : "first_air_date_year"]: a.year } : {}) }).catch(() => null);
+    const t = r?.results?.[0];
+    if (!t) continue;
+    const hit = await findOnLine({ type, id: t.id, title: t.title || t.name, originalTitle: t.original_title || t.original_name, year: season ? 0 : (t.release_date || t.first_air_date || "").slice(0, 4) });
+    if (hit) return { hit, season };
+  }
+  return { hit: null, season: 0 };
 }
 
 export default function AnimeTitle() {
@@ -68,7 +107,7 @@ export default function AnimeTitle() {
     setNote("Finding it on your line…");
     try {
       const film = a.rawFormat === "MOVIE";
-      const hit = await findOnLine({ type: film ? "movie" : "tv", id: 0, title: a.english || a.romaji, originalTitle: a.romaji, year: a.year });
+      const { hit, season } = await findAnime(a, film);
       if (!hit) { setNote(`${a.title} is not on your line.`); return; }
       if (film) {
         const p = getProgress(key());
@@ -76,7 +115,10 @@ export default function AnimeTitle() {
         setNote(""); return;
       }
       const eps = await lineEpisodes(hit.id);
-      const flat = Object.keys(eps).map(Number).filter((s) => s > 0).sort((x, y) => x - y).flatMap((s) => eps[s]);
+      // a season of a longer series plays from that season; otherwise episode N is the Nth the line lists
+      const seasons = Object.keys(eps).map(Number).filter((n) => n > 0).sort((x, y) => x - y);
+      const which = season === "last" ? seasons[seasons.length - 1] : season;
+      const flat = which && eps[which]?.length ? eps[which] : seasons.flatMap((n) => eps[n]);
       if (!flat.length) { setNote(`Your line lists no episodes for ${a.title}.`); return; }
       const last = Number(localStorage.getItem(`aurora-site-last:anime:${id}`) || 0);
       const num = n || last || 1;
