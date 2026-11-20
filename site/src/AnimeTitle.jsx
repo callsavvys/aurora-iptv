@@ -62,21 +62,21 @@ function seasonOf(title) {
 export async function findAnime(a, film) {
   const type = film ? "movie" : "tv";
   const direct = await findOnLine({ type, id: 0, title: a.english || a.romaji, originalTitle: a.romaji, year: a.year });
-  if (direct) return { hit: direct, season: 0 };
+  if (direct) return { hit: direct, season: 0, tmdb: direct.tmdb || 0 };
   const sEn = seasonOf(a.english), sRo = seasonOf(a.romaji);
   const season = sEn.season || sRo.season;
   if (!film && season) {
     const base = await findOnLine({ type, id: 0, title: sEn.base || sRo.base, originalTitle: sRo.base, year: 0 });
-    if (base) return { hit: base, season };
+    if (base) return { hit: base, season, tmdb: base.tmdb || 0 };
   }
   for (const query of [sEn.base || a.english, sRo.base || a.romaji].filter(Boolean)) {
     const r = await tmdb(`/search/${type}`, { query, ...(a.year && !season ? { [film ? "year" : "first_air_date_year"]: a.year } : {}) }).catch(() => null);
     const t = r?.results?.[0];
     if (!t) continue;
     const hit = await findOnLine({ type, id: t.id, title: t.title || t.name, originalTitle: t.original_title || t.original_name, year: season ? 0 : (t.release_date || t.first_air_date || "").slice(0, 4) });
-    if (hit) return { hit, season };
+    if (hit) return { hit, season, tmdb: t.id };
   }
-  return { hit: null, season: 0 };
+  return { hit: null, season: 0, tmdb: 0 };
 }
 
 export default function AnimeTitle() {
@@ -107,11 +107,11 @@ export default function AnimeTitle() {
     setNote("Finding it on your line…");
     try {
       const film = a.rawFormat === "MOVIE";
-      const { hit, season } = await findAnime(a, film);
+      const { hit, season, tmdb: tmdbId } = await findAnime(a, film);
       if (!hit) { setNote(`${a.title} is not on your line.`); return; }
       if (film) {
         const p = getProgress(key());
-        setPlayer({ src: streamUrl(hit), title: a.title, subtitle: a.year, startAt: p && p.position < p.duration - 60 ? p.position : 0, key: key(), item: hit });
+        setPlayer({ src: streamUrl(hit), title: a.title, subtitle: "", startAt: p && p.position < p.duration - 60 ? p.position : 0, key: key(), item: hit, meta: { type: "movie", tmdb: tmdbId } });
         setNote(""); return;
       }
       const eps = await lineEpisodes(hit.id);
@@ -126,7 +126,7 @@ export default function AnimeTitle() {
       if (!e) { setNote(`Episode ${num} is not on your line yet.`); return; }
       localStorage.setItem(`aurora-site-last:anime:${id}`, String(num));
       const p = getProgress(key(num));
-      setPlayer({ src: streamUrl(hit, e), title: a.title, subtitle: `Episode ${num}`, startAt: p && p.position < p.duration - 60 ? p.position : 0, key: key(num), item: hit,
+      setPlayer({ src: streamUrl(hit, e), title: a.title, subtitle: `Episode ${num}`, startAt: p && p.position < p.duration - 60 ? p.position : 0, key: key(num), item: hit, meta: { type: "tv", tmdb: tmdbId, season: e.season, episode: e.number },
         next: flat[num] ? () => play(num + 1) : null });
       setNote("");
     } catch (err) { setNote(err.message || "Your line did not answer."); }
@@ -210,7 +210,7 @@ export default function AnimeTitle() {
         </div>
       </div>
       {note ? <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-white/10 bg-abyss-900/90 px-5 py-2.5 text-sm text-white/90 shadow-lg backdrop-blur-md">{note}</div> : null}
-      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (ep) nav(`/anime/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} partyItem={player.item} /> : null}
+      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (ep) nav(`/anime/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} partyItem={player.item} meta={player.meta} /> : null}
     </div>
   );
 }

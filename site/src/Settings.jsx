@@ -176,6 +176,7 @@ function Playback() {
       <Head title="Playback" line="Control how videos play by default." />
       <Row title="Auto Next Episode" line="Automatically play the next episode when one ends."><Toggle on={prefs.autoplayNext} onChange={(v) => setPref("autoplayNext", v)} /></Row>
       <Row title="Auto-Enable Subtitles" line="Turn on the first available subtitle track automatically."><Toggle on={prefs.autoSubs} onChange={(v) => setPref("autoSubs", v)} /></Row>
+      <Row title="Auto Skip Segments" line="Skip intros, recaps, credits and previews automatically."><Toggle on={prefs.autoSkip} onChange={(v) => setPref("autoSkip", v)} /></Row>
       <Row title="Seek Amount" line={`${prefs.seek}s per skip`}>
         <div className="flex justify-end gap-1.5 sm:justify-end">{[5, 10, 15, 30].map((n) => <button key={n} type="button" onClick={() => setPref("seek", n)} className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${prefs.seek === n ? "border-atlantic-400/50 bg-atlantic-400/15 text-atlantic-300" : "border-white/10 text-white/60 hover:border-white/20 hover:text-white"}`}>{n}s</button>)}</div>
       </Row>

@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { FONTS as FONT_FAMILIES } from "./subs.js";
+import { flagOf } from "./extras.js";
+import "flag-icons/css/flag-icons.min.css";
 
 /* The player's settings panel, in atlantic.bz's markup (captured from its
    /watch page): quality, server, subtitles and audio tiles; Watch Party;
@@ -127,6 +129,14 @@ export default function PlayerMenu({ view, setView, prefs, setPref, resetSubs, q
         <button type="button" disabled={!paste.trim()} onClick={() => { subs.paste(paste); setPaste(""); setView("subtitles"); }} className="mt-1 w-full rounded-xl py-2.5 text-center text-sm font-bold transition-all active:scale-[0.99] bg-primary text-on-primary hover:brightness-110 disabled:opacity-40">Use these subtitles</button>
       </div>
     );
+  } else if (view.startsWith("lang:")) {
+    const lang = (subs.online || []).find((l) => l.name === view.slice(5));
+    body = (
+      <div className="flex flex-col gap-1">
+        <Back label={lang?.name || "Subtitles"} onClick={() => setView("subtitles")} /><Rule />
+        {(lang?.files || []).map((f) => <Choice key={f.id} label={f.name} on={subs.chosenOnline === f.id} onClick={() => subs.pickOnline(lang, f)} />)}
+      </div>
+    );
   } else if (view === "subtitles") {
     body = (
       <div className="flex flex-col gap-1">
@@ -145,7 +155,14 @@ export default function PlayerMenu({ view, setView, prefs, setPref, resetSubs, q
               {subs.current === t.id ? I.check : null}
             </button>
           ))}
-          {!subs.tracks.length ? <p className="px-3 py-2 text-[11px] font-medium leading-relaxed text-white/50">This stream carries no subtitles of its own. Upload or paste a subtitle file.</p> : null}
+          {(subs.online || []).map((l) => (
+            <button key={l.name} type="button" onClick={() => setView(`lang:${l.name}`)} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-label-md font-semibold text-white/90 transition-colors active:scale-[0.99] hover:bg-white/10 hover:text-white">
+              <div className="flex items-center gap-3"><span className={`!w-8 min-w-8 h-6 rounded overflow-hidden bg-cover bg-center block fi bg-white/10 fi-${flagOf(l.iso)}`} /><div className="flex flex-col text-left"><span>{l.name}</span></div></div>
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-white/50">{l.files.length}</span>
+            </button>
+          ))}
+          {subs.online === null ? <p className="px-3 py-2 text-[11px] font-medium leading-relaxed text-white/50">Looking up subtitles…</p>
+            : !subs.tracks.length && !subs.online.length ? <p className="px-3 py-2 text-[11px] font-medium leading-relaxed text-white/50">No subtitles found for this title. Upload or paste a subtitle file.</p> : null}
         </div>
       </div>
     );

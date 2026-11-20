@@ -4,6 +4,8 @@ import { useAccount, signedIn, startParty, attachPlayer, leaveParty, partyLine, 
 import { getLine } from "./line.js";
 import { parseSubtitles, cueAt, loadPrefs, savePrefs, DEFAULTS, FONTS } from "./subs.js";
 import PlayerMenu from "./PlayerMenu.jsx";
+import { segments as loadSegments, subtitles as loadSubtitles, subtitleText } from "./extras.js";
+import { tmdb } from "./tmdb.js";
 
 /* The player, in atlantic.bz's markup (its /watch page): Back and the title at
    the top; the timeline and the controls at the bottom (play, skip by the seek amount,
@@ -13,7 +15,10 @@ import PlayerMenu from "./PlayerMenu.jsx";
    M mutes, C toggles subtitles, Esc closes the panel, then the player.
 
    live: a channel — no timeline or skips, LIVE in place of the time.
-   partyItem: the title on your line, so Watch Party can start a party. */
+   partyItem: the title on your line, so Watch Party can start a party.
+   meta: {type, tmdb, imdb, season, episode} — for TheIntroDB's skip times
+   (Skip Intro, the timeline's marks, Next Episode in the credits) and
+   OpenSubtitles' languages in the subtitles panel (extras.js). */
 
 const fmt = (s) => { s = Math.max(0, Math.floor(s || 0)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return h ? `${h}:${String(m).padStart(2, "0")}:${String(x).padStart(2, "0")}` : `${m}:${String(x).padStart(2, "0")}`; };
 const Svg = {
@@ -33,7 +38,7 @@ const Svg = {
 const BTN = "inline-flex shrink-0 items-center justify-center p-1.5 text-white/80 hover:text-white sm:p-2";
 const RATIO = { "16:9": 16 / 9, "4:3": 4 / 3, "21:9": 21 / 9 };
 
-export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, onPrev, partyItem, live = false }) {
+export default function Player({ src, title, subtitle, startAt = 0, onClose, onProgress, onEnded, onNext, onPrev, partyItem, live = false, meta }) {
   const nav = useNavigate();
   const video = useRef(null), wrap = useRef(null), hlsRef = useRef(null), hideTimer = useRef(null), audioCtx = useRef(null);
   const [t, setT] = useState({ cur: 0, dur: 0, buf: 0, paused: false, muted: false, volume: 1, waiting: true });
@@ -50,6 +55,9 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   const [cue, setCue] = useState("");
   const [box, setBox] = useState({ w: window.innerWidth, h: window.innerHeight });
   const [note, setNote] = useState("");
+  const [segs, setSegs] = useState([]);
+  const [online, setOnline] = useState(null);   // OpenSubtitles' languages, once looked up
+  const skipped = useRef(new Set());
   useAccount();
   const unparty = useRef(() => {});
 
@@ -119,6 +127,17 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
     return () => { events.forEach((e) => v.removeEventListener(e, paint)); v.removeEventListener("ended", ended); v.removeEventListener("error", failed); v.removeEventListener("pause", pause); };
   }, [onProgress, onEnded, live, prefs.autoplayNext]);
 
+  // the skip times and the subtitle languages for this film or episode
+  useEffect(() => {
+    if (!meta?.tmdb || live) return undefined;
+    let gone = false;
+    setSegs([]); setOnline(null); skipped.current = new Set();
+    loadSegments(meta).then((x) => !gone && setSegs(x));
+    (meta.imdb ? Promise.resolve(meta.imdb) : tmdb(`/${meta.type}/${meta.tmdb}/external_ids`).then((x) => x.imdb_id).catch(() => ""))
+      .then((imdb) => (imdb ? loadSubtitles({ ...meta, imdb }) : [])).then((x) => !gone && setOnline(x));
+    return () => { gone = true; };
+  }, [meta?.tmdb, meta?.season, meta?.episode, live]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // speed, the volume booster, the window's size (for fixed picture shapes)
   useEffect(() => { const v = video.current; if (v && !live && !party.id) v.playbackRate = prefs.speed; }, [prefs.speed, live]);
   useEffect(() => {
@@ -160,11 +179,11 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
     if (id === "auto") { const lang = (navigator.language || "en").slice(0, 2).toLowerCase(); const hit = tracks.find((x) => x.label.toLowerCase().startsWith(lang) || x.label.toLowerCase().includes("english")) || tracks[0]; id = hit?.id || null; if (!hit) setNote("This stream has no subtitles of its own."); }
     setSub(id); setPref("subsOn", !!id); if (id) setPref("lastSub", id);
   };
-  const addFile = (label, text) => {
+  const addFile = (label, text, os) => {
     const cues = parseSubtitles(text);
     if (!cues.length) { setNote("Those subtitles could not be read. Use .srt or .vtt."); return; }
     const id = `file-${Date.now()}`;
-    setTracks((ts) => [{ id, kind: "file", label, cues }, ...ts]);
+    setTracks((ts) => [{ id, kind: "file", label, cues, os }, ...ts.filter((x) => !(os && x.os === os))]);
     setSub(id); setPref("subsOn", true);
   };
 
@@ -214,6 +233,16 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   const scrub = drag((f) => { const v = video.current; if (v?.duration) v.currentTime = f * v.duration; });
   const volume = drag((f) => { const v = video.current; if (v) { v.volume = f; v.muted = f === 0; } });
 
+  // the segment playing now, and its button: Skip Intro / Recap / Preview, or in the credits Next Episode (Skip Credits for a film)
+  const seg = segs.find((g) => t.cur >= g.start && t.cur < (g.end ?? t.dur) - 0.5);
+  const segLabel = !seg ? "" : seg.kind === "credits" ? (onNext ? "Next Episode" : "Skip Credits") : `Skip ${seg.kind[0].toUpperCase()}${seg.kind.slice(1)}`;
+  const skipSeg = () => { const v = video.current; if (!v || !seg) return; if (seg.kind === "credits" && onNext) onNext(); else v.currentTime = Math.min((seg.end ?? v.duration) || v.duration, v.duration - 0.25); poke(); };
+  useEffect(() => {
+    if (!prefs.autoSkip || !seg || seg.kind === "credits") return;
+    const k = `${seg.kind}:${seg.start}`;
+    if (skipped.current.has(k)) return;
+    skipped.current.add(k); skipSeg();
+  }); // eslint-disable-line react-hooks/exhaustive-deps
   const visible = shown || t.paused || !!menu;
   const pct = t.dur ? (t.cur / t.dur) * 100 : 0, bpct = t.dur ? (t.buf / t.dur) * 100 : 0;
   // the picture: fit, fill, stretch, or a fixed shape centred in the window
@@ -236,6 +265,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
             <video ref={video} autoPlay playsInline className="h-full w-full" style={{ objectFit: fit, transform: prefs.noBars ? "scale(1.25)" : "none", transformOrigin: "50% 50%", transition: "transform 250ms ease-out", filter: filter || undefined }} />
           </div>
         </div>
+        {segLabel ? <button type="button" onClick={(e) => { e.stopPropagation(); skipSeg(); }} className={`absolute right-4 z-20 rounded-md border border-white/30 bg-black/60 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-[bottom,background-color,color] duration-200 hover:bg-white hover:text-black sm:right-8 ${visible ? "bottom-28" : "bottom-8"}`}>{segLabel}</button> : null}
         {t.waiting && !error ? <div className="pointer-events-none absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 animate-spin rounded-full border-4 border-white/20 border-t-atlantic-400" /> : null}
         {error ? <div className="absolute left-1/2 top-1/2 max-w-md -translate-x-1/2 -translate-y-1/2 px-6 text-center text-sm text-white/80">{error}</div> : null}
         {cue && !(prefs.native && tracks.find((x) => x.id === sub)?.kind !== "file") ? (
@@ -247,7 +277,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
           <button type="button" className="flex items-center gap-2 text-white/80 hover:text-white" onClick={close}>{Svg.back}Back</button>
           <div className="flex items-start justify-between gap-3"><div className="min-w-0">
             <p className="mt-2 text-lg font-bold">{title}</p>
-            {subtitle ? <p className="text-sm text-white/70">{subtitle}</p> : null}
+            {subtitle ? <p className="text-sm text-white/60">{subtitle}</p> : null}
             {line ? <p className="mt-1 text-sm font-semibold text-atlantic-300" role="status">{line}</p> : null}
           </div></div>
         </div>
@@ -255,6 +285,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
           {live ? null : (
             <div className=""><div className="relative w-full"><div className="group flex h-8 w-full cursor-pointer touch-none items-center" onPointerDown={scrub}><div className="relative h-1 w-full rounded-full bg-white/25 transition-[height] duration-100 group-hover:h-1.5 ">
               <div className="absolute left-0 top-0 h-full rounded-full bg-white/40" style={{ width: `${bpct}%` }} />
+              {t.dur ? segs.map((g) => <div key={`${g.kind}-${g.start}`} className={`pointer-events-none absolute top-0 h-full ${g.kind === "intro" || g.kind === "recap" ? "bg-amber-300/70" : "bg-sky-300/70"}`} style={{ left: `${(g.start / t.dur) * 100}%`, width: `${(((g.end ?? t.dur) - g.start) / t.dur) * 100}%` }} />) : null}
               <div className="absolute left-0 top-0 flex h-full items-center justify-end rounded-full bg-atlantic-400" style={{ width: `${pct}%` }}><div className="h-4 w-4 min-w-[1rem] translate-x-1/2 scale-0 rounded-full bg-white transition-transform duration-100 group-hover:scale-100 " /></div>
             </div></div></div></div>
           )}
@@ -290,7 +321,9 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
               setAuto: (on) => { if (hlsRef.current) { if (on) hlsRef.current.currentLevel = -1; setLevel((s) => ({ ...s, auto: on })); } } }}
             server={getLine()?.name || "Your line"}
             subs={{ tracks, current: sub, choose: chooseSub, toggle: (on) => chooseSub(on ? lastSub() : null),
-              upload: (f) => f.text().then((txt) => addFile(f.name.replace(/\.[^.]+$/, ""), txt)), paste: (txt) => addFile("Pasted subtitles", txt) }}
+              upload: (f) => f.text().then((txt) => addFile(f.name.replace(/\.[^.]+$/, ""), txt)), paste: (txt) => addFile("Pasted subtitles", txt),
+              online, chosenOnline: tracks.find((x) => x.id === sub)?.os,
+              pickOnline: (lang, file) => { setNote(`Loading ${lang.name} subtitles…`); subtitleText(file).then((txt) => { addFile(lang.name, txt, file.id); setNote(""); setMenu(null); }).catch(() => setNote("Those subtitles did not download. Try another.")); } }}
             audio={{ tracks: audios.tracks, current: audios.current, choose: (id) => { if (hlsRef.current) hlsRef.current.audioTrack = id; else if (video.current?.audioTracks) [...video.current.audioTracks].forEach((a, i) => { a.enabled = i === id; }); setAudios((a) => ({ ...a, current: id })); } }}
             party={{ code: party.code, active: !!party.id, hosting: party.hosting, note, host: hostParty, leave: () => leaveParty(), join: () => { close(); nav("/parties"); } }}
           />
