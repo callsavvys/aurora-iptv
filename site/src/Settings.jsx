@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getLine, setLine, clearLine, testLine } from "./line.js";
 import { useAccount, signIn, signOut, displayName } from "./account.js";
-import { THEMES, useTheme, setTheme, useAlwaysTitles, setAlwaysTitles } from "./themes.jsx";
+import { THEMES, useTheme, setTheme, useAlwaysTitles, setAlwaysTitles, useContinueRows, setContinueRows } from "./themes.jsx";
 import { loadPrefs, savePrefs, FONTS } from "./subs.js";
 
 /* atlantic.bz's Settings: the gear and title, a row of tabs, the section in a
@@ -145,6 +145,7 @@ function Account() {
 function Appearance() {
   const current = useTheme();
   const always = useAlwaysTitles();
+  const rows = useContinueRows();
   return (
     <div>
       <Head title="Appearance" line="Pick an ambient theme for the site's background and accent color." />
@@ -152,6 +153,10 @@ function Appearance() {
         {THEMES.map((t) => <button key={t.id} type="button" onClick={() => setTheme(t.id)} className={`${t.tile.base} ${current === t.id ? "border-atlantic-400" : "border-white/10 hover:border-white/30"}`} style={t.tile.style ? Object.fromEntries(t.tile.style.split(";").filter(Boolean).map((d) => { const i = d.indexOf(":"); return [d.slice(0, i).trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase()), d.slice(i + 1).trim()]; })) : undefined} dangerouslySetInnerHTML={{ __html: t.tile.inner }} />)}
       </div>
       <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-sm font-medium text-white">Continue Watching Rows</p><p className="mt-0.5 text-xs text-white/40">How many rows the Continue Watching section splits into on Home.</p></div>
+        <div className="flex gap-1.5">{[1, 2, 3, 4].map((n) => <button key={n} type="button" onClick={() => setContinueRows(n)} className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${rows === n ? "border-atlantic-400/50 bg-atlantic-400/15 text-atlantic-300" : "border-white/10 text-white/60 hover:border-white/20 hover:text-white"}`}>{n}</button>)}</div>
+      </div>
+      <div className="mt-4 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div><p className="text-sm font-medium text-white">Always Show Titles</p><p className="mt-0.5 text-xs text-white/40">Show each card's title and rating without hovering.</p></div>
         <button type="button" role="switch" aria-checked={always} onClick={() => setAlwaysTitles(!always)} className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${always ? "bg-atlantic-400" : "bg-white/15"}`}><span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${always ? "translate-x-[20px]" : "translate-x-0"}`} /></button>
       </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { tmdb, item, IMG } from "./tmdb.js";
-import { allProgress, allWatched, unwatch } from "./line.js";
+import { titlesWatched, allWatched, unwatch } from "./line.js";
 import { WideCard, Fade } from "./Home.jsx";
 
 /* atlantic.bz/history: "Watch History", then Continue Watching — what you
@@ -9,20 +9,6 @@ import { WideCard, Fade } from "./Home.jsx";
    the title's logo and a bar of how far you got (the share watched, exactly) —
    and Watched: what you marked with Mark as Watched, as posters you can
    remove. Both are the site's own, kept in this browser (line.js). */
-
-const FINISHED = 0.95;   // past this share a title counts as watched (web/js/sync-core.js)
-
-/* one entry per title: the newest film or episode position saved for it */
-function started() {
-  const latest = new Map();
-  for (const [key, p] of Object.entries(allProgress())) {
-    const m = /^(movie|tv):(\d+)(?::s(\d+)e(\d+))?$/.exec(key);
-    if (!m || !p?.duration) continue;
-    const id = `${m[1]}:${m[2]}`;
-    if (!latest.has(id) || (p.at || 0) > (latest.get(id).at || 0)) latest.set(id, { type: m[1], id: Number(m[2]), season: Number(m[3]) || 0, episode: Number(m[4]) || 0, ...p });
-  }
-  return [...latest.values()].filter((e) => e.position < e.duration * FINISHED).sort((a, b) => (b.at || 0) - (a.at || 0));
-}
 
 /* a watched title: its poster, the name and year on hover, and × to remove it */
 function WatchedCard({ w, onRemove }) {
@@ -51,7 +37,7 @@ export default function History() {
   const [watched, setWatched] = useState(allWatched);
   useEffect(() => {
     document.title = "Your Watch History — Aurora";
-    const list = started();
+    const list = titlesWatched();
     Promise.all(list.map((e) => tmdb(`/${e.type}/${e.id}`).then((d) => ({ e, it: { ...item(d, e.type), year: "" } })).catch(() => null)))
       .then((r) => setRows(r.filter(Boolean)));
   }, []);

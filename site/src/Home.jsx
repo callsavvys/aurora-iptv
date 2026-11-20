@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { IMG, homeRows, extras, PROVIDERS, providerRow, providerLogos } from "./tmdb.js";
+import { IMG, tmdb, item, homeRows, extras, PROVIDERS, providerRow, providerLogos } from "./tmdb.js";
 import { PlayIcon, InfoIcon, ChevronRight, ChevronLeft, Chevron } from "./icons.jsx";
 import { SaveButton, ListRows } from "./lists.jsx";
+import { titlesWatched, forgetProgress } from "./line.js";
+import { useContinueRows } from "./themes.jsx";
 
 /* atlantic.bz's home page, element for element: the hero that turns over by
    itself, two Top 10 rows, then rows of wide cards carrying each title's logo.
@@ -138,7 +140,7 @@ function Top10Row({ row }) {
 /* a wide card: the picture, a shade, the title's logo; on hover a play button and the year and score */
 /* to, badge and progress are for Continue Watching (History): where Play
    resumes, the "S2 E3" tag, and how far you got as a share */
-export function WideCard({ it, to, badge, progress }) {
+export function WideCard({ it, to, badge, progress, editing, onRemove }) {
   const [logo, setLogo] = useState(null);
   const ref = useRef(null);
   useEffect(() => {
@@ -147,7 +149,7 @@ export function WideCard({ it, to, badge, progress }) {
     io.observe(el); return () => io.disconnect();
   }, [it]);
   return (
-    <div ref={ref} className="group relative z-0 w-[200px] shrink-0 snap-start transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.06] sm:w-[280px] lg:w-[320px] short:w-[200px] ">
+    <div ref={ref} className={`group relative z-0 w-[200px] shrink-0 snap-start transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.06] sm:w-[280px] lg:w-[320px] short:w-[200px] ${editing ? "animate-jiggle" : ""}`}>
       <Link draggable="false" className="block w-full text-left" to={to || titleUrl(it)}>
         <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-abyss-800 shadow-none transition-shadow duration-200 group-hover:shadow-2xl group-hover:shadow-black/60">
           <Fade src={IMG("w780", it.backdrop || it.poster)} alt={it.title} className="h-full w-full object-cover" />
@@ -166,8 +168,81 @@ export function WideCard({ it, to, badge, progress }) {
           {progress != null ? <div className="absolute inset-x-0 bottom-0 h-1 bg-black/50"><div className="h-full bg-atlantic-400" style={{ width: `${progress}%` }} /></div> : null}
         </div>
       </Link>
-      <SaveButton it={it} />
+      {editing ? <button type="button" aria-label={`Remove ${it.title}`} onClick={onRemove} className="absolute -left-2 -top-2 z-30 flex h-7 w-7 items-center justify-center rounded-full bg-black text-white shadow-lg ring-2 ring-white/80 transition-opacity hover:bg-red-600 opacity-100"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button> : <SaveButton it={it} />}
     </div>
+  );
+}
+
+/* Continue Watching, as the site shows it on Home: what you started, split
+   into rows (Settings → Appearance), with Edit and View All (History) */
+function ContinueWatching() {
+  const rowCount = useContinueRows();
+  const [entries, setEntries] = useState(() => titlesWatched());
+  const [items, setItems] = useState([]);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    let live = true;
+    Promise.all(entries.map((e) => tmdb(`/${e.type}/${e.id}`).then((d) => ({ e, it: { ...item(d, e.type), year: "" } })).catch(() => null)))
+      .then((r) => live && setItems(r.filter(Boolean)));
+    return () => { live = false; };
+  }, [entries]);
+  if (!items.length) return null;
+  const rows = Array.from({ length: Math.min(rowCount, items.length) }, (_, r) => items.filter((_, i) => i % Math.min(rowCount, items.length) === r));
+  return (
+    <section className="relative mb-6">
+      <div className="mb-4 flex items-center gap-2 px-6 sm:px-[60px]">
+        <h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">Continue Watching</h2>
+        {editing
+          ? <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors bg-atlantic-500 text-abyss-950" aria-label="Done editing Continue Watching" onClick={() => setEditing(false)}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round"><path d="M5 12l5 5L20 7" /></svg></button>
+          : <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors text-white/50 hover:bg-white/10 hover:text-white" aria-label="Edit Continue Watching" onClick={() => setEditing(true)}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>}
+        <Link className="ml-auto text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to="/history">View All →</Link>
+      </div>
+      <div className="flex flex-col">
+        {rows.map((row, r) => (
+          <Scroller key={r} className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-5 px-6 py-3 sm:px-[60px]">
+            {row.map(({ e, it }) => <WideCard key={`${e.type}-${e.id}`} it={it} to={`/title/${e.type}/${e.id}?play=1`} badge={e.season ? `S${e.season} E${e.episode}` : ""} progress={(e.position / e.duration) * 100} editing={editing} onRemove={() => { forgetProgress(e.type, e.id); setEntries(titlesWatched()); }} />)}
+          </Scroller>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* "Because you watched …": TMDB's recommendations for a title you watched
+   (matched with the site, title for title); the title is a menu of your history */
+function BecauseRow({ history, start }) {
+  const [pick, setPick] = useState(history[start]);
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState([]);
+  const [name, setName] = useState("");
+  useEffect(() => {
+    let live = true;
+    tmdb(`/${pick.type}/${pick.id}`).then((d) => { if (live) setName(d.title || d.name); }).catch(() => {});
+    tmdb(`/${pick.type}/${pick.id}/recommendations`).then((r) => live && setItems((r.results || []).map((x) => item(x, pick.type)))).catch(() => {});
+    return () => { live = false; };
+  }, [pick]);
+  const [labels, setLabels] = useState({});
+  useEffect(() => { if (!open) return; Promise.all(history.map((h) => tmdb(`/${h.type}/${h.id}`).then((d) => [`${h.type}:${h.id}`, d.title || d.name]).catch(() => null))).then((r) => setLabels(Object.fromEntries(r.filter(Boolean)))); }, [open, history]);
+  if (!items.length) return null;
+  return (
+    <section className="relative mb-6">
+      <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 px-6 sm:px-[60px] short:px-6">
+        <h2 className="text-xl font-semibold text-white/90 drop-shadow-md">Because you watched</h2>
+        <div className="relative">
+          <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 text-xl font-semibold text-white underline decoration-white/30 decoration-1 underline-offset-4 transition-colors hover:decoration-atlantic-300">{name}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-white/60 transition-transform duration-200${open ? " rotate-180" : ""}`}><path d="m6 15 6-6 6 6" /></svg></button>
+          {open ? (
+            <div role="listbox" className="absolute left-0 top-full z-30 mt-3 max-h-80 w-72 animate-menu-in overflow-y-auto rounded-2xl border border-white/10 bg-abyss-900/95 p-1.5 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
+              {history.map((h) => { const on = h.type === pick.type && h.id === pick.id; return (
+                <button key={`${h.type}-${h.id}`} type="button" role="option" aria-selected={on} onClick={() => { setPick(h); setOpen(false); }} className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${on ? "bg-white/15 font-semibold text-white" : "text-white/75 hover:bg-white/10 hover:text-white"}`}><span className="flex-1 truncate">{labels[`${h.type}:${h.id}`] || ""}</span><span className="shrink-0 text-xs font-semibold text-white/40">{h.type === "tv" ? "Show" : "Movie"}</span></button>
+              ); })}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <Scroller className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-5 px-6 py-6 sm:px-[60px] short:px-6">
+        {items.map((it) => <WideCard key={`${it.type}-${it.id}`} it={it} />)}
+      </Scroller>
+    </section>
   );
 }
 
@@ -217,6 +292,7 @@ function ProviderRow() {
 
 export default function Home() {
   const [data, setData] = useState(null);
+  const [history] = useState(() => titlesWatched({ all: true }));
   const [error, setError] = useState("");
   useEffect(() => { homeRows().then(setData).catch((e) => setError(e.message)); }, []);
   useEffect(() => { document.title = "Aurora — Watch Movies and TV Shows"; }, []);
@@ -226,11 +302,15 @@ export default function Home() {
         <Hero items={data?.hero || []} />
         <div className="relative z-10 mt-4">
           {error ? <p className="px-6 text-white/60 sm:px-[60px]">Could not reach TMDB: {error}</p> : null}
+          <ContinueWatching />
           <ListRows />
-          {(data?.rows || []).map((row) =>
+          {(data?.rows || []).map((row, i, all) => [
             row.kind === "top10" ? <Top10Row key={row.id} row={row} />
             : row.kind === "provider" ? <ProviderRow key={row.id} />
-            : <WideRow key={row.id} title={row.title} all={row.all} items={row.items} />)}
+            : <WideRow key={row.id} title={row.title} all={row.all} items={row.items} />,
+            // after the Top 10s, "Because you watched" your two latest titles
+            row.kind === "top10" && all[i + 1]?.kind !== "top10" ? history.slice(0, 2).map((h, n) => <BecauseRow key={`because-${h.type}-${h.id}`} history={history} start={n} />) : null,
+          ])}
         </div>
       </div>
     </div>

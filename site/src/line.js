@@ -143,6 +143,25 @@ const readAll = () => { try { return JSON.parse(localStorage.getItem(PKEY) || "{
 export const progressKey = (type, id, season, episode) => `${type}:${id}${season ? `:s${season}e${episode}` : ""}`;
 export const getProgress = (key) => readAll()[key] || null;
 export const allProgress = () => readAll();
+const FINISHED = 0.95;   // past this share a title counts as watched (web/js/sync-core.js)
+/* one entry per title, newest first: the latest film or episode position saved
+   for it; unfinished only, unless all */
+export function titlesWatched({ all = false } = {}) {
+  const latest = new Map();
+  for (const [key, p] of Object.entries(readAll())) {
+    const m = /^(movie|tv):(\d+)(?::s(\d+)e(\d+))?$/.exec(key);
+    if (!m || !p?.duration) continue;
+    const id = `${m[1]}:${m[2]}`;
+    if (!latest.has(id) || (p.at || 0) > (latest.get(id).at || 0)) latest.set(id, { type: m[1], id: Number(m[2]), season: Number(m[3]) || 0, episode: Number(m[4]) || 0, ...p });
+  }
+  return [...latest.values()].filter((e) => all || e.position < e.duration * FINISHED).sort((a, b) => (b.at || 0) - (a.at || 0));
+}
+/* forgets a title's progress (Continue Watching's Edit) */
+export function forgetProgress(type, id) {
+  const all = readAll();
+  for (const k of Object.keys(all)) if (k === `${type}:${id}` || k.startsWith(`${type}:${id}:`)) delete all[k];
+  localStorage.setItem(PKEY, JSON.stringify(all));
+}
 export function saveProgress(key, data) {
   const all = readAll();
   all[key] = { ...data, at: Date.now() };

@@ -21,6 +21,13 @@ const readTitles = () => { if (titles !== null) return titles; try { titles = lo
 export const useAlwaysTitles = () => useSyncExternalStore(subscribe, readTitles);
 export function setAlwaysTitles(on) { titles = on; try { localStorage.setItem(TKEY, on ? "1" : "0"); } catch { /* private mode */ } listeners.forEach((fn) => fn()); }
 
+/* "Continue Watching Rows": how many rows Continue Watching splits into on Home */
+const RKEY = "aurora-site-cw-rows";
+let cwRows = null;
+const readRows = () => { if (cwRows !== null) return cwRows; try { cwRows = Number(localStorage.getItem(RKEY)) || 2; } catch { cwRows = 2; } return cwRows; };
+export const useContinueRows = () => useSyncExternalStore(subscribe, readRows);
+export function setContinueRows(n) { cwRows = n; try { localStorage.setItem(RKEY, String(n)); } catch { /* private mode */ } listeners.forEach((fn) => fn()); }
+
 export function setTheme(id) { current = id; try { localStorage.setItem(KEY, id); } catch { /* private mode */ } listeners.forEach((fn) => fn()); }
 
 /* applies the chosen theme to the page and draws its background */
