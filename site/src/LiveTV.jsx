@@ -87,7 +87,7 @@ export default function LiveTV() {
   const [now, next] = guide;
   return (
     <div className="transition-opacity duration-150 opacity-100">
-      <div className="px-6 pb-20 pt-32 sm:px-[60px]">
+      <div className="live-wrap px-6 pb-20 pt-32 sm:px-[60px]">
         <h1 className="live-title">Live TV<small>{line.name || "Your line"}</small></h1>
         {error ? <p className="text-white/50">{error}</p> : !data ? <p className="text-white/50">Loading channels from your line…</p> : (
           <div className="live-page">

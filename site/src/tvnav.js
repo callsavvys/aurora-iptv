@@ -15,14 +15,21 @@ const visible = (el) => {
   if (r.width < 2 || r.height < 2) return false;
   const st = getComputedStyle(el);
   if (st.visibility === "hidden" || st.pointerEvents === "none" && el.tagName !== "A") return false;
+  // cut off by a closed box (a shut drop-down): not there
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if (o === "hidden" || o === "clip") { const b = p.getBoundingClientRect(); if (r.bottom <= b.top + 1 || r.top >= b.bottom - 1) return false; }
+  }
   const hero = el.closest("[data-tv-hero]");   // faded while you are in the rows, but still where Up goes
   for (let p = el; p && p !== document.body; p = p.parentElement) { const s = getComputedStyle(p); if (s.display === "none" || (s.opacity === "0" && !(hero && p === hero))) return false; }
   return true;
 };
 /* what the arrows move between: the open panel or dialog, else the player, else the page */
 function scope() {
-  const panel = document.querySelector(".pm-card, .w-\\[343px\\], [role=dialog], [role=listbox]");
-  if (panel && visible(panel)) return panel;
+  // only something floating over the page (a menu, a dialog) keeps the remote inside it; a list on the page does not
+  const floating = (el) => { for (let p = el; p && p !== document.body; p = p.parentElement) { const pos = getComputedStyle(p).position; if (pos === "absolute" || pos === "fixed") return true; } return false; };
+  const panel = [...document.querySelectorAll(".pm-card, .w-\\[343px\\], [role=dialog], [role=listbox]")].find((el) => visible(el) && (el.matches(".pm-card, .w-\\[343px\\]") || floating(el)));
+  if (panel) return panel;
   const player = document.querySelector(".fixed.inset-0.z-\\[60\\]");
   return player || document.body;
 }
@@ -35,7 +42,7 @@ function land(el) {
   // the focus look by size: a card or tile (64px tall or more) rises with the light under it; a button turns white
   if (!el.matches(TEXT) && el.tagName !== "SELECT") {
     const r = el.getBoundingClientRect();
-    const wide = r.width > window.innerWidth * 0.55, big = r.height >= 64;
+    const wide = r.width > window.innerWidth * 0.55 || el.matches(".live-cat, .live-ch"), big = r.height >= 64 || el.matches(".live-cat, .live-ch");
     el.classList.toggle("tv-row", wide && big);           // an episode, a list line: lit in place
     el.classList.toggle("tv-card", big && !wide);          // a card or tile: rises
     el.classList.toggle("tv-pill", !big);                  // a button: white

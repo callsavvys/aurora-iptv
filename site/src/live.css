@@ -37,3 +37,10 @@
 .live-filter { width: 100%; height: 38px; margin-bottom: 8px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); color: #fff; font-size: 14px; outline: none; }
 .live-filter:focus { border-color: rgba(79,224,251,.5); }
 .live-filter::placeholder { color: rgba(255,255,255,.35); }
+/* the TV (960px wide): the guide side by side, categories | channels | the picture, each list filling the screen */
+.platform-tv .live-page { grid-template-columns: 210px minmax(0, 1fr) minmax(0, 300px); gap: 16px; }
+.platform-tv .live-preview { order: 0; }
+.platform-tv .live-list { max-height: calc(100vh - 170px); }
+.platform-tv .live-wrap { padding-top: 84px; padding-bottom: 16px; }
+.platform-tv .live-title { margin-bottom: 14px; font-size: 26px; }
+.platform-tv .live-list { max-height: calc(100vh - 150px); }

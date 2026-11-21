@@ -60,7 +60,13 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   const poke = useCallback(() => { setShown(true); clearTimeout(hideTimer.current); hideTimer.current = setTimeout(() => { if (!video.current?.paused) setShown(false); }, 3000); }, []);
   const toggle = () => { const v = video.current; if (!v) return; if (v.paused) v.play().catch(() => {}); else v.pause(); poke(); };
   const seek = (d) => { const v = video.current; if (!v || !v.duration || live) return; v.currentTime = Math.max(0, Math.min(v.duration - 1, v.currentTime + d)); poke(); };
-  const full = () => { const el = wrap.current; if (!document.fullscreenElement) el?.requestFullscreen?.().catch(() => {}); else document.exitFullscreen?.(); };
+  // an iPhone has no fullscreen for page elements, only for the video itself (its own player, which turns to landscape)
+  const full = () => {
+    const el = wrap.current, v = video.current;
+    if (document.fullscreenElement) { document.exitFullscreen?.(); return; }
+    if (el?.requestFullscreen) el.requestFullscreen().catch(() => v?.webkitEnterFullscreen?.());
+    else v?.webkitEnterFullscreen?.();
+  };
   const close = () => { onClose?.(); };
 
   // (declared before the stream, so on closing these let go while the video still has its position)

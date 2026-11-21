@@ -4,7 +4,10 @@
    session, so moving around the site does not ask twice. */
 const KEY = __TMDB_KEY__;
 const API = "https://api.themoviedb.org/3";
-export const IMG = (size, path) => (path ? `https://image.tmdb.org/t/p/${size}${path}` : "");
+// in the TV and phone apps a full-size picture (often 3840px, seconds to load) comes at 1280px,
+// still sharp on a phone and a 1080p TV; the website keeps atlantic.bz's originals
+const APP = import.meta.env.MODE === "app";
+export const IMG = (size, path) => (path ? `https://image.tmdb.org/t/p/${APP && size === "original" ? "w1280" : size}${path}` : "");
 
 const cache = new Map();
 export function tmdb(path, params = {}) {
