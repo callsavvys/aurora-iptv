@@ -1,4 +1,4 @@
--- Not applied yet (needs the owner's OK). Project dslcmbkdzukyvuzggjjc ("Aurora IPTV").
+-- Applied to project dslcmbkdzukyvuzggjjc ("Aurora IPTV") on 2026-11-21.
 -- The key to your sealed vault, kept on your account, so a device you are
 -- already signed in on opens your saved sources without the password again
 -- (the owner's ask: "if my account is saved on the device, no password").
