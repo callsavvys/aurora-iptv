@@ -27,6 +27,22 @@ function scope() {
 }
 const candidates = (root) => [...root.querySelectorAll(FOCUSABLE)].filter(visible);
 
+/* a text box the remote lands on stays shut (no keyboard) until OK opens it */
+const TEXT = "input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), textarea";
+function land(el) {
+  if (el.matches?.(TEXT) && !el.readOnly) {
+    el.readOnly = true; el.dataset.tvShut = "1";
+    el.addEventListener("blur", () => { if (el.dataset.tvShut) { el.readOnly = false; delete el.dataset.tvShut; } }, { once: true });
+  }
+  el.focus({ preventScroll: true });
+}
+function openBox(el) {
+  delete el.dataset.tvShut;
+  el.readOnly = false;
+  el.blur(); el.focus();   // focusing it writable is what brings up the keyboard
+  el.click?.();
+}
+
 function move(dx, dy) {
   const root = scope();
   const all = candidates(root);
@@ -34,7 +50,7 @@ function move(dx, dy) {
   if (!cur) {
     // start in the page itself (a title's Play, a page's first row), not the header
     const onScreen = (el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.top < window.innerHeight; };
-    const first = all.find((el) => onScreen(el) && el.closest("main") && el.getBoundingClientRect().top >= 70) || all.find(onScreen) || all[0]; first?.focus({ preventScroll: true }); first && keep(first); return !!first; }
+    const first = all.find((el) => onScreen(el) && el.closest("main") && el.getBoundingClientRect().top >= 70) || all.find(onScreen) || all[0]; if (first) { land(first); keep(first); } return !!first; }
   const a = cur.getBoundingClientRect();
   const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
   let best = null, bestScore = Infinity;
@@ -53,7 +69,7 @@ function move(dx, dy) {
     if (score < bestScore) { bestScore = score; best = el; }
   }
   if (!best) return false;
-  best.focus({ preventScroll: true });
+  land(best);
   keep(best);
   return true;
 }
@@ -69,7 +85,7 @@ function keep(el) {
 function back() {
   const player = document.querySelector(".fixed.inset-0.z-\\[60\\]");
   const typing = document.activeElement?.closest?.("input, textarea, select");
-  if (typing) { document.activeElement.blur(); return; }
+  if (typing && typing.dataset.tvShut !== "1") { document.activeElement.blur(); land(typing); return; }   // close the keyboard, stay on the box
   if (player) {
     // in the controls: back to the picture first
     if (player.contains(document.activeElement) && document.activeElement !== document.body && !document.querySelector(".pm-card, .w-\\[343px\\]")) { document.activeElement.blur(); return; }
@@ -88,7 +104,10 @@ export function startTvNav() {
     const player = document.querySelector(".fixed.inset-0.z-\\[60\\]");
     const inControls = player && player.contains(document.activeElement) && document.activeElement !== document.body;
     const panelOpen = !!document.querySelector(".pm-card, .w-\\[343px\\]");
-    const typing = document.activeElement?.closest?.("input, textarea, select");
+    const box = document.activeElement?.closest?.("input, textarea, select");
+    const shut = box?.dataset?.tvShut === "1";
+    const typing = box && !shut;
+    if (e.key === "Enter" && shut) { e.preventDefault(); e.stopImmediatePropagation(); openBox(box); return; }
     if (e.key === "Escape" && !e.isTrusted) return;   // our own, for the player
     if (e.key === "Backspace" && typing) return;
     if (e.key === "Escape" || e.key === "Backspace" || e.key === "GoBack" || e.key === "BrowserBack") { e.preventDefault(); e.stopImmediatePropagation(); back(); return; }

@@ -19,11 +19,31 @@ async function derive(password, salt, iterations = ITERATIONS) {
   const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
   return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
 }
-async function keep(uid, key, salt) { localStorage.setItem(KEY(uid), JSON.stringify({ key: toB64(await crypto.subtle.exportKey("raw", key)), salt })); }
+/* The key is kept on this device and on your account (vault_key, readable by
+   you only: supabase/migrations/20261121000000_vault_key.sql), so any device
+   you are signed in on opens your sources without the password again. */
+async function keep(uid, key, salt) {
+  const raw = toB64(await crypto.subtle.exportKey("raw", key));
+  localStorage.setItem(KEY(uid), JSON.stringify({ key: raw, salt }));
+  try { const sb = await start(); await sb?.from("vault_key").upsert({ user_id: uid, key: raw, salt, updated_at: new Date().toISOString() }); } catch { /* kept on this device at least */ }
+}
+const importKey = (raw) => crypto.subtle.importKey("raw", fromB64(raw), { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
 async function stored(uid) {
   try {
     const v = JSON.parse(localStorage.getItem(KEY(uid)) || "null");
-    return v ? { key: await crypto.subtle.importKey("raw", fromB64(v.key), { name: "AES-GCM" }, true, ["encrypt", "decrypt"]), salt: v.salt } : null;
+    if (v) return { key: await importKey(v.key), salt: v.salt };
+    // not on this device yet: from your account, or from the old Aurora app this TV ran
+    const sb = await start();
+    const { data } = sb ? await sb.from("vault_key").select("key, salt").maybeSingle() : { data: null };
+    const old = (() => { try { return JSON.parse(localStorage.getItem("aurora-site-oldvault") || "null"); } catch { return null; } })();
+    const found = data?.key ? data : old?.key ? old : null;
+    if (!found) return null;
+    const key = await importKey(found.key);
+    const r = sb ? await row(sb) : null;
+    if (r && r.kdf_salt !== found.salt) return null;   // a key for an older seal
+    if (r) await open(key, r);                           // throws if it is not this vault's key
+    await keep(uid, key, found.salt);
+    return { key, salt: found.salt };
   } catch { return null; }
 }
 export const forget = (uid) => { try { localStorage.removeItem(KEY(uid)); } catch { /* private mode */ } };

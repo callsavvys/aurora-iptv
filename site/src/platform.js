@@ -31,6 +31,11 @@ export async function appStart() {
       }
     }
   } catch { /* nothing saved yet */ }
+  // the old app's vault key (its sources are sealed with it): kept for vault.js to try, so no password is asked again
+  try {
+    const old = JSON.parse((await store.get({ key: "secrets" })).value || "null");
+    if (old?.vault?.key && old?.vault?.salt) localStorage.setItem("aurora-site-oldvault", JSON.stringify({ key: old.vault.key, salt: old.vault.salt }));
+  } catch { /* none */ }
 }
 /* line.js calls this whenever the line changes, so the app's own storage keeps a copy */
 export function keepLine(value) {
