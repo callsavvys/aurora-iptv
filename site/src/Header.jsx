@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { cloneElement, useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAccount, displayName } from "./account.js";
 import { AuroraMark, NavIcon, SearchIcon, Chevron, MenuIcon, MenuRowIcon } from "./icons.jsx";
@@ -65,6 +65,12 @@ function AccountMenu({ name = "Guest", signedIn = false }) {
 
 export default function Header() {
   const { user } = useAccount();   // the menu shows your name once you sign in
+  // the phone's menu (atlantic.bz's: a panel under the header), shut again on every new page
+  const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+  useEffect(() => setOpen(false), [pathname]);
+  const ITEM = "rounded-xl px-4 py-2.5 text-base transition-colors";
+  const state = ({ isActive }) => (isActive ? "font-semibold text-white bg-white/10" : "font-normal text-white/60 hover:text-white");
   return (
     <header className="fixed inset-x-0 top-0 z-50 flex h-[60px] items-center justify-center px-3">
       <div className="flex w-full max-w-4xl items-center gap-1 rounded-full border border-white/10 bg-pagebg/90 py-1.5 pl-4 pr-1.5 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] transition-colors duration-300">
@@ -79,9 +85,19 @@ export default function Header() {
         <div className="ml-auto flex items-center gap-0.5">
           <Link aria-label="Search" className={ICON_BTN} to="/search"><SearchIcon /></Link>
           <AccountMenu name={displayName() || "Guest"} signedIn={!!user} />
-          <button type="button" aria-label="Menu" className="flex items-center justify-center rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"><MenuIcon /></button>
+          <button type="button" aria-label="Menu" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex items-center justify-center rounded-full p-2 text-white/80 transition-colors hover:bg-white/10 hover:text-white md:hidden"><MenuIcon /></button>
         </div>
       </div>
+      {open ? (
+        <nav className="absolute left-3 right-3 top-[68px] rounded-2xl border border-white/10 bg-pagebg/95 p-2 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] md:hidden">
+          <ul className="flex flex-col">
+            {NAV.map(([to, label, icon]) => <li key={to}><NavLink to={to} className={(a) => `flex items-center gap-3 ${ITEM} ${state(a)}`}>{cloneElement(NavIcon[icon], { width: 18, height: 18, className: "shrink-0 opacity-80" })}{label}</NavLink></li>)}
+            <li><NavLink to="/settings" className={(a) => `block ${ITEM} ${state(a)}`}>Settings</NavLink></li>
+            <li><NavLink to="/history" className={(a) => `block ${ITEM} ${state(a)}`}>Watch History</NavLink></li>
+            {user ? <li><NavLink to="/who" className={(a) => `block ${ITEM} ${state(a)}`}>Switch account</NavLink></li> : <li><NavLink to="/welcome" className={(a) => `block ${ITEM} ${state(a)}`}>Sign in</NavLink></li>}
+          </ul>
+        </nav>
+      ) : null}
     </header>
   );
 }

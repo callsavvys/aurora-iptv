@@ -5,7 +5,12 @@
    --mode app` (site/vite.config.js); in it, routes live after a # because
    there is no server to answer /title/... */
 export const IS_APP = import.meta.env.MODE === "app";
-export const isTV = () => (import.meta.env.DEV && new URLSearchParams(location.search).has("tv")) || IS_APP && (document.documentElement.classList.contains("platform-tv") || /\bAndroid\b.*\b(TV|AFT|BRAVIA|Streamer)\b|\bGoogleTV\b|\bLeanback/i.test(navigator.userAgent) || window.innerWidth <= 1000 && window.innerHeight <= 600 && !("ontouchstart" in window));
+/* a television, not a phone: a TV's own name, Android without "Mobile" (every
+   Android phone says it; an Android TV does not), or no touch screen at all */
+const touch = () => "ontouchstart" in window || navigator.maxTouchPoints > 0;
+export const isTV = () => (import.meta.env.DEV && new URLSearchParams(location.search).has("tv")) || IS_APP && (/\bGoogleTV\b|\bLeanback|\bAFT|\bBRAVIA|Android TV|SMART-TV/i.test(navigator.userAgent) || (/Android/.test(navigator.userAgent) && !/Mobile/.test(navigator.userAgent)) || !touch());
+/* the phone app (safe areas: phone.css) */
+export const isPhone = () => IS_APP && !isTV();
 /* a provider's address, as this page can fetch it */
 export const relay = (url) => (IS_APP ? url : `/api/proxy?u=${encodeURIComponent(url)}`);
 /* Trakt's token exchange needs the relay (it holds the app's secret) */

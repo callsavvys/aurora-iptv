@@ -100,10 +100,11 @@ elif [ "$UI" = site ]; then
   # the website (site/), built for the app: relative paths, routes after a #,
   # the provider asked directly (CapacitorHttp) instead of through the relay
   (cd ../site && npx vite build --mode app --outDir ../mobile/www --emptyOutDir --logLevel warn) || { echo "the site did not build"; exit 1; }
-  sed -i '' 's#<html lang="en">#<html lang="en" class="platform-tv ui-site">#' www/index.html
+  # TV or phone is told apart on the device (site/src/platform.js), so one APK serves both
+  sed -i '' 's#<html lang="en">#<html lang="en" class="ui-site">#' www/index.html
   echo "window.AURORA_VERSION = \"$VERSION\";" > www/version.js
   sed -i '' 's#<head>#<head>\n    <script src="version.js"></script>#' www/index.html
-  NEEDLES="platform-tv ui-site version.js assets/index-"
+  NEEDLES="ui-site version.js assets/index-"
 else
   # the new interface: web/ as it runs in the Mac browser, minus its local
   # server, plus what that server provided (keys, hls.js, Supabase)

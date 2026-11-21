@@ -105,7 +105,7 @@ console.log("— the website (site/), staged —");
   check("stages without the Android SDK", r.code, 0);
   check("the banner names the site", / interface site /.test(r.out), true);
   const html = read("index.html");
-  check("it knows it is the site on a television", /class="platform-tv ui-site"/.test(html), true);
+  check("it is the site (TV or phone is told apart on the device)", /class="ui-site"/.test(html), true);
   check("its scripts load from the APK's own files (relative paths)", /src="\.\/assets\/index-[\w-]+\.js"/.test(html) && !/src="\/assets\//.test(html), true);
   check("the version is written", read("version.js").includes("AURORA_VERSION"), true);
   const js = fs.readdirSync(path.join(WWW, "assets")).filter((f) => f.endsWith(".js")).map((f) => read(`assets/${f}`)).join("\n");

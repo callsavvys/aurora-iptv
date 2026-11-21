@@ -1,0 +1,7 @@
+/* The phone app (class platform-phone, set by mobile/scripts/build-ios.sh):
+   keep clear of the clock and camera at the top and the home bar at the bottom */
+.platform-phone #root { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.platform-phone header.fixed { top: env(safe-area-inset-top); }
+.platform-phone .fixed.inset-0.z-\[60\] .top-0.bg-gradient-to-b { padding-top: calc(env(safe-area-inset-top) + 0.75rem); }
+.platform-phone .fixed.inset-0.z-\[60\] .bottom-0.bg-gradient-to-t { padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem); }
+.platform-phone .fixed.bottom-4 { bottom: calc(env(safe-area-inset-bottom) + 1rem); }
