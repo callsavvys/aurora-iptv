@@ -32,6 +32,7 @@ import { useParty } from "./party.js";
 import { startSync, stopSync } from "./cloud.js";
 import { IS_APP, isTV, appStart, pickedThisRun } from "./platform.js";
 import { startTvNav } from "./tvnav.js";
+import TvStage from "./TvStage.jsx";
 import { syncDaily } from "./trackers.js";
 
 /* a page for trying the player on a public test stream, in development only */
@@ -160,6 +161,7 @@ function Shell() {
       </div>
     </div>
     <PartyPill />
+    {isTV() ? <TvStage /> : null}
     </>
   );
 }

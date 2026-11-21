@@ -1,10 +1,53 @@
-/* the TV: where focus is, clearly (the remote's only pointer) */
-.platform-tv :focus { outline: none; }
-.platform-tv :focus-visible, .platform-tv a:focus, .platform-tv button:focus, .platform-tv input:focus, .platform-tv select:focus {
-  outline: 3px solid var(--atlantic-300, #67e8f9); outline-offset: 3px; border-radius: 12px;
-}
-.platform-tv a:focus .aspect-video, .platform-tv a:focus img { transform: scale(1.04); transition: transform 150ms ease-out; }
+/* The TV. Aurora's themes are lights over a night sky, so the remote's focus
+   is that light, not a frame: the card you are on rises a little and a band of
+   the theme's own colour (--atlantic-*, so Sakura is pink, Cinder ember) glows
+   on the "floor" under it, while the rest of its row dims. Buttons fill white
+   with dark text; text boxes get a lit underline. */
 .platform-tv { cursor: none; }
+.platform-tv :focus, .platform-tv :focus-visible { outline: none; }
+
+/* cards and tiles (tvnav.js marks them by size): rise, with the light under them */
+.platform-tv .tv-card:focus { position: relative; z-index: 20; transform: translateY(-5px) scale(1.05); transition: transform 160ms cubic-bezier(.2, .8, .2, 1); }
+.platform-tv .group:has(> .tv-card:focus) { z-index: 20; }
+.platform-tv .tv-card:focus::after {
+  content: ""; position: absolute; left: 14%; right: 14%; bottom: -16px; height: 9px; border-radius: 50%;
+  background: var(--atlantic-400, #1ecbec); filter: blur(9px); opacity: .9; pointer-events: none;
+}
+.platform-tv .tv-card:focus .aspect-video, .platform-tv .tv-card:focus [class*="aspect-[2/3]"] {
+  box-shadow: 0 18px 34px -14px rgb(0 0 0 / .85), 0 0 0 1px rgb(255 255 255 / .22);
+}
+/* a tile without a picture (a source, an account) also brightens its edge */
+.platform-tv .tv-card:focus:not(:has(img)) { border-color: rgb(255 255 255 / .55) !important; background-color: rgb(255 255 255 / .1) !important; }
+/* the rest of a row steps back while you are in it */
+.platform-tv [class*="overflow-x-auto"]:has(:focus) > *:not(:focus):not(:has(:focus)),
+.platform-tv .grid:has(> * :focus) > *:not(:has(:focus)) {
+  filter: brightness(.55) saturate(.85); transition: filter 220ms ease-out;
+}
+
+/* buttons and links: white, Apple-plain */
+.platform-tv .tv-pill:focus, .platform-tv [role=switch]:focus {
+  background: #fff !important; color: #050b12 !important; border-color: #fff !important;
+  box-shadow: 0 8px 22px -10px var(--atlantic-400, #1ecbec); border-radius: 9999px;
+  transition: background 120ms ease-out, color 120ms ease-out;
+}
+.platform-tv .tv-pill:focus * { color: inherit !important; }
+
+/* text boxes and lists: a lit underline */
+.platform-tv input:focus, .platform-tv select:focus, .platform-tv textarea:focus {
+  background-color: rgb(255 255 255 / .1) !important; border-color: transparent !important;
+  box-shadow: inset 0 -2px 0 var(--atlantic-300, #67e8f9);
+}
+
 /* no scrollbars on a television */
 .platform-tv, .platform-tv * { scrollbar-width: none; }
 .platform-tv ::-webkit-scrollbar { display: none; }
+
+/* Home by sections: once you are in the rows, the header steps away, the top
+   of the screen becomes the stage for the card you are on (TvStage.jsx), and
+   the row you are in sits on one line below it */
+.platform-tv.tv-rows header.fixed { opacity: 0; pointer-events: none; transform: translateY(-12px); transition: opacity 240ms ease-out, transform 240ms ease-out; }
+.platform-tv header.fixed { transition: opacity 240ms ease-out, transform 240ms ease-out; }
+.platform-tv.tv-rows [data-tv-hero] { opacity: 0; transition: opacity 300ms ease-out; }
+/* the first screen: the hero, and Continue Watching showing beneath it */
+.platform-tv [data-tv-hero] { height: 72vh !important; min-height: 0 !important; }
+.platform-tv [data-tv-hero] [data-hero] { bottom: 9% !important; }

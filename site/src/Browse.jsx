@@ -58,7 +58,7 @@ const CHIP_OFF = "bg-white/5 text-white/70 hover:bg-white/10";
 export function PosterCard({ it }) {
   return (
     <div className="group relative z-0 text-left transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.05]">
-      <Link draggable="false" className="block w-full text-left" to={`/title/${it.type}/${it.id}`}>
+      <Link draggable="false" className="block w-full text-left" to={`/title/${it.type}/${it.id}`} data-tv-type={it.type} data-tv-id={it.id}>
         <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-abyss-800 shadow-none transition-shadow duration-200 group-hover:shadow-2xl group-hover:shadow-black/60">
           {it.poster ? <Fade src={IMG("w342", it.poster)} alt={it.title} className="h-full w-full object-cover" />
             : <div className="flex h-full w-full items-center justify-center p-3 text-center text-xs text-white/40">{it.title}</div>}

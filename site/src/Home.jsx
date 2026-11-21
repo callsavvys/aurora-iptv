@@ -54,7 +54,7 @@ function Hero({ items }) {
         ))}
         <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgb(var(--page-bg-rgb, 5 11 18) / 0) 0%, rgb(var(--page-bg-rgb, 5 11 18) / 0.12) 25%, rgb(var(--page-bg-rgb, 5 11 18) / 0.5) 55%, rgb(var(--page-bg-rgb, 5 11 18) / 0.85) 80%, rgb(var(--page-bg-rgb, 5 11 18)) 100%)" }} />
       </div>
-      <div className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full short:h-dvh short:min-h-0"
+      <div data-tv-hero className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full short:h-dvh short:min-h-0"
         onMouseEnter={() => { paused.current = true; }} onMouseLeave={() => { paused.current = false; }}>
         <div className="absolute inset-0" style={{ maskImage: "linear-gradient(rgb(0, 0, 0) 0%, rgb(0, 0, 0) 45%, rgba(0, 0, 0, 0.6) 72%, transparent 100%)", WebkitMaskImage: "linear-gradient(rgb(0, 0, 0) 0%, rgb(0, 0, 0) 45%, rgba(0, 0, 0, 0.6) 72%, transparent 100%)" }}>
           {items.map((x, i) => (
@@ -126,7 +126,7 @@ function Top10Row({ row }) {
       <div className="mb-2 flex items-center px-6 sm:px-[60px] short:px-6"><h2 className="text-xl font-semibold text-white/90 drop-shadow-md">{row.title}</h2></div>
       <Scroller className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-7 px-6 py-5 sm:gap-10 sm:px-[60px] short:gap-7 short:px-6">
         {row.items.map((it, i) => (
-          <button key={it.id} type="button" onClick={() => nav(titleUrl(it))} className="group relative z-0 flex shrink-0 snap-start items-end text-left transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.04]">
+          <button key={it.id} type="button" data-tv-type={it.type} data-tv-id={it.id} onClick={() => nav(titleUrl(it))} className="group relative z-0 flex shrink-0 snap-start items-end text-left transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.04]">
             <span className="pointer-events-none -mr-5 select-none text-[112px] font-black leading-[0.8] tracking-tighter text-abyss-950 sm:-mr-7 sm:text-[148px] short:-mr-5 short:text-[112px]"
               style={{ WebkitTextStroke: "3px rgba(255, 255, 255, 0.55)", textShadow: "rgba(0, 0, 0, 0.6) 0px 0px 30px" }}>{i + 1}</span>
             <div className="relative aspect-[2/3] w-[112px] overflow-hidden rounded-lg bg-abyss-800 shadow-lg shadow-black/50 transition-shadow duration-200 group-hover:shadow-2xl group-hover:shadow-black/70 sm:w-[140px] short:w-[112px]">
@@ -152,7 +152,7 @@ export function WideCard({ it, to, badge, progress, editing, onRemove }) {
   }, [it]);
   return (
     <div ref={ref} className={`group relative z-0 w-[200px] shrink-0 snap-start transition-transform duration-200 hover:z-20 hover:-translate-y-1 hover:scale-[1.06] sm:w-[280px] lg:w-[320px] short:w-[200px] ${editing ? "animate-jiggle" : ""}`}>
-      <Link draggable="false" className="block w-full text-left" to={to || titleUrl(it)}>
+      <Link draggable="false" className="block w-full text-left" to={to || titleUrl(it)} data-tv-type={it.type} data-tv-id={it.id}>
         <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-abyss-800 shadow-none transition-shadow duration-200 group-hover:shadow-2xl group-hover:shadow-black/60">
           <Fade src={IMG("w780", it.backdrop || it.poster)} alt={it.title} className="h-full w-full object-cover" />
           {badge ? <div className="pointer-events-none absolute left-2 top-2 flex items-center border-l-[3px] border-atlantic-300 bg-black/60 px-2 py-1 text-xs font-bold text-white backdrop-blur-sm">{badge}</div> : null}
@@ -298,7 +298,7 @@ export default function Home() {
   useEffect(() => { homeRows().then(setData).catch((e) => setError(e.message)); }, []);
   useEffect(() => { document.title = "Aurora — Watch Movies and TV Shows"; }, []);
   return (
-    <div className="transition-opacity duration-150 opacity-100">
+    <div className="transition-opacity duration-150 opacity-100" data-tv-stage>
       <div className="relative">
         <Hero items={data?.hero || []} />
         <div className="relative z-10 mt-4">

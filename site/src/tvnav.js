@@ -15,7 +15,8 @@ const visible = (el) => {
   if (r.width < 2 || r.height < 2) return false;
   const st = getComputedStyle(el);
   if (st.visibility === "hidden" || st.pointerEvents === "none" && el.tagName !== "A") return false;
-  for (let p = el; p && p !== document.body; p = p.parentElement) { const s = getComputedStyle(p); if (s.opacity === "0" || s.display === "none") return false; }
+  const hero = el.closest("[data-tv-hero]");   // faded while you are in the rows, but still where Up goes
+  for (let p = el; p && p !== document.body; p = p.parentElement) { const s = getComputedStyle(p); if (s.display === "none" || (s.opacity === "0" && !(hero && p === hero))) return false; }
   return true;
 };
 /* what the arrows move between: the open panel or dialog, else the player, else the page */
@@ -30,6 +31,11 @@ const candidates = (root) => [...root.querySelectorAll(FOCUSABLE)].filter(visibl
 /* a text box the remote lands on stays shut (no keyboard) until OK opens it */
 const TEXT = "input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), textarea";
 function land(el) {
+  // the focus look by size: a card or tile (64px tall or more) rises with the light under it; a button turns white
+  if (!el.matches(TEXT) && el.tagName !== "SELECT") {
+    const big = el.getBoundingClientRect().height >= 64;
+    el.classList.toggle("tv-card", big); el.classList.toggle("tv-pill", !big);
+  }
   if (el.matches?.(TEXT) && !el.readOnly) {
     el.readOnly = true; el.dataset.tvShut = "1";
     el.addEventListener("blur", () => { if (el.dataset.tvShut) { el.readOnly = false; delete el.dataset.tvShut; } }, { once: true });
@@ -97,9 +103,49 @@ function move(dx, dy) {
   return true;
 }
 
-/* keep the focused thing on screen, its row too */
+/* keep the focused thing on screen. On a page with a stage (Home), by sections:
+   in the hero the page is at the top with the header; in a row, the header
+   steps away, the stage shows the card (TvStage.jsx) and the row sits on one
+   line under it. Elsewhere, just in view. */
+const ANCHOR = 0.47;
+function sideways(el) {
+  // inside a row that scrolls sideways: keep the card in it, with room either side
+  for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+    const s = getComputedStyle(p);
+    if (/(auto|scroll)/.test(s.overflowX) && p.scrollWidth > p.clientWidth) {
+      const r = el.getBoundingClientRect(), box = p.getBoundingClientRect(), pad = 60;
+      if (r.left < box.left + pad) p.scrollBy({ left: r.left - box.left - pad, behavior: "smooth" });
+      else if (r.right > box.right - pad) p.scrollBy({ left: r.right - box.right + pad, behavior: "smooth" });
+      return;
+    }
+  }
+}
 function keep(el) {
-  el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  const stage = document.querySelector("[data-tv-stage]");
+  const root = document.documentElement;
+  if (stage && stage.contains(el) && !el.closest("header")) {
+    sideways(el);
+    const section = el.closest("section");
+    if (!section || el.closest("[data-tv-hero]")) { root.classList.remove("tv-rows"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    root.classList.add("tv-rows");
+    // the line is the section's title for its first row; a later row of the same section comes up to it itself
+    const rows = [...section.querySelectorAll('[class*="overflow-x-auto"]')];
+    const unit = el.closest('[class*="overflow-x-auto"]') || section;
+    const lead = rows.indexOf(unit) <= 0 ? section : unit;
+    const h = window.innerHeight;
+    let top = window.scrollY + lead.getBoundingClientRect().top - h * ANCHOR;
+    // a tall row (posters) rises just enough to show whole, light included
+    const bottom = window.scrollY + unit.getBoundingClientRect().bottom + 18;
+    if (bottom - top > h) top = bottom - h;
+    top = Math.max(0, top);
+    // the stage ends just above the row's title, wherever that lands
+    const titleY = window.scrollY + lead.getBoundingClientRect().top - top;
+    root.style.setProperty("--tv-stage", `${Math.round(Math.min(h * ANCHOR, Math.max(h * 0.3, titleY - 6)))}px`);
+    window.scrollTo({ top, behavior: "smooth" });
+    return;
+  }
+  root.classList.remove("tv-rows");
+  sideways(el);
   const r = el.getBoundingClientRect();
   const top = 80, bottom = window.innerHeight - 40;   // the header pill sits over the page's top
   if (r.top < top) window.scrollBy({ top: r.top - top - 20, behavior: "smooth" });
