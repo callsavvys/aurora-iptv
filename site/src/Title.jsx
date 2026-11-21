@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Player from "./Player.jsx";
+import { isTV } from "./platform.js";
 import { getLine, findOnLine, lineEpisodes, streamUrl, progressKey, getProgress, saveProgress, toggleWatched } from "./line.js";
 import { IMG, tmdb, item } from "./tmdb.js";
 import { AddToList } from "./lists.jsx";
@@ -108,6 +109,10 @@ export default function Title() {
   if (d.error) return <div className="px-6 pt-32 sm:px-[60px]"><h1 className="text-3xl font-bold text-white">Not found</h1></div>;
 
   const title = d.title || d.name;
+  // on the TV a series' Play says which episode it starts: where you left off, else the first
+  const firstSeason = Math.min(...(d.seasons || []).map((x) => x.season_number).filter((n) => n > 0), 1);
+  const lastEp = type === "tv" ? (() => { try { return JSON.parse(localStorage.getItem(`aurora-site-last:${id}`) || "null"); } catch { return null; } })() : null;
+  const playLabel = type === "tv" && isTV() ? `Play S${lastEp?.s || firstSeason} E${lastEp?.e || 1}` : "Play";
   const year = (d.release_date || d.first_air_date || "").slice(0, 4);
   const logos = d.images?.logos || [];
   const png = (l) => !/\.svg$/i.test(l.file_path);
@@ -150,7 +155,7 @@ export default function Title() {
             <p className="mb-4 text-sm font-medium text-white/70">{(d.genres || []).map((g) => g.name).join(" • ")}</p>
             <div className="mb-4 flex items-center gap-3">
               <button type="button" onClick={() => play()} className="flex items-center gap-2 rounded-full bg-gradient-to-r from-atlantic-300 to-atlantic-500 px-6 py-2.5 text-sm font-bold text-abyss-950 shadow-[0_8px_24px_-6px_rgba(30,203,236,0.55)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_-6px_rgba(30,203,236,0.7)] active:translate-y-0">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 2.69127C5 1.93067 5.81547 1.44851 6.48192 1.81506L23.4069 11.1238C24.0977 11.5037 24.0977 12.4963 23.4069 12.8762L6.48192 22.1849C5.81546 22.5515 5 22.0693 5 21.3087V2.69127Z" /></svg>Play
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M5 2.69127C5 1.93067 5.81547 1.44851 6.48192 1.81506L23.4069 11.1238C24.0977 11.5037 24.0977 12.4963 23.4069 12.8762L6.48192 22.1849C5.81546 22.5515 5 22.0693 5 21.3087V2.69127Z" /></svg>{playLabel}
               </button>
               <AddToList e={{ id: String(id), type, title: d.title || d.name, poster: d.poster_path ? IMG("w342", d.poster_path) : "", year: (d.release_date || d.first_air_date || "").slice(0, 4) }} className={ROUND} />
               <button type="button" aria-label="Mark as Watched" onClick={() => toggleWatched({ type, id: Number(id), title: d.title || d.name, poster: d.poster_path, year: (d.release_date || d.first_air_date || "").slice(0, 4) })} className={ROUND}>
@@ -162,12 +167,12 @@ export default function Title() {
               {type === "movie" && d.runtime ? <span>{runtime(d.runtime)}</span> : null}
               {cert ? <span className="rounded border border-white/30 px-1.5 py-0.5 text-xs">{cert}</span> : null}
               {d.external_ids?.imdb_id || d.imdb_id ? (
-                <a href={`https://www.imdb.com/title/${d.external_ids?.imdb_id || d.imdb_id}/`} target="_blank" rel="noopener noreferrer" className={BADGE} aria-label="Open on IMDb" title="Open on IMDb">
+                <a href={`https://www.imdb.com/title/${d.external_ids?.imdb_id || d.imdb_id}/`} target="_blank" rel="noopener noreferrer" className={BADGE} aria-label="Open on IMDb" title="Open on IMDb" data-tv-skip>
                   <span aria-hidden="true" className="inline-flex h-[18px] items-center rounded-[3px] bg-[#f5c518] px-1 text-[11px] font-black leading-none tracking-tight text-black">IMDb</span>
                   {imdb ? <span>{imdb}</span> : <span className="text-white/50">–</span>}
                 </a>
               ) : null}
-              <a href={`https://www.themoviedb.org/${type}/${id}`} target="_blank" rel="noopener noreferrer" className={BADGE} aria-label={`TMDB rating ${d.vote_average?.toFixed(1)}, open on TMDB`} title={`${votes(d.vote_count)} votes on TMDB`}>
+              <a href={`https://www.themoviedb.org/${type}/${id}`} target="_blank" rel="noopener noreferrer" className={BADGE} aria-label={`TMDB rating ${d.vote_average?.toFixed(1)}, open on TMDB`} title={`${votes(d.vote_count)} votes on TMDB`} data-tv-skip>
                 <span aria-hidden="true" className="inline-flex h-[18px] items-center rounded-[3px] bg-[#0d253f] px-1 text-[10px] font-black leading-none tracking-tight"><span className="bg-gradient-to-r from-[#90cea1] to-[#01b4e4] bg-clip-text text-transparent">TMDB</span></span>
                 <span>{d.vote_average ? d.vote_average.toFixed(1) : "–"}</span>
               </a>

@@ -26,7 +26,8 @@ function scope() {
   const player = document.querySelector(".fixed.inset-0.z-\\[60\\]");
   return player || document.body;
 }
-const candidates = (root) => [...root.querySelectorAll(FOCUSABLE)].filter(visible);
+// links that open another website (IMDb, TMDB) are left out: nobody follows them from a sofa
+const candidates = (root) => [...root.querySelectorAll(FOCUSABLE)].filter((el) => !el.hasAttribute("data-tv-skip") && el.getAttribute("target") !== "_blank" && visible(el));
 
 /* a text box the remote lands on stays shut (no keyboard) until OK opens it */
 const TEXT = "input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), textarea";
