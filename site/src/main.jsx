@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, HashRouter, Routes, Route, Navigate, Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import "./atlantic.css";
 import "./tv.css";
+import "./picker.css";
 import Header from "./Header.jsx";
 import Home from "./Home.jsx";
 import Title from "./Title.jsx";
@@ -22,12 +23,14 @@ import { ThemeLayer } from "./themes.jsx";
 import Player from "./Player.jsx";
 import Welcome from "./Welcome.jsx";
 import Sources from "./Sources.jsx";
+import Who from "./Who.jsx";
+import Choose from "./Choose.jsx";
 import { PartyPill, Invite } from "./PartyUI.jsx";
-import { useAccount } from "./account.js";
+import { useAccount, savedAccounts } from "./account.js";
 import { getLine } from "./line.js";
 import { useParty } from "./party.js";
 import { startSync, stopSync } from "./cloud.js";
-import { IS_APP, isTV, appStart } from "./platform.js";
+import { IS_APP, isTV, appStart, pickedThisRun } from "./platform.js";
 import { startTvNav } from "./tvnav.js";
 import { syncDaily } from "./trackers.js";
 
@@ -70,6 +73,7 @@ function Gate({ children }) {
   const { user, loaded, accounts } = useAccount();
   const { pathname } = useLocation();
   const partying = useParty((p) => p.phase === "in" || p.phase === "reconnecting");
+  const [search] = useSearchParams();
   // signed in, your account's data comes down first (a few seconds at most), then pages draw
   const [synced, setSynced] = React.useState(null);
   React.useEffect(() => {
@@ -80,15 +84,19 @@ function Gate({ children }) {
     return () => { live = false; };
   }, [loaded, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // a guest in a party (an account is not needed for a private one) may go where the party plays
-  const open = pathname === "/welcome" || pathname === "/welcome-preview" || pathname.startsWith("/party/") || (partying && pathname.startsWith("/title/"));
+  const open = pathname === "/welcome" || pathname === "/welcome-preview" || pathname === "/who" || pathname.startsWith("/party/") || (partying && pathname.startsWith("/title/"));
+  const picking = pathname === "/who" || pathname === "/choose" || pathname === "/sources";
   if (!accounts) return children;
   if (!loaded) return open ? children : null;
-  if (!user && !open) return <Navigate to="/welcome" replace />;
+  // the app opens on "Who's watching?" (the accounts on this device), then Choose a source
+  if (!user && !open) return <Navigate to={savedAccounts().length ? "/who" : "/welcome"} replace />;
+  if (IS_APP && user && !pickedThisRun().account && savedAccounts().length && !picking && !open) return <Navigate to="/who" replace />;
   if (user && synced !== user.id && !open) return null;
-  if (user && pathname === "/welcome") return <Navigate to={getLine() ? "/" : "/sources?first=1"} replace />;
+  if (user && pathname === "/welcome" && !search.get("add")) return <Navigate to="/choose" replace />;
+  if (IS_APP && user && !pickedThisRun().source && !picking && !open) return <Navigate to="/choose" replace />;
   let later = false;
   try { later = localStorage.getItem("aurora-site-source-later") === "1"; } catch { /* private mode */ }
-  if (user && !getLine() && !later && pathname !== "/sources" && !open) return <Navigate to="/sources?first=1" replace />;
+  if (user && !getLine() && !later && !picking && !open) return <Navigate to="/choose" replace />;
   return children;
 }
 
@@ -97,7 +105,7 @@ function Shell() {
   const [search] = useSearchParams();
   React.useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
   React.useEffect(() => { syncDaily(); }, []);
-  const bare = pathname === "/welcome" || (import.meta.env.DEV && pathname === "/welcome-preview") || (pathname === "/sources" && search.get("first") === "1");
+  const bare = pathname === "/welcome" || pathname === "/who" || pathname === "/choose" || (import.meta.env.DEV && pathname === "/welcome-preview") || (pathname === "/sources" && search.get("first") === "1");
   if (bare) {
     return (
       <>
@@ -106,6 +114,8 @@ function Shell() {
         <Gate>
           <Routes>
             <Route path="/welcome" element={<Welcome />} />
+            <Route path="/who" element={<Who />} />
+            <Route path="/choose" element={<Choose />} />
             {import.meta.env.DEV ? <Route path="/welcome-preview" element={<Welcome />} /> : null}
             <Route path="/sources" element={<Sources />} />
           </Routes>

@@ -34,7 +34,7 @@ function Wall() {
 export default function Welcome() {
   const nav = useNavigate();
   useEffect(() => { document.title = "Welcome — Aurora"; }, []);
-  const done = (mode) => nav(mode === "signup" || !getLine() ? "/sources?first=1" : "/", { replace: true });
+  const done = (mode) => nav(mode === "signup" ? "/sources?first=1" : "/choose", { replace: true });
   return (
     <div className="relative min-h-dvh w-full overflow-hidden bg-black">
       <Wall />

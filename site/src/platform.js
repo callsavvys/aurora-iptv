@@ -38,3 +38,10 @@ export function keepLine(value) {
   if (!IS_APP || !store) return;
   (value == null ? store.remove({ key: "site.line" }) : store.set({ key: "site.line", value })).catch(() => {});
 }
+
+/* this run of the app: has an account and a source been picked yet? (the app
+   asks both every time it opens; the page reloading is a new run) */
+const run = { account: false, source: false };
+export const pickedAccount = () => { run.account = true; };
+export const pickedSource = () => { run.source = true; };
+export const pickedThisRun = () => ({ ...run });

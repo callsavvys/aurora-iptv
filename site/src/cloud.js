@@ -11,6 +11,7 @@
    The newest change wins. Your source's login is not synced: it stays in
    this browser, as the apps keep theirs in a sealed vault. */
 import { start, currentUser } from "./account.js";
+import { clearLine } from "./line.js";
 
 const META = "aurora-site-sync";
 const SETTINGS = ["aurora-site-player", "aurora-site-theme", "aurora-site-titles", "aurora-site-cw-rows", "aurora-site-particles"];
@@ -53,6 +54,14 @@ function apply(rows) {
   if (rows.length) window.dispatchEvent(new Event("aurora-synced"));
 }
 
+/* what this browser holds for the account that was here, before another takes over */
+function wipe() {
+  try {
+    for (const k of Object.keys(localStorage)) if (k === "aurora-site-progress" || k === "aurora-site-watched" || k === "aurora-site-lists" || k.startsWith("aurora-site-last:") || SETTINGS.includes(k)) localStorage.removeItem(k);
+    clearLine();   // the source too: the next account picks one of its own
+  } catch { /* private mode */ }
+  window.dispatchEvent(new Event("aurora-synced"));
+}
 let meta = null, seen = null, timers = [], busy = false, userId = null;
 const saveMeta = () => put(META, meta);
 const stamp = (id, value) => (id.startsWith("progress|") && value?.at) || 0;
@@ -125,6 +134,7 @@ export function startSync() {
   stopSync();
   userId = u.id;
   meta = json(META, null);
+  if (meta && meta.user !== u.id) wipe();   // another account was here: its data is on its account, not this one's
   if (!meta || meta.user !== u.id) meta = { user: u.id, since: null, times: {} };
   seen = null;
   first = (async () => {

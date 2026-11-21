@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { getLine, setLine, testLine, lineLabel, savePlaylistFile } from "./line.js";
 import { AuroraMark } from "./icons.jsx";
 import Player from "./Player.jsx";
-import { relay } from "./platform.js";
+import { relay, pickedSource } from "./platform.js";
+import { saveSource } from "./vault.js";
 
 /* Connect a source: right after you sign up (?first=1, full screen, with
    "Set up later"), and from Settings → Account. Aurora plays from what you
@@ -39,7 +40,13 @@ function XtreamForm({ onSaved }) {
     e.preventDefault();
     if (!form.server || !form.username || !form.password) return setState({ busy: false, error: "Server, username and password are all needed." });
     setState({ busy: true, error: "" });
-    try { await testLine({ kind: "xtream", ...form }); setLine({ kind: "xtream", ...form }); onSaved(`Connected to ${form.name || "your line"}.`); }
+    try {
+      await testLine({ kind: "xtream", ...form }); setLine({ kind: "xtream", ...form });
+      // kept on your account too (sealed), so your other devices list it
+      const kept = await saveSource(form).catch(() => false);
+      pickedSource();
+      onSaved(`Connected to ${form.name || "your line"}.${kept ? " Saved to your account." : ""}`);
+    }
     catch (err) { setState({ busy: false, error: err.message || "Could not connect." }); }
   };
   return (
@@ -155,7 +162,7 @@ export default function Sources() {
   const [player, setPlayer] = useState(null);
   const current = getLine();
   useEffect(() => { document.title = "Connect a source — Aurora"; }, []);
-  const saved = (msg) => { setDone(msg); if (first) setTimeout(() => nav("/", { replace: true }), 900); };
+  const saved = (msg) => { pickedSource(); setDone(msg); if (first) setTimeout(() => nav("/", { replace: true }), 900); };
   const later = () => { try { localStorage.setItem("aurora-site-source-later", "1"); } catch { /* private mode */ } nav("/", { replace: true }); };
   const playFile = (p) => setPlayer({ ...p, key: p.src });
   // local files play one after another

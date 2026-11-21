@@ -38,6 +38,7 @@ export function start() {
     client = createClient(__SUPABASE_URL__, __SUPABASE_KEY__, { auth: { storageKey: "aurora-auth", persistSession: true, autoRefreshToken: true, detectSessionInUrl: false } });
     client.auth.onAuthStateChange((_event, session) => {
       const next = session?.user || null;
+      if (session?.refresh_token) remember(session);   // keep this account's newest tokens for switching back
       if (next?.id !== user?.id || next?.user_metadata?.display_name !== user?.user_metadata?.display_name) { user = next; changed(); }
     });
     const { data } = await client.auth.getSession();
@@ -81,8 +82,20 @@ export async function signIn(name, password, { create = false } = {}) {
     if (again.error) throw new Error("The account was made, but the account server wants it confirmed first.");
     user = again.data.user;
   } else user = data.user;
+  // your saved sources are sealed with this password: unlock them on this device now
+  try { const { unlock } = await import("./vault.js"); await unlock(password); } catch { /* sources stay locked; Choose a source asks again */ }
+  remember();
   changed();
   return user;
+}
+
+/* checks your password again (to unlock your saved sources on a device that was already signed in) */
+export async function confirmPassword(password) {
+  if (!user || !(await start())) throw new Error("Sign in first.");
+  const { error } = await client.auth.signInWithPassword({ email: user.email, password });
+  if (error) throw new Error(friendly(error));
+  const { unlock } = await import("./vault.js");
+  if (!(await unlock(password))) throw new Error("Your saved sources were sealed under an older password and can't be opened.");
 }
 
 export async function setDisplayName(name) {
@@ -94,10 +107,38 @@ export async function setDisplayName(name) {
   changed();
 }
 
+/* ---- the accounts used on this device ("Who's watching?") ----
+   Each keeps its own session, so picking one switches to it without the
+   password. Log Out removes it from this device. */
+const ACCOUNTS = "aurora-site-accounts";
+export function savedAccounts() { try { return JSON.parse(localStorage.getItem(ACCOUNTS) || "[]"); } catch { return []; } }
+const saveAccounts = (list) => { try { localStorage.setItem(ACCOUNTS, JSON.stringify(list)); } catch { /* private mode */ } };
+async function remember(session) {
+  const s = session || (await client?.auth.getSession())?.data?.session;
+  const u = s?.user;
+  if (!u || !s.refresh_token) return;
+  const entry = { id: u.id, name: u.user_metadata?.display_name || u.user_metadata?.username || (u.email || "").split("@")[0], handle: u.user_metadata?.username ? `@${u.user_metadata.username}` : u.email?.endsWith("@users.aurora") ? `@${u.email.split("@")[0]}` : u.email || "", access_token: s.access_token, refresh_token: s.refresh_token, at: Date.now() };
+  saveAccounts([entry, ...savedAccounts().filter((a) => a.id !== u.id)].slice(0, 8));
+}
+export async function switchTo(id) {
+  const a = savedAccounts().find((x) => x.id === id);
+  if (!a || !(await start())) throw new Error("That account is not on this device any more.");
+  if (user?.id === id) return user;
+  const { leave } = await import("./party.js");
+  await leave();
+  const { data, error } = await client.auth.setSession({ access_token: a.access_token, refresh_token: a.refresh_token });
+  if (error || !data.session) { saveAccounts(savedAccounts().filter((x) => x.id !== id)); throw new Error("That account needs signing in again."); }
+  user = data.user;
+  changed();
+  return user;
+}
+
 export async function signOut() {
   const { leave } = await import("./party.js");
   await leave();
+  const gone = user?.id;
   await client?.auth.signOut({ scope: "local" }).catch(() => {});
+  if (gone) { saveAccounts(savedAccounts().filter((a) => a.id !== gone)); (await import("./vault.js")).forget(gone); }
   user = null;
   changed();
 }

@@ -33,7 +33,7 @@ function AccountMenu({ name = "Guest", signedIn = false }) {
     return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
   }, [open]);
   // signed in, the site says "Account" where a guest sees "Sign in"
-  const rows = [signedIn ? ["/settings", "Account", "account"] : ["/settings", "Sign in", "signin"], ["/settings", "Settings", "settings"], ["/history", "Watch History", "history"], ["/live", "Live TV", "live"]];
+  const rows = [signedIn ? ["/settings", "Account", "account"] : ["/settings", "Sign in", "signin"], ["/settings", "Settings", "settings"], ...(signedIn ? [["/who", "Switch account", "account"]] : []), ["/history", "Watch History", "history"], ["/live", "Live TV", "live"]];
   return (
     <div className="hidden md:block" ref={ref}>
       <div className="ndd" style={{ "--dd-size": "40px" }}>
