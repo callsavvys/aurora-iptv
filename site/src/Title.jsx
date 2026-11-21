@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Player from "./Player.jsx";
 import { isTV } from "./platform.js";
@@ -25,27 +25,60 @@ async function imdbScore(imdbId) {
   try { const r = await fetch(`https://www.omdbapi.com/?apikey=${OMDB}&i=${imdbId}`).then((x) => x.json()); return r.imdbRating && r.imdbRating !== "N/A" ? r.imdbRating : ""; } catch { return ""; }
 }
 
+/* the seasons as buttons, for the TV (its remote cannot work a drop-down) */
+function SeasonButtons({ seasons, current, onPick }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {seasons.map((s) => (
+        <button key={s.season_number} type="button" onClick={() => onPick(s.season_number)} aria-pressed={s.season_number === current}
+          className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${s.season_number === current ? "bg-white/20 text-white" : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white"}`}>
+          {s.name?.startsWith("Season") ? s.name : `Season ${s.season_number}`}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function Episodes({ tvId, seasons, onPlay }) {
   const real = seasons.filter((s) => s.season_number > 0);
-  const [n, setN] = useState(real[0]?.season_number || 1);
+  const last = (() => { try { return JSON.parse(localStorage.getItem(`aurora-site-last:${tvId}`) || "null"); } catch { return null; } })();
+  const [n, setN] = useState(last?.s && real.some((s) => s.season_number === last.s) ? last.s : real[0]?.season_number || 1);
   const [eps, setEps] = useState([]);
+  const tv = isTV();
+  const list = useRef(null), jump = useRef(false);
   useEffect(() => { setEps([]); tmdb(`/tv/${tvId}/season/${n}`).then((s) => setEps(s.episodes || [])).catch(() => {}); }, [tvId, n]);
+  // a season picked from the bottom of the list: its first episode takes the focus, at the top
+  useEffect(() => { if (jump.current && eps.length) { jump.current = false; const first = list.current?.querySelector("button"); first?.focus({ preventScroll: true }); first?.scrollIntoView({ block: "center", behavior: "smooth" }); } }, [eps]);
+  const pick = (k, fromBottom) => { jump.current = !!fromBottom; setN(k); };
+  const at = real.findIndex((s) => s.season_number === n), next = real[at + 1];
   return (
     <section id="episodes" className="px-6 py-10 sm:px-[60px]">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">Episodes</h2>
-        <select value={n} onChange={(e) => setN(Number(e.target.value))} className="rounded border border-white/10 bg-abyss-900 px-3 py-1.5 text-sm text-white outline-none">
-          {real.map((s) => <option key={s.season_number} value={s.season_number}>{s.name?.startsWith("Season") ? s.name : `Season ${s.season_number}`}</option>)}
-        </select>
+        {tv ? null : (
+          <select value={n} onChange={(e) => setN(Number(e.target.value))} className="rounded border border-white/10 bg-abyss-900 px-3 py-1.5 text-sm text-white outline-none">
+            {real.map((s) => <option key={s.season_number} value={s.season_number}>{s.name?.startsWith("Season") ? s.name : `Season ${s.season_number}`}</option>)}
+          </select>
+        )}
       </div>
-      <div className="space-y-2">
-        {eps.map((ep) => (
-          <button key={ep.id} type="button" onClick={() => onPlay(ep.season_number, ep.episode_number, ep.name)} className="flex w-full items-center gap-4 rounded-lg p-2 text-left hover:bg-white/5">
-            <div className="relative aspect-video w-40 shrink-0 overflow-hidden rounded bg-abyss-800">{ep.still_path ? <img src={IMG("w300", ep.still_path)} alt={ep.name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : null}</div>
-            <div className="min-w-0"><p className="truncate font-semibold text-white">{ep.episode_number}. {ep.name}</p><p className="line-clamp-2 text-sm text-white/50">{ep.overview}</p></div>
-          </button>
-        ))}
+      {tv && real.length > 1 ? <div className="mb-4"><SeasonButtons seasons={real} current={n} onPick={(k) => pick(k)} /></div> : null}
+      <div ref={list} className="space-y-2">
+        {eps.map((ep) => {
+          const now = last && last.s === ep.season_number && last.e === ep.episode_number;
+          return (
+            <button key={ep.id} type="button" onClick={() => onPlay(ep.season_number, ep.episode_number, ep.name)} className="flex w-full items-center gap-4 rounded-lg p-2 text-left hover:bg-white/5">
+              <div className="relative aspect-video w-40 shrink-0 overflow-hidden rounded bg-abyss-800">{ep.still_path ? <img src={IMG("w300", ep.still_path)} alt={ep.name} loading="lazy" decoding="async" className="h-full w-full object-cover" /> : null}</div>
+              <div className="min-w-0"><p className="truncate font-semibold text-white">{ep.episode_number}. {ep.name}{tv && now ? <span className="ml-2 text-xs font-bold uppercase tracking-wider text-atlantic-300">Where you stopped</span> : null}</p><p className="line-clamp-2 text-sm text-white/50">{ep.overview}</p></div>
+            </button>
+          );
+        })}
       </div>
+      {tv && eps.length && real.length > 1 ? (
+        <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-5">
+          {next ? <button type="button" onClick={() => pick(next.season_number, true)} className="flex items-center justify-between rounded-lg bg-white/5 px-4 py-3 text-left text-white"><span className="font-semibold">Next: {next.name?.startsWith("Season") ? next.name : `Season ${next.season_number}`}</span><span className="text-sm text-white/50">{next.episode_count ? `${next.episode_count} episodes` : ""}</span></button> : null}
+          <SeasonButtons seasons={real} current={n} onPick={(k) => pick(k, true)} />
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -178,7 +211,7 @@ export default function Title() {
               </a>
             </div>
             {makers.length ? (
-              <p className="mb-3 text-sm text-white/60">{type === "tv" ? "Creator" : "Director"}: {makers.slice(0, 1).map((m, i) => <span key={m.id}>{i ? ", " : ""}<Link className="text-white/80 transition-colors hover:text-atlantic-300" to={`/person/${m.id}`}>{m.name}</Link></span>)}</p>
+              <p className="mb-3 text-sm text-white/60">{type === "tv" ? "Creator" : "Director"}: {makers.slice(0, 1).map((m, i) => <span key={m.id}>{i ? ", " : ""}<Link className="text-white/80 transition-colors hover:text-atlantic-300" to={`/person/${m.id}`} data-tv-skip>{m.name}</Link></span>)}</p>
             ) : null}
             <p className="line-clamp-4 text-sm text-white/80 sm:text-base">{d.overview}</p>
           </div>

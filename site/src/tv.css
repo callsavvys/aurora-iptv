@@ -51,3 +51,6 @@
 /* the first screen: the hero, and Continue Watching showing beneath it */
 .platform-tv [data-tv-hero] { height: 72vh !important; min-height: 0 !important; }
 .platform-tv [data-tv-hero] [data-hero] { bottom: 9% !important; }
+/* a wide line (an episode, a list row): lit in place, the theme's light along its left edge */
+.platform-tv .tv-row:focus { background-color: rgb(255 255 255 / .08) !important; box-shadow: inset 3px 0 0 var(--atlantic-400, #1ecbec); transition: background-color 140ms ease-out; }
+.platform-tv .tv-row:focus img { transform: scale(1.04); transition: transform 160ms ease-out; }

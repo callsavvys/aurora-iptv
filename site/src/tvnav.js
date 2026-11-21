@@ -34,8 +34,11 @@ const TEXT = "input:not([type=checkbox]):not([type=radio]):not([type=range]):not
 function land(el) {
   // the focus look by size: a card or tile (64px tall or more) rises with the light under it; a button turns white
   if (!el.matches(TEXT) && el.tagName !== "SELECT") {
-    const big = el.getBoundingClientRect().height >= 64;
-    el.classList.toggle("tv-card", big); el.classList.toggle("tv-pill", !big);
+    const r = el.getBoundingClientRect();
+    const wide = r.width > window.innerWidth * 0.55, big = r.height >= 64;
+    el.classList.toggle("tv-row", wide && big);           // an episode, a list line: lit in place
+    el.classList.toggle("tv-card", big && !wide);          // a card or tile: rises
+    el.classList.toggle("tv-pill", !big);                  // a button: white
   }
   if (el.matches?.(TEXT) && !el.readOnly) {
     el.readOnly = true; el.dataset.tvShut = "1";
