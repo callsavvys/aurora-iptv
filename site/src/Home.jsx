@@ -36,7 +36,8 @@ function Hero({ items }) {
   const paused = useRef(false);
   useEffect(() => { items.forEach((it) => extras(it).then((m) => setMeta((s) => ({ ...s, [it.id]: m }))).catch(() => {})); }, [items]);
   useEffect(() => {
-    const t = setInterval(() => { if (!paused.current) setIndex((i) => (i + 1) % items.length); }, 8000);
+    // on a TV it holds still while the remote is on its buttons, so they are not swapped under you
+    const t = setInterval(() => { if (!paused.current && !document.activeElement?.closest?.("[data-hero]")) setIndex((i) => (i + 1) % items.length); }, 8000);
     return () => clearInterval(t);
   }, [items.length]);
   const it = items[index];
@@ -65,7 +66,7 @@ function Hero({ items }) {
           <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/35 to-transparent" />
         </div>
         <div className="pointer-events-none absolute inset-0" style={{ background: "radial-gradient(55% 42% at 14% 58%, rgba(0, 0, 0, 0.42), transparent 100%)" }} />
-        <div key={it.id} className="absolute bottom-[12%] left-6 w-[90%] max-w-xl animate-hero-in sm:left-[60px] short:left-6">
+        <div key={it.id} data-hero className="absolute bottom-[12%] left-6 w-[90%] max-w-xl animate-hero-in sm:left-[60px] short:left-6">
           <div className="mb-4 flex min-h-[72px] items-end sm:min-h-[110px] short:mb-2 short:min-h-[48px]">
             {m.logo
               ? <img src={m.logo} alt={it.title} decoding="async" className="max-h-[110px] max-w-[78vw] object-contain object-left-bottom drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)] sm:max-h-[150px] sm:max-w-[520px] short:max-h-[72px] short:max-w-[78vw]" />

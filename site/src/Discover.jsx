@@ -34,7 +34,7 @@ function Hero() {
   const [items, setItems] = useState([]);
   const [i, setI] = useState(0);
   useEffect(() => { tmdb("/trending/all/week").then((r) => setItems(list(r).filter((x) => x.backdrop).slice(0, 6))).catch(() => {}); }, []);
-  useEffect(() => { if (!items.length) return; const t = setInterval(() => setI((x) => (x + 1) % items.length), 8000); return () => clearInterval(t); }, [items.length]);
+  useEffect(() => { if (!items.length) return; const t = setInterval(() => { if (!document.activeElement?.closest?.("[data-hero]")) setI((x) => (x + 1) % items.length); }, 8000); return () => clearInterval(t); }, [items.length]);
   const it = items[i];
   // each title's logo, as on Home and the title pages; its name in text only when TMDB has no logo
   const [logos, setLogos] = useState({});
@@ -45,7 +45,7 @@ function Hero() {
       <div className="absolute inset-0 bg-gradient-to-t from-pagebg via-pagebg/30 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-r from-pagebg/85 via-pagebg/30 to-transparent" />
       {it ? (
-        <div className="absolute inset-x-0 bottom-0 flex flex-col gap-4 px-6 pb-10 sm:px-[60px]">
+        <div data-hero className="absolute inset-x-0 bottom-0 flex flex-col gap-4 px-6 pb-10 sm:px-[60px]">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-white/70"><span className="rounded-full bg-white/15 px-2.5 py-1 backdrop-blur">{it.type === "tv" ? "TV Show" : "Movie"}</span><span>Trending this week</span></div>
           {logos[it.id] ? <img src={logos[it.id]} alt={it.title} decoding="async" className="max-h-[110px] max-w-[78vw] object-contain object-left-bottom drop-shadow-[0_4px_18px_rgba(0,0,0,0.6)] sm:max-h-[150px] sm:max-w-[520px] short:max-h-[72px] short:max-w-[78vw]" />
             : logos[it.id] === "" ? <h2 className="max-w-3xl text-3xl font-extrabold leading-tight text-white drop-shadow-lg sm:text-5xl">{it.title}</h2> : <div className="h-[110px] sm:h-[150px] short:h-[72px]" />}

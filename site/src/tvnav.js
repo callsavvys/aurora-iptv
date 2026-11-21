@@ -43,36 +43,60 @@ function openBox(el) {
   el.click?.();
 }
 
+/* Moving like a TV app: Up and Down go to the nearest row above or below and
+   keep your column (so down then up returns to the same card); Left and Right
+   stay in the row and stop at its end; the header (fixed at the top of the
+   screen) is reached only from the top of the page, never over rows that
+   have scrolled up under it; tiny targets (a carousel's dots) are skipped. */
+let column = null;   // the x the remote is keeping while it moves up and down
+const inHeader = (el) => { const h = el.closest("header"); return !!h && getComputedStyle(h).position === "fixed"; };
+const big = (el) => { const r = el.getBoundingClientRect(); return r.width >= 12 && r.height >= 12; };
+
 function move(dx, dy) {
   const root = scope();
-  const all = candidates(root);
+  const all = candidates(root).filter(big);
   const cur = document.activeElement && root.contains(document.activeElement) && document.activeElement !== document.body ? document.activeElement : null;
   if (!cur) {
     // start in the page itself (a title's Play, a page's first row), not the header
     const onScreen = (el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.top < window.innerHeight; };
-    const first = all.find((el) => onScreen(el) && el.closest("main") && el.getBoundingClientRect().top >= 70) || all.find(onScreen) || all[0]; if (first) { land(first); keep(first); } return !!first; }
+    const first = all.find((el) => onScreen(el) && !inHeader(el) && el.getBoundingClientRect().top >= 70) || all.find(onScreen) || all[0];
+    if (first) { column = null; land(first); keep(first); }
+    return !!first;
+  }
   const a = cur.getBoundingClientRect();
   const ax = a.left + a.width / 2, ay = a.top + a.height / 2;
-  let best = null, bestScore = Infinity;
-  for (const el of all) {
-    if (el === cur || el.contains(cur) || cur.contains(el)) continue;
-    const b = el.getBoundingClientRect();
-    const bx = b.left + b.width / 2, by = b.top + b.height / 2;
-    // ahead of the current one, edge to edge
-    const ahead = dx > 0 ? b.left - a.right : dx < 0 ? a.left - b.right : dy > 0 ? b.top - a.bottom : a.top - b.bottom;
-    if (ahead < -Math.min(a.width, a.height) / 3) continue;
-    const along = Math.max(0, ahead);
-    // how far off the line: zero when they overlap side by side
-    const off = dx ? Math.max(0, Math.max(a.top, b.top) - Math.min(a.bottom, b.bottom)) + Math.abs(by - ay) * 0.1
-      : Math.max(0, Math.max(a.left, b.left) - Math.min(a.right, b.right)) + Math.abs(bx - ax) * 0.1;
-    const score = along + off * 3;
-    if (score < bestScore) { bestScore = score; best = el; }
+  const others = all.filter((el) => el !== cur && !el.contains(cur) && !cur.contains(el));
+  let best = null;
+  if (dx) {
+    // the same row: overlapping the current one top to bottom, ahead in that direction
+    const row = others.filter((el) => { const b = el.getBoundingClientRect(); const overlap = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top); return overlap > Math.min(a.height, b.height) * 0.4 && (dx > 0 ? b.left >= a.right - 4 : b.right <= a.left + 4); });
+    best = row.sort((p, q) => { const bp = p.getBoundingClientRect(), bq = q.getBoundingClientRect(); return (dx > 0 ? bp.left - bq.left : bq.right - bp.right) || Math.abs(bp.top - a.top) - Math.abs(bq.top - a.top); })[0] || null;
+    if (best) column = best.getBoundingClientRect().left + best.getBoundingClientRect().width / 2;
+  } else {
+    if (column == null) column = ax;
+    const curHeader = inHeader(cur);
+    let pool = others.filter((el) => { const b = el.getBoundingClientRect(); return dy > 0 ? b.top >= a.bottom - 4 && b.top > a.top : b.bottom <= a.top + 4 && b.bottom < a.bottom; });
+    // the header only from the top of the page; from the header, only the page
+    if (dy < 0 && !curHeader) { const page = pool.filter((el) => !inHeader(el)); if (page.length) pool = page; }
+    if (dy > 0 && curHeader) pool = pool.filter((el) => !inHeader(el));
+    if (pool.length) {
+      // the nearest row: everything whose edge is within a few pixels of the closest one
+      const edge = (el) => { const b = el.getBoundingClientRect(); return dy > 0 ? b.top : -b.bottom; };
+      const nearest = Math.min(...pool.map(edge));
+      const row = pool.filter((el) => edge(el) <= nearest + 24);
+      // in it, prefer what is on screen, then the one under the kept column
+      const W = window.innerWidth;
+      const shown = row.filter((el) => { const b = el.getBoundingClientRect(); return b.right > 0 && b.left < W; });
+      const pick = shown.length ? shown : row;
+      best = pick.sort((p, q) => { const bp = p.getBoundingClientRect(), bq = q.getBoundingClientRect(); const dp = column < bp.left ? bp.left - column : column > bp.right ? column - bp.right : 0, dq = column < bq.left ? bq.left - column : column > bq.right ? column - bq.right : 0; return dp - dq || Math.abs(bp.left + bp.width / 2 - column) - Math.abs(bq.left + bq.width / 2 - column); })[0];
+    }
   }
   if (!best) return false;
   land(best);
   keep(best);
   return true;
 }
+
 /* keep the focused thing on screen, its row too */
 function keep(el) {
   el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
@@ -98,6 +122,14 @@ function back() {
   else window.Capacitor?.Plugins?.App?.exitApp?.();
 }
 
+/* where focus was on each page, to come back to it after Back */
+const spots = new Map();
+const pageKey = () => location.pathname + location.search + location.hash;
+const indexOf = (el) => candidates(document.body).filter(big).indexOf(el);
+
+/* keep the player's controls up: its mouse-move handler is on the picture layer, inside */
+const wake = (player) => (player.firstElementChild || player).dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+
 export function startTvNav() {
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented) return;
@@ -116,7 +148,7 @@ export function startTvNav() {
       // the picture: the player's own keys, except Down and OK bring up the controls
       if (e.key === "ArrowDown" || e.key === "Enter") {
         e.preventDefault(); e.stopImmediatePropagation();
-        player.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+        wake(player);
         setTimeout(() => { const play = player.querySelector('button[aria-label="Play"], button[aria-label="Pause"]'); play?.focus({ preventScroll: true }); }, 50);
       }
       return;
@@ -124,7 +156,7 @@ export function startTvNav() {
     if (dir) {
       if (typing && (e.key === "ArrowLeft" || e.key === "ArrowRight")) return;   // moving the text cursor
       e.preventDefault(); e.stopImmediatePropagation();
-      if (player) player.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));   // keep the controls up
+      if (player) wake(player);   // keep the controls up
       move(dir[0], dir[1]);
     }
   }, true);
@@ -133,8 +165,23 @@ export function startTvNav() {
   // something to start from on every page
   // something to start from on every page: when nothing has focus for a moment (a new
   // page, a closed panel), the first thing on screen takes it; not in the player's picture
-  let idle = 0;
+  let idle = 0, page = pageKey(), lastIndex = -1;
   setInterval(() => {
+    const now = pageKey();
+    if (now !== page) {
+      spots.set(page, lastIndex);
+      page = now; column = null;
+      const back = spots.get(now);
+      if (back != null && back >= 0) {
+        idle = -8;   // the restore below goes first
+        // the page you came back to: once its rows are there, the card you left
+        let tries = 0;
+        const restore = setInterval(() => {
+          const el = candidates(document.body).filter(big)[back];
+          if (el || ++tries > 10) { clearInterval(restore); if (el) { land(el); keep(el); idle = 0; } }
+        }, 300);
+      }
+    } else if (document.activeElement && document.activeElement !== document.body) lastIndex = indexOf(document.activeElement);
     const none = !document.activeElement || document.activeElement === document.body || !document.body.contains(document.activeElement);
     const picture = document.querySelector(".fixed.inset-0.z-\\[60\\]") && !document.querySelector(".pm-card, .w-\\[343px\\]");
     idle = none && !picture ? idle + 1 : 0;
