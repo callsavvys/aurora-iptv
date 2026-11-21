@@ -37,6 +37,22 @@ async function proxy(req, res, target) {
   req.on("close", () => controller.abort());
   try {
     const upstream = await fetch(url, { headers, redirect: "follow", signal: controller.signal });
+    /* A live playlist often lists its segments relative to where it really
+       came from (after the provider's redirect). Read through this relay, the
+       page would resolve them against the relay's own address and every
+       segment would 404, so they are made absolute here. */
+    if (upstream.ok && (/mpegurl/i.test(upstream.headers.get("content-type") || "") || /\.m3u8$/i.test(new URL(upstream.url || url).pathname))) {
+      const base = upstream.url || url.toString();
+      const text = (await upstream.text()).split(/\r?\n/).map((line) => {
+        const t = line.trim();
+        const abs = (ref) => { try { return new URL(ref, base).toString(); } catch { return ref; } };
+        if (!t) return line;
+        if (t.startsWith("#")) return line.replace(/URI="([^"]+)"/g, (_, ref) => `URI="${abs(ref)}"`);
+        return abs(t);
+      }).join("\n");
+      res.writeHead(200, { "content-type": "application/vnd.apple.mpegurl", "cache-control": "no-store" });
+      return res.end(text);
+    }
     const out = { "cache-control": "no-store" };
     /* fetch() unpacks a gzipped reply, but its content-length is still the
        packed size. Passing that on made the browser stop reading early: a

@@ -23,6 +23,20 @@
   --signal: #ff3b5c; --gold: #ffd25a;
   --glow: rgba(20,211,168,.22);
 }
+/* Ocean, the default: deep navy, an ocean-blue accent, see-through cards and
+   less rounded buttons (the owner's pick, mixed in from a site they like) */
+[data-theme="ocean"] {
+  --bg: #050b12; --bg-2: #08121c; --surface: #0c1722; --surface-2: #122130; --surface-3: #1a2b3d;
+  --line: rgba(255,255,255,.08); --line-2: rgba(255,255,255,.14);
+  --text: #f2f7fa; --text-2: #a7b6c4; --text-3: #6a7a8a;
+  --accent: #0489ac; --accent-ink: #ffffff; --ring: #38c6ec;
+  --signal: #ff4d6a; --gold: #ffd25a;
+  --glow: rgba(4,137,172,.32);
+}
+[data-theme="ocean"] .btn, [data-theme="ocean"] .chip, [data-theme="ocean"] .cat-item { border-radius: 24px; }
+[data-theme="ocean"] .card .art { background: rgba(255,255,255,.06); }
+[data-theme="ocean"] .top .art, [data-theme="ocean"] .chan .art, [data-theme="ocean"] .toggle, [data-theme="ocean"] .party-strip, [data-theme="ocean"] .ch-item.on, [data-theme="ocean"] .cat-item.on { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); }
+[data-theme="ocean"] .tabs nav { background: rgba(255,255,255,.08); }
 [data-theme="crimson"] {
   --bg: #090909; --bg-2: #101010; --surface: #181818; --surface-2: #222; --surface-3: #2e2e2e;
   --text: #fff; --text-2: #b8b8b8; --text-3: #777;
@@ -307,7 +321,7 @@ section.block { padding-bottom: 64px; }
 .settings .side { display: flex; flex-direction: column; gap: 10px; }
 .settings .pane h2 { margin: 0 0 10px; font-size: var(--t-title3); letter-spacing: -.02em; }
 .settings .pane > p { margin: 0 0 34px; font-size: var(--t-body); color: var(--text-2); line-height: 1.5; max-width: 1000px; }
-.themes { display: grid; grid-template-columns: repeat(5, 230px); gap: 30px; margin-bottom: 44px; }
+.themes { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 24px; margin-bottom: 44px; max-width: 1240px; }
 .theme { height: 200px; border-radius: 22px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; border: 2px solid var(--line); transition: transform var(--dur) var(--ease); }
 .theme b { font-size: var(--t-callout); }
 .theme .sw { display: flex; gap: 8px; }
@@ -524,3 +538,12 @@ section.block { padding-bottom: 64px; }
 .phone .player.touch .controls > :not([data-key="pl:close"]):not([data-key="pl:next"]) { display: none; }
 .phone .player.touch .controls .btn { pointer-events: auto; }
 .phone .upnext { left: var(--safe-x); right: var(--safe-x); width: auto; bottom: 220px; }
+
+/* watching together: who, and how far apart, over the player */
+.party-strip { position: absolute; z-index: 5; left: 50%; top: var(--safe-y); transform: translateX(-50%); display: flex; align-items: center; gap: 14px; padding: 12px 14px 12px 28px; border-radius: 999px; background: rgba(20,22,30,.9); border: 1px solid var(--line-2); font-size: var(--t-caption); font-weight: 600; white-space: nowrap; }
+.party-strip .btn { height: 52px; padding: 0 20px; font-size: var(--t-min); }
+.phone .party-strip { top: 120px; left: var(--safe-x); right: auto; transform: none; max-width: calc(100% - 2 * var(--safe-x) - 160px); white-space: normal; }
+
+/* Watching now: a friend's party on Home */
+.watching .art { display: grid; place-items: center; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 40%, var(--surface-2)), var(--surface)); }
+.watching .who { text-align: center; } .watching .who b { display: block; font-size: 40px; letter-spacing: -.02em; } .watching .who span { font-size: var(--t-caption); color: var(--text-2); }

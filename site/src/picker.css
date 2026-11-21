@@ -1,0 +1,14 @@
+/* the few classes Who's watching? and Choose a source use that atlantic.css
+   (atlantic.bz's own compiled stylesheet) does not have */
+.-mt-2 { margin-top: -0.5rem; }
+.w-56 { width: 14rem; }
+.font-light { font-weight: 300; }
+.text-6xl { font-size: 3.75rem; line-height: 1; }
+.bg-atlantic-500\/20 { background-color: color-mix(in srgb, var(--atlantic-500, #06aed4) 20%, transparent); }
+.focus\:scale-105:focus { transform: scale(1.05); }
+.focus\:scale-\[1\.03\]:focus { transform: scale(1.03); }
+.focus\:text-white:focus { color: #fff; }
+.focus\:border-white\/40:focus { border-color: rgb(255 255 255 / 0.4); }
+.group:hover .group-hover\:border-white, .group:focus .group-focus\:border-white { border-color: #fff; }
+.group:hover .group-hover\:text-white, .group:focus .group-focus\:text-white { color: #fff; }
+.group:hover .group-hover\:ring-4, .group:focus .group-focus\:ring-4 { box-shadow: 0 0 0 4px #fff; }
