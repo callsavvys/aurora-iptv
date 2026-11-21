@@ -5,3 +5,6 @@
 .platform-phone .fixed.inset-0.z-\[60\] .top-0.bg-gradient-to-b { padding-top: calc(env(safe-area-inset-top) + 0.75rem); }
 .platform-phone .fixed.inset-0.z-\[60\] .bottom-0.bg-gradient-to-t { padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem); }
 .platform-phone .fixed.bottom-4 { bottom: calc(env(safe-area-inset-bottom) + 1rem); }
+/* the heroes' text (Home, a title, anime) is placed from the left at 90-92% of the width,
+   which on a phone leaves 24px on the left and 8-16px on the right: the same 24px both sides */
+.platform-phone .left-6.w-\[90\%\], .platform-phone .left-6.w-\[92\%\] { width: auto; right: 24px; }
