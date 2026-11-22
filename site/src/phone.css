@@ -8,3 +8,6 @@
 /* the heroes' text (Home, a title, anime) is placed from the left at 90-92% of the width,
    which on a phone leaves 24px on the left and 8-16px on the right: the same 24px both sides */
 .platform-phone .left-6.w-\[90\%\], .platform-phone .left-6.w-\[92\%\] { width: auto; right: 24px; }
+/* a full-screen page (Welcome, Who's watching?, Choose) sits inside that padding,
+   so it fills the screen less the padding, not a whole screen more */
+.platform-phone .min-h-dvh, .platform-phone .min-h-screen { min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
