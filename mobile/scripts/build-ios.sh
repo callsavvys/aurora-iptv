@@ -41,6 +41,17 @@ fi
 
 [ -d ios ] || npx cap add ios
 npx cap sync ios
+if [ "$UI" = site ]; then
+  # the website scrolls the page itself; the old interface scrolled inside it, so the shared config turns page scrolling off
+  python3 - <<'PY'
+import json
+p = "ios/App/App/capacitor.config.json"
+c = json.load(open(p))
+c.setdefault("ios", {})["scrollEnabled"] = True
+json.dump(c, open(p, "w"), indent=2)
+PY
+  grep -q '"scrollEnabled": true' ios/App/App/capacitor.config.json || { echo "page scrolling was not turned on"; exit 1; }
+fi
 
 # Aurora's own mark instead of Capacitor's placeholder; one 1024px image covers every size
 cp platform/icon/AppIcon-1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png
