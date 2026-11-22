@@ -62,6 +62,24 @@ If the 0.38.9x codes run out, build beside the real app instead. That build has 
 AURORA_APP_ID_SUFFIX=.test AURORA_TV_UI=web AURORA_TEST_VERSION=0.40.1 bash mobile/scripts/build-android.sh
 ```
 
+## Automatic updates (the website interface)
+
+TV and phone apps built from the website (`AURORA_TV_UI=site` or `AURORA_UI=site`) update themselves. A few seconds after each start, they read `manifest.json` on the `app-live` pre-release, download a newer bundle in the background, and run it the next time they start. To push the current `site/` to every installed app:
+
+```bash
+bash scripts/publish-live.sh
+```
+
+Add `--dry-run` to build without uploading. How it works:
+
+- `site/ota-plugin.cjs` puts a small loader in the app's `index.html` and makes the bundle one JS file plus one CSS file.
+- `site/src/ota.js` checks for updates and downloads them, verified against the manifest's SHA-256.
+- A downloaded bundle that has not started within 15 seconds is marked bad, and the app falls back to its own copy.
+- A newly installed APK or IPA always wins over an older download.
+- Settings shows the running build, with "updated automatically" when it came this way.
+
+Only the JS and CSS travel this way. A new APK or IPA is still needed for native changes, a new Capacitor plugin, and new images: images stay in the installed app, and the script names any that are missing. When a bundle needs something older apps lack, raise `SHELL_API` in `site/ota-plugin.cjs`; older apps then keep their own copy. Apps built before this loader existed never update this way: install one new build first.
+
 ## A release
 
 ```bash

@@ -35,6 +35,7 @@ import { IS_APP, isTV, isPhone, appStart, pickedThisRun } from "./platform.js";
 import { startTvNav } from "./tvnav.js";
 import TvStage from "./TvStage.jsx";
 import { syncDaily } from "./trackers.js";
+import { startUpdates } from "./ota.js";
 
 /* a page for trying the player on a public test stream, in development only */
 function PlayerTest() {
@@ -171,4 +172,8 @@ function Shell() {
 const Router = IS_APP ? HashRouter : BrowserRouter;
 if (isTV()) { document.documentElement.classList.add("platform-tv"); startTvNav(); }
 else if (isPhone()) document.documentElement.classList.add("platform-phone");
-appStart().finally(() => createRoot(document.getElementById("root")).render(<Router><Shell /></Router>));
+appStart().finally(() => {
+  createRoot(document.getElementById("root")).render(<Router><Shell /></Router>);
+  window.__auroraBooted = true;   // the update loader (ota-plugin.cjs) stops waiting
+  startUpdates();
+});

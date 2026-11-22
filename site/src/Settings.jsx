@@ -284,6 +284,14 @@ function About() {
 
 const SECTIONS = { account: Account, appearance: Appearance, playback: Playback, subtitles: Subtitles, experimental: Experimental, about: About };
 
+/* the apps only: which version is running, and whether it arrived as an automatic update (ota.js) */
+function AppVersion() {
+  const run = window.__AURORA_RUN__;
+  if (!run) return null;
+  const built = run.build ? new Date(run.build).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "";
+  return <p className="mt-4 text-center text-xs text-white/35">Aurora {window.AURORA_VERSION || ""} · {built}{run.ota ? " · updated automatically" : ""}</p>;
+}
+
 export default function Settings() {
   const [tab, setTab] = useState("account");
   useEffect(() => { document.title = "Settings — Aurora"; }, []);
@@ -299,6 +307,7 @@ export default function Settings() {
           {TABS.map(([id, label, icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={`${TAB} ${tab === id ? TAB_ON : TAB_OFF}`}>{icon}{label}</button>)}
         </div>
         <section className="rounded-xl border border-white/10 bg-abyss-900/60 p-5"><Section /></section>
+        <AppVersion />
       </div>
     </div>
   );
