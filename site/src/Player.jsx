@@ -67,7 +67,26 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
     if (el?.requestFullscreen) el.requestFullscreen().catch(() => v?.webkitEnterFullscreen?.());
     else v?.webkitEnterFullscreen?.();
   };
-  const close = () => { onClose?.(); };
+  // Back (a phone's back button or swipe, the browser's, the remote's) closes the player and keeps
+  // the page: an open player is its own step in the history, and closing it takes that step back
+  const closer = useRef(onClose); closer.current = onClose;
+  const step = useRef(null), closed = useRef(false);
+  useEffect(() => {
+    const id = Math.random().toString(36).slice(2);
+    const was = window.history.state;
+    // the next episode or channel takes over the step of the one before
+    if (was?.auroraPlayer) window.history.replaceState({ ...was, auroraPlayer: id }, "");
+    else window.history.pushState({ ...was, auroraPlayer: id }, "");
+    step.current = id;
+    const pop = () => { if (window.history.state?.auroraPlayer !== id && !closed.current) { closed.current = true; closer.current?.(); } };
+    window.addEventListener("popstate", pop);
+    return () => window.removeEventListener("popstate", pop);
+  }, []);
+  const close = () => {
+    if (closed.current) return;
+    if (window.history.state?.auroraPlayer === step.current) window.history.back();   // pop() then closes it
+    else { closed.current = true; onClose?.(); }
+  };
 
   // (declared before the stream, so on closing these let go while the video still has its position)
   // the watch party: the host's video is the room's clock, a guest's follows it (party.js);
