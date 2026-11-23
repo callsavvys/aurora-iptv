@@ -8,7 +8,9 @@ export const IS_APP = import.meta.env.MODE === "app";
 /* a television, not a phone: a TV's own name, Android without "Mobile" (every
    Android phone says it; an Android TV does not), or no touch screen at all */
 const touch = () => "ontouchstart" in window || navigator.maxTouchPoints > 0;
-export const isTV = () => (import.meta.env.DEV && new URLSearchParams(location.search).has("tv")) || IS_APP && (/\bGoogleTV\b|\bLeanback|\bAFT|\bBRAVIA|Android TV|SMART-TV/i.test(navigator.userAgent) || (/Android/.test(navigator.userAgent) && !/Mobile/.test(navigator.userAgent)) || !touch());
+// dev: ?tv=1 previews the TV app, and stays on for the tab as you move between pages
+const devTV = () => { if (!import.meta.env.DEV) return false; try { if (new URLSearchParams(location.search).has("tv")) sessionStorage.setItem("aurora-dev-tv", "1"); return sessionStorage.getItem("aurora-dev-tv") === "1"; } catch { return false; } };
+export const isTV = () => devTV() || IS_APP && (/\bGoogleTV\b|\bLeanback|\bAFT|\bBRAVIA|Android TV|SMART-TV/i.test(navigator.userAgent) || (/Android/.test(navigator.userAgent) && !/Mobile/.test(navigator.userAgent)) || !touch());
 /* the phone app (safe areas: phone.css) */
 export const isPhone = () => IS_APP && !isTV();
 /* a provider's address, as this page can fetch it */
