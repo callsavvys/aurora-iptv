@@ -42,6 +42,11 @@ export default function LiveTV() {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [cat, setCat] = useState("");
+  // a phone (the guide stacked in one column, not the TV): a group brings its channels on screen,
+  // and a channel plays full screen straight away, its preview being off the top of the screen
+  const chanList = useRef(null);
+  const stacked = () => !document.documentElement.classList.contains("platform-tv") && window.matchMedia("(max-width: 1023px)").matches;
+  const showChannels = () => { const el = chanList.current; if (!el) return; el.scrollTop = 0; window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 76, behavior: "smooth" }); };
   const [filter, setFilter] = useState("");
   const [current, setCurrent] = useState(null);
   const [guide, setGuide] = useState([]);
@@ -93,15 +98,15 @@ export default function LiveTV() {
           <div className="live-page">
             <div className="live-list" role="listbox" aria-label="Categories">
               {data.categories.map((c) => (
-                <button key={c.id} type="button" role="option" aria-selected={c.id === cat && !filter} className={`live-cat${c.id === cat && !filter ? " on" : ""}`} onClick={() => { setCat(c.id); setFilter(""); }}>
+                <button key={c.id} type="button" role="option" aria-selected={c.id === cat && !filter} className={`live-cat${c.id === cat && !filter ? " on" : ""}`} onClick={() => { setCat(c.id); setFilter(""); if (stacked()) requestAnimationFrame(() => showChannels()); }}>
                   <span>{c.name}</span><em>{c.count}</em>
                 </button>
               ))}
             </div>
-            <div className="live-list" aria-label="Channels">
+            <div ref={chanList} className="live-list" aria-label="Channels">
               <input className="live-filter" type="search" placeholder={`Search ${data.channels.length.toLocaleString()} channels`} value={filter} onChange={(e) => setFilter(e.target.value)} />
               {channels.length ? channels.slice(0, 400).map((ch) => (
-                <button key={ch.id} type="button" className={`live-ch${current?.id === ch.id ? " on" : ""}`} onClick={() => setCurrent(ch)} onDoubleClick={() => { setCurrent(ch); setPlaying({ ch, list: channels }); }}>
+                <button key={ch.id} type="button" className={`live-ch${current?.id === ch.id ? " on" : ""}`} onClick={() => { setCurrent(ch); if (stacked()) setPlaying({ ch, list: channels }); }} onDoubleClick={() => { setCurrent(ch); setPlaying({ ch, list: channels }); }}>
                   <span className="n">{ch.number}</span>
                   <span className="lg">{ch.logo ? <img src={ch.logo} alt="" loading="lazy" onError={(e) => { e.currentTarget.replaceWith(document.createTextNode(ch.name.slice(0, 2))); }} /> : ch.name.slice(0, 2)}</span>
                   <span className="tx"><div className="nm">{ch.name}</div><div className="now">{filter ? data.categories.find((c) => c.id === ch.categoryId)?.name || "" : ""}</div></span>
