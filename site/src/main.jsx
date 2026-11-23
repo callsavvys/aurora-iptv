@@ -36,6 +36,7 @@ import { startTvNav } from "./tvnav.js";
 import TvStage from "./TvStage.jsx";
 import { syncDaily } from "./trackers.js";
 import { startUpdates } from "./ota.js";
+import { useScrollMemory } from "./memory.js";
 
 /* a page for trying the player on a public test stream, in development only */
 function PlayerTest() {
@@ -106,7 +107,7 @@ function Gate({ children }) {
 function Shell() {
   const { pathname } = useLocation();
   const [search] = useSearchParams();
-  React.useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  useScrollMemory();   // new pages start at the top; Back returns to where you were (memory.js)
   React.useEffect(() => { syncDaily(); }, []);
   const bare = pathname === "/welcome" || pathname === "/who" || pathname === "/choose" || (import.meta.env.DEV && pathname === "/welcome-preview") || (pathname === "/sources" && search.get("first") === "1");
   if (bare) {

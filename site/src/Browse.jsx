@@ -4,6 +4,7 @@ import { IMG, tmdb, item } from "./tmdb.js";
 import { Fade } from "./Home.jsx";
 import { PlayIcon } from "./icons.jsx";
 import { SaveButton } from "./lists.jsx";
+import { useRemembered, useWasRemembered } from "./memory.js";
 
 /* atlantic.bz's Movies and TV Shows pages: a title, the genres as chips, and
    a grid of posters that keeps going as you scroll. Hovering a poster shows
@@ -14,15 +15,22 @@ import { SaveButton } from "./lists.jsx";
    pageOf(n) answers TMDB's page n; resetKey restarts it. Like the site, a
    title on two of TMDB's pages shows twice (only people are left out). */
 export function LoadMoreGrid({ pageOf, type, resetKey, auto = false }) {
-  const [items, setItems] = useState([]);
-  const [page, setPage] = useState(1);
+  // kept for Back (memory.js): coming back shows the titles already loaded, without loading them again
+  const back = useRef(useWasRemembered("grid-items"));
+  const [items, setItems] = useRemembered("grid-items", []);
+  const [page, setPage] = useRemembered("grid-page", 1);
+  const [keyed, setKeyed] = useRemembered("grid-key", resetKey);
   const [busy, setBusy] = useState(false);
-  const [more, setMore] = useState(true);
-  const [done, setDone] = useState(false);
+  const [more, setMore] = useRemembered("grid-more", true);
+  const [done, setDone] = useRemembered("grid-done", false);
   const end = useRef(null);
   const next = () => setPage((n) => (n === 1 ? 2 : n + 1));
-  useEffect(() => { setItems([]); setPage(1); setMore(true); setDone(false); }, [resetKey]);
   useEffect(() => {
+    if (back.current && keyed === resetKey) return;
+    setKeyed(resetKey); setItems([]); setPage(1); setMore(true); setDone(false);
+  }, [resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (back.current) { back.current = false; if (keyed === resetKey) return undefined; }
     let live = true;
     setBusy(true);
     const pages = page === 1 ? [1, 2] : [page + 1];
@@ -76,13 +84,20 @@ export function PosterCard({ it }) {
 
 /* a grid that loads the next page when its end comes into view */
 export function PosterGrid({ load, deps }) {
-  const [items, setItems] = useState([]);
-  const [page, setPage] = useState(1);
-  const [done, setDone] = useState(false);
+  const back = useRef(useWasRemembered("grid-items"));
+  const depsKey = deps.join("|");
+  const [items, setItems] = useRemembered("grid-items", []);
+  const [page, setPage] = useRemembered("grid-page", 1);
+  const [keyed, setKeyed] = useRemembered("grid-key", depsKey);
+  const [done, setDone] = useRemembered("grid-done", false);
   const busy = useRef(false);
   const end = useRef(null);
-  useEffect(() => { setItems([]); setPage(1); setDone(false); busy.current = false; }, deps); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
+    if (back.current && keyed === depsKey) return;
+    setKeyed(depsKey); setItems([]); setPage(1); setDone(false); busy.current = false;
+  }, deps); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (back.current) { back.current = false; if (keyed === depsKey) return undefined; }
     let live = true;
     busy.current = true;
     load(page).then(({ results, totalPages }) => {
@@ -110,8 +125,8 @@ export function PosterGrid({ load, deps }) {
 
 export default function Browse({ type }) {
   const [genres, setGenres] = useState([]);
-  const [genre, setGenre] = useState(null);
-  useEffect(() => { setGenre(null); tmdb(`/genre/${type}/list`).then((g) => setGenres(g.genres || [])).catch(() => {}); }, [type]);
+  const [genre, setGenre] = useRemembered("genre", null);
+  useEffect(() => { tmdb(`/genre/${type}/list`).then((g) => setGenres(g.genres || [])).catch(() => {}); }, [type]);
   useEffect(() => { document.title = `${type === "tv" ? "Watch Series" : "Watch Movies"} — Aurora`; }, [type]);
   // the site's list, found by matching its order exactly: TMDB's most popular
   // with at least 100 votes (genre pages add the genre)
