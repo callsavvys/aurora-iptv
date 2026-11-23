@@ -78,9 +78,17 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
     if (was?.auroraPlayer) window.history.replaceState({ ...was, auroraPlayer: id }, "");
     else window.history.pushState({ ...was, auroraPlayer: id }, "");
     step.current = id;
+    // closing gives focus back to what opened it (the channel, the episode, Play), for the remote
+    // (the next episode or channel opens from inside the player: it keeps the first one's)
+    const at = document.activeElement !== document.body ? document.activeElement : null;
+    const opener = at?.closest?.(".fixed.inset-0.z-\\[60\\]") ? window.__auroraOpener : at;
+    window.__auroraOpener = opener;
     const pop = () => { if (window.history.state?.auroraPlayer !== id && !closed.current) { closed.current = true; closer.current?.(); } };
     window.addEventListener("popstate", pop);
-    return () => window.removeEventListener("popstate", pop);
+    return () => {
+      window.removeEventListener("popstate", pop);
+      if (opener && opener.isConnected) setTimeout(() => { if (opener.isConnected && !document.querySelector(".fixed.inset-0.z-\\[60\\]")) opener.focus({ preventScroll: true }); }, 0);
+    };
   }, []);
   const close = () => {
     if (closed.current) return;
@@ -235,7 +243,9 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   useEffect(() => {
     const key = (e) => {
       if (e.target.closest?.("input, textarea")) return;
-      if (e.key.startsWith("Arrow") && e.target.closest?.("button") && document.documentElement.classList.contains("platform-tv")) return;   // the remote is moving between the controls
+      // the remote is moving between the controls (the player's own buttons; the page's Play button,
+      // still focused under the picture right after it started, does not count)
+      if (e.key.startsWith("Arrow") && e.target.closest?.("button") && e.target.closest?.(".fixed.inset-0.z-\\[60\\]") && document.documentElement.classList.contains("platform-tv")) return;
       if (e.key === " " || e.key === "k") { e.preventDefault(); toggle(); }
       else if (e.key === "ArrowLeft" && !live) { e.preventDefault(); seek(-prefs.seek); }
       else if (e.key === "ArrowRight" && !live) { e.preventDefault(); seek(prefs.seek); }
