@@ -38,15 +38,17 @@ const candidates = (root) => [...root.querySelectorAll(FOCUSABLE)].filter((el) =
 
 /* a text box the remote lands on stays shut (no keyboard) until OK opens it */
 const TEXT = "input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), textarea";
+// the focus look by size: a card or tile (64px tall or more) rises with the light under it; a button turns white
+function look(el) {
+  if (el.matches(TEXT) || el.tagName === "SELECT") return;
+  const r = el.getBoundingClientRect();
+  const wide = r.width > window.innerWidth * 0.55 || el.matches(".live-cat, .live-ch"), big = r.height >= 64 || el.matches(".live-cat, .live-ch");
+  el.classList.toggle("tv-row", wide && big);           // an episode, a list line: lit in place
+  el.classList.toggle("tv-card", big && !wide);          // a card or tile: rises
+  el.classList.toggle("tv-pill", !big);                  // a button: white
+}
 function land(el) {
-  // the focus look by size: a card or tile (64px tall or more) rises with the light under it; a button turns white
-  if (!el.matches(TEXT) && el.tagName !== "SELECT") {
-    const r = el.getBoundingClientRect();
-    const wide = r.width > window.innerWidth * 0.55 || el.matches(".live-cat, .live-ch"), big = r.height >= 64 || el.matches(".live-cat, .live-ch");
-    el.classList.toggle("tv-row", wide && big);           // an episode, a list line: lit in place
-    el.classList.toggle("tv-card", big && !wide);          // a card or tile: rises
-    el.classList.toggle("tv-pill", !big);                  // a button: white
-  }
+  look(el);
   if (el.matches?.(TEXT) && !el.readOnly) {
     el.readOnly = true; el.dataset.tvShut = "1";
     el.addEventListener("blur", () => { if (el.dataset.tvShut) { el.readOnly = false; delete el.dataset.tvShut; } }, { once: true });
@@ -108,7 +110,11 @@ function move(dx, dy) {
       best = pick.sort((p, q) => { const bp = p.getBoundingClientRect(), bq = q.getBoundingClientRect(); const dp = column < bp.left ? bp.left - column : column > bp.right ? column - bp.right : 0, dq = column < bq.left ? bq.left - column : column > bq.right ? column - bq.right : 0; return dp - dq || Math.abs(bp.left + bp.width / 2 - column) - Math.abs(bq.left + bq.width / 2 - column); })[0];
     }
   }
-  if (!best) return false;
+  if (!best) {
+    // nothing further down (or up) to press: show the rest of the page anyway (text under the last button)
+    if (dy && root === document.body && !document.documentElement.classList.contains("tv-rows")) window.scrollBy({ top: dy * window.innerHeight * 0.5, behavior: "smooth" });
+    return false;
+  }
   land(best);
   keep(best);
   return true;
@@ -173,7 +179,9 @@ function back() {
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     return;
   }
-  const open = document.querySelector("[role=dialog], [role=listbox]");
+  // a menu or dialog floating over the page (a list that is part of the page, like Live TV's groups, is not "open")
+  const floats = (el) => { for (let p = el; p && p !== document.body; p = p.parentElement) { const pos = getComputedStyle(p).position; if (pos === "absolute" || pos === "fixed") return true; } return false; };
+  const open = [...document.querySelectorAll("[role=dialog], [role=listbox]")].find((el) => visible(el) && floats(el));
   if (open) { document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); document.body.click(); return; }
   if (window.history.length > 1 && location.hash.replace(/^#/, "") !== "/") window.history.back();
   else window.Capacitor?.Plugins?.App?.exitApp?.();
@@ -182,7 +190,17 @@ function back() {
 /* where focus was on each page, to come back to it after Back */
 const spots = new Map();
 const pageKey = () => location.pathname + location.search + location.hash;
-const indexOf = (el) => candidates(document.body).filter(big).indexOf(el);
+// the card itself (its link, its name, the row it is in), so it is found again even when the
+// page comes back with its rows in a different order or still loading; its place as a fallback
+const sigOf = (el) => [el.tagName, el.getAttribute("href") || "", (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 40), el.closest("section")?.querySelector("h2, h3")?.textContent?.trim() || ""].join("|");
+function spotOf(el) {
+  const all = candidates(document.body).filter(big), sig = sigOf(el);
+  return { index: all.indexOf(el), sig, nth: all.slice(0, all.indexOf(el)).filter((x) => sigOf(x) === sig).length };
+}
+const findSpot = (spot, last) => {
+  const all = candidates(document.body).filter(big);
+  return all.filter((x) => sigOf(x) === spot.sig)[spot.nth] || (last ? all[spot.index] : null);
+};
 
 /* keep the player's controls up: its mouse-move handler is on the picture layer, inside */
 const wake = (player) => (player.firstElementChild || player).dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
@@ -222,23 +240,28 @@ export function startTvNav() {
   // something to start from on every page
   // something to start from on every page: when nothing has focus for a moment (a new
   // page, a closed panel), the first thing on screen takes it; not in the player's picture
-  let idle = 0, page = pageKey(), lastIndex = -1;
+  let idle = 0, page = pageKey(), lastSpot = null;
   setInterval(() => {
     const now = pageKey();
     if (now !== page) {
-      spots.set(page, lastIndex);
-      page = now; column = null;
+      if (lastSpot) spots.set(page, lastSpot);
+      page = now; column = null; lastSpot = null;
       const back = spots.get(now);
-      if (back != null && back >= 0) {
-        idle = -8;   // the restore below goes first
+      if (back && back.index >= 0) {
+        idle = -12;   // the restore below goes first
         // the page you came back to: once its rows are there, the card you left
         let tries = 0;
         const restore = setInterval(() => {
-          const el = candidates(document.body).filter(big)[back];
-          if (el || ++tries > 10) { clearInterval(restore); if (el) { land(el); keep(el); idle = 0; } }
+          if (pageKey() !== now) { clearInterval(restore); return; }
+          const last = ++tries > 12;
+          const el = findSpot(back, last);
+          if (el || last) { clearInterval(restore); if (el) { land(el); keep(el); idle = 0; } }
         }, 300);
       }
-    } else if (document.activeElement && document.activeElement !== document.body) lastIndex = indexOf(document.activeElement);
+    } else if (document.activeElement && document.activeElement !== document.body && idle >= 0) lastSpot = spotOf(document.activeElement);
+    // a page that redraws what you pressed (a picked group, a season) drops the focus look: put it back
+    const at = document.activeElement;
+    if (at && at !== document.body && at.matches?.(FOCUSABLE) && !at.matches(".tv-card, .tv-pill, .tv-row")) look(at);
     const none = !document.activeElement || document.activeElement === document.body || !document.body.contains(document.activeElement);
     const picture = document.querySelector(".fixed.inset-0.z-\\[60\\]") && !document.querySelector(".pm-card, .w-\\[343px\\]");
     idle = none && !picture ? idle + 1 : 0;
