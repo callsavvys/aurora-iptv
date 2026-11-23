@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { IMG } from "./tmdb.js";
@@ -48,16 +48,23 @@ function SaveDialog({ anchor, e, onClose }) {
   const [pos, setPos] = useState({ left: 10, top: 10 });
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
-  useLayoutEffect(() => {
+  const place = useCallback(() => {
     const r = anchor.getBoundingClientRect(), w = 276, h = Math.min(420, box.current?.offsetHeight || 260);
     const left = Math.max(10, Math.min(window.innerWidth - w - 10, r.right - w));
     const below = r.bottom + 8, top = below + h > window.innerHeight - 10 ? Math.max(10, r.top - h - 8) : below;
     setPos({ left, top });
-  }, [anchor, adding, lists.length]);
+  }, [anchor]);
+  useLayoutEffect(place, [place, adding, lists.length]);
   useEffect(() => {
     const away = (ev) => { if (!box.current?.contains(ev.target) && !anchor.contains(ev.target)) onClose(); };
     const esc = (ev) => ev.key === "Escape" && onClose();
-    const gone = () => onClose();
+    // a row or the page moving (a phone's keyboard opening for "New list" moves it too) keeps the
+    // menu by its button; it closes only once the button has gone off the screen
+    const gone = (ev) => {
+      if (box.current?.contains(ev.target)) return;
+      const r = anchor.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) onClose(); else place();
+    };
     document.addEventListener("mousedown", away); document.addEventListener("keydown", esc); window.addEventListener("scroll", gone, true);
     return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); window.removeEventListener("scroll", gone, true); };
   }, [anchor, onClose]);
