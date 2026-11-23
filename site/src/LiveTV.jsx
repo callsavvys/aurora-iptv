@@ -106,7 +106,7 @@ export default function LiveTV() {
             <div ref={chanList} className="live-list" aria-label="Channels">
               <input className="live-filter" type="search" placeholder={`Search ${data.channels.length.toLocaleString()} channels`} value={filter} onChange={(e) => setFilter(e.target.value)} />
               {channels.length ? channels.slice(0, 400).map((ch) => (
-                <button key={ch.id} type="button" className={`live-ch${current?.id === ch.id ? " on" : ""}`} onClick={() => { setCurrent(ch); if (stacked()) setPlaying({ ch, list: channels }); }} onDoubleClick={() => { setCurrent(ch); setPlaying({ ch, list: channels }); }}>
+                <button key={ch.id} type="button" className={`live-ch${current?.id === ch.id ? " on" : ""}`} onClick={() => { setCurrent(ch); if (stacked() || current?.id === ch.id) setPlaying({ ch, list: channels }); }} onDoubleClick={() => { setCurrent(ch); setPlaying({ ch, list: channels }); }}>
                   <span className="n">{ch.number}</span>
                   <span className="lg">{ch.logo ? <img src={ch.logo} alt="" loading="lazy" onError={(e) => { e.currentTarget.replaceWith(document.createTextNode(ch.name.slice(0, 2))); }} /> : ch.name.slice(0, 2)}</span>
                   <span className="tx"><div className="nm">{ch.name}</div><div className="now">{filter ? data.categories.find((c) => c.id === ch.categoryId)?.name || "" : ""}</div></span>
