@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { IMG } from "./tmdb.js";
-import { Scroller } from "./Home.jsx";
+import { Scroller, TvEndTile, tvSkip } from "./Home.jsx";
 
 /* Your lists, as atlantic.bz keeps them (seen in a fresh browser on the site):
    named lists of titles in this browser; the bookmark on a poster opens "Save
@@ -199,12 +199,13 @@ export function ListRows() {
       <div className="mb-4 flex items-center gap-2 px-6 sm:px-[60px]">
         <h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">{l.name}</h2>
         {editing === l.id
-          ? <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors bg-atlantic-500 text-abyss-950" aria-label={`Done editing ${l.name}`} onClick={() => setEditing(null)}><Done /></button>
-          : <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors text-white/50 hover:bg-white/10 hover:text-white" aria-label={`Edit ${l.name}`} onClick={() => setEditing(l.id)}><Pencil size={13} /></button>}
-        <Link className="ml-auto text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to={`/list/${l.id}`}>View All →</Link>
+          ? <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors bg-atlantic-500 text-abyss-950" aria-label={`Done editing ${l.name}`} {...tvSkip()} onClick={() => setEditing(null)}><Done /></button>
+          : <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors text-white/50 hover:bg-white/10 hover:text-white" aria-label={`Edit ${l.name}`} {...tvSkip()} onClick={() => setEditing(l.id)}><Pencil size={13} /></button>}
+        <Link {...tvSkip()} className="ml-auto text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to={`/list/${l.id}`}>View All →</Link>
       </div>
       <Scroller className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-5 px-6 py-6 sm:px-[60px]">
         {l.items.map((x) => <ListCard key={`${x.type}-${x.id}`} x={x} row editing={editing === l.id} onRemove={() => removeItem(l.id, x)} />)}
+        <TvEndTile to={`/list/${l.id}`} />
       </Scroller>
     </section>
   ));

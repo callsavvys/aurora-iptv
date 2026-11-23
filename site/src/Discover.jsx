@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { IMG, tmdb, list, extras, GENRE, inCinemas, PROVIDERS, providerLogos, providerRow } from "./tmdb.js";
-import { WideCard, Scroller } from "./Home.jsx";
+import { WideCard, Scroller, TvEndTile, tvSkip } from "./Home.jsx";
 import { LoadMoreGrid } from "./Browse.jsx";
 import ForYouBlock from "./ForYou.jsx";
 
@@ -69,10 +69,11 @@ function Row({ title, items, all, head }) {
     <section className="relative mb-6">
       <div className={head ? "mb-4 flex flex-wrap items-center justify-between gap-3 px-6 sm:px-[60px]" : "mb-4 flex items-center justify-between px-6 sm:px-[60px] short:px-6"}>
         {head || <h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">{title}</h2>}
-        {all ? <Link className="text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to={all}>View All →</Link> : null}
+        {all ? <Link {...tvSkip()} className="text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to={all}>View All →</Link> : null}
       </div>
       <Scroller className={`no-scrollbar overflow-x-auto overflow-y-hidden flex gap-5 px-6 py-6 sm:px-[60px]${head ? "" : " short:px-6"}`}>
         {items.length ? items.map((it) => <WideCard key={`${it.type}-${it.id}`} it={it} />) : Array.from({ length: 5 }, (_, k) => <div key={k} className="aspect-video w-[200px] shrink-0 rounded-lg bg-abyss-800 sm:w-[280px] lg:w-[320px]" />)}
+        {all && items.length ? <TvEndTile to={all} /> : null}
       </Scroller>
     </section>
   );

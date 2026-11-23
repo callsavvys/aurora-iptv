@@ -6,6 +6,7 @@ import { SaveButton, ListRows } from "./lists.jsx";
 import { titlesWatched, forgetProgress } from "./line.js";
 import { useContinueRows } from "./themes.jsx";
 import ForYouBlock from "./ForYou.jsx";
+import { isTV } from "./platform.js";
 
 /* atlantic.bz's home page, element for element: the hero that turns over by
    itself, two Top 10 rows, then rows of wide cards carrying each title's logo.
@@ -112,6 +113,18 @@ export function Scroller({ className, children }) {
   );
 }
 
+/* the TV: a row's View All is the last tile of the row, so Down and Up go row to row
+   without stopping on the small links beside the row titles (those are skipped, tv="skip") */
+export const tvSkip = () => (isTV() ? { "data-tv-skip": "" } : {});
+export function TvEndTile({ to, label = "View All" }) {
+  if (!isTV()) return null;
+  return (
+    <Link to={to} className="flex aspect-video w-[200px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] text-white/70 sm:w-[280px] lg:w-[320px]">
+      <ChevronRight /><span className="text-sm font-semibold">{label}</span>
+    </Link>
+  );
+}
+
 /* an image that fades in once it has loaded, as every picture on the site does */
 export function Fade({ src, alt, className = "" }) {
   const [on, setOn] = useState(false);
@@ -195,14 +208,15 @@ function ContinueWatching() {
       <div className="mb-4 flex items-center gap-2 px-6 sm:px-[60px]">
         <h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">Continue Watching</h2>
         {editing
-          ? <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors bg-atlantic-500 text-abyss-950" aria-label="Done editing Continue Watching" onClick={() => setEditing(false)}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round"><path d="M5 12l5 5L20 7" /></svg></button>
-          : <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors text-white/50 hover:bg-white/10 hover:text-white" aria-label="Edit Continue Watching" onClick={() => setEditing(true)}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>}
-        <Link className="ml-auto text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to="/history">View All →</Link>
+          ? <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors bg-atlantic-500 text-abyss-950" aria-label="Done editing Continue Watching" {...tvSkip()} onClick={() => setEditing(false)}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round"><path d="M5 12l5 5L20 7" /></svg></button>
+          : <button type="button" className="flex h-7 w-7 items-center justify-center rounded-full transition-colors text-white/50 hover:bg-white/10 hover:text-white" aria-label="Edit Continue Watching" {...tvSkip()} onClick={() => setEditing(true)}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg></button>}
+        <Link {...tvSkip()} className="ml-auto text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to="/history">View All →</Link>
       </div>
       <div className="flex flex-col">
         {rows.map((row, r) => (
           <Scroller key={r} className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-5 px-6 py-3 sm:px-[60px]">
             {row.map(({ e, it }) => <WideCard key={`${e.type}-${e.id}`} it={it} to={`/title/${e.type}/${e.id}?play=1`} badge={e.season ? `S${e.season} E${e.episode}` : ""} progress={(e.position / e.duration) * 100} editing={editing} onRemove={() => { forgetProgress(e.type, e.id); setEntries(titlesWatched()); }} />)}
+            {r === rows.length - 1 ? <TvEndTile to="/history" /> : null}
           </Scroller>
         ))}
       </div>
@@ -231,7 +245,7 @@ export function BecauseRow({ history, start }) {
       <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 px-6 sm:px-[60px] short:px-6">
         <h2 className="text-xl font-semibold text-white/90 drop-shadow-md">Because you watched</h2>
         <div className="relative">
-          <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 text-xl font-semibold text-white underline decoration-white/30 decoration-1 underline-offset-4 transition-colors hover:decoration-atlantic-300">{name}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-white/60 transition-transform duration-200${open ? " rotate-180" : ""}`}><path d="m6 15 6-6 6 6" /></svg></button>
+          <button type="button" {...tvSkip()} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex items-center gap-1.5 text-xl font-semibold text-white underline decoration-white/30 decoration-1 underline-offset-4 transition-colors hover:decoration-atlantic-300">{name}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`text-white/60 transition-transform duration-200${open ? " rotate-180" : ""}`}><path d="m6 15 6-6 6 6" /></svg></button>
           {open ? (
             <div role="listbox" className="absolute left-0 top-full z-30 mt-3 max-h-80 w-72 animate-menu-in overflow-y-auto rounded-2xl border border-white/10 bg-abyss-900/95 p-1.5 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.85)] backdrop-blur-xl">
               {history.map((h) => { const on = h.type === pick.type && h.id === pick.id; return (
@@ -253,11 +267,12 @@ export function WideRow({ title, all, items, head }) {
     <section className="relative mb-6">
       <div className="mb-4 flex items-center justify-between px-6 sm:px-[60px] short:px-6">
         {head || <h2 className="text-xl font-semibold text-white/90 drop-shadow-md transition-colors duration-300">{title}</h2>}
-        {all ? <Link className="text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to={all}>View All →</Link> : null}
+        {all ? <Link {...tvSkip()} className="text-sm font-medium text-white/50 transition-colors hover:text-atlantic-300" to={all}>View All →</Link> : null}
       </div>
       <Scroller className="no-scrollbar overflow-x-auto overflow-y-hidden flex gap-5 px-6 py-6 sm:px-[60px] short:px-6">
         {items.length ? items.map((it) => <WideCard key={`${it.type}-${it.id}`} it={it} />)
           : Array.from({ length: 5 }, (_, i) => <div key={i} className="aspect-video w-[200px] shrink-0 rounded-lg bg-abyss-800 sm:w-[280px] lg:w-[320px]" />)}
+        {all && items.length ? <TvEndTile to={all} /> : null}
       </Scroller>
     </section>
   );
