@@ -69,10 +69,19 @@ export default function Header() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   useEffect(() => setOpen(false), [pathname]);
+  // ...and on a tap anywhere outside the header, or Escape
+  const bar = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e) => { if (!bar.current?.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", away); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
   const ITEM = "rounded-xl px-4 py-2.5 text-base transition-colors";
   const state = ({ isActive }) => (isActive ? "font-semibold text-white bg-white/10" : "font-normal text-white/60 hover:text-white");
   return (
-    <header className="fixed inset-x-0 top-0 z-50 flex h-[60px] items-center justify-center px-3">
+    <header ref={bar} className="fixed inset-x-0 top-0 z-50 flex h-[60px] items-center justify-center px-3">
       <div className="flex w-full max-w-4xl items-center gap-1 rounded-full border border-white/10 bg-pagebg/90 py-1.5 pl-4 pr-1.5 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] transition-colors duration-300">
         <Link aria-label="Home" className="mr-2 shrink-0 rounded-full" to="/"><AuroraMark /></Link>
         <nav className="hidden shrink-0 md:block">
@@ -89,7 +98,7 @@ export default function Header() {
         </div>
       </div>
       {open ? (
-        <nav className="absolute left-3 right-3 top-[68px] rounded-2xl border border-white/10 bg-pagebg/95 p-2 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] md:hidden">
+        <nav className="absolute left-3 right-3 top-[68px] rounded-2xl border border-white/10 bg-pagebg p-2 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] md:hidden">
           <ul className="flex flex-col">
             {NAV.map(([to, label, icon]) => <li key={to}><NavLink to={to} className={(a) => `flex items-center gap-3 ${ITEM} ${state(a)}`}>{cloneElement(NavIcon[icon], { width: 18, height: 18, className: "shrink-0 opacity-80" })}{label}</NavLink></li>)}
             <li><NavLink to="/settings" className={(a) => `block ${ITEM} ${state(a)}`}>Settings</NavLink></li>
