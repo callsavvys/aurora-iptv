@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { getLine, setLine, testLine, lineLabel, savePlaylistFile } from "./line.js";
+import { getLine, setLine, testLine, lineLabel, savePlaylistFile, VIDORA } from "./line.js";
 import { AuroraMark } from "./icons.jsx";
 import Player from "./Player.jsx";
 import { relay, pickedSource } from "./platform.js";
@@ -24,6 +24,7 @@ const KINDS = [
   ["xtream", "Xtream Codes", "A server address, a username and a password from your provider.", ic(<><rect x="2" y="2" width="20" height="8" rx="2" /><rect x="2" y="14" width="20" height="8" rx="2" /><path d="M6 6h.01M6 18h.01" /></>)],
   ["m3u", "M3U playlist", "A playlist link (.m3u or .m3u8), or a playlist file on this computer.", ic(<><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></>)],
   ["stream", "Single stream", "One link to a channel or a video: HLS (.m3u8), MP4 and the like.", ic(<><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></>)],
+  ["vidora", "Vidora", "Built in: films, series and anime by name, in Vidora's own player. Nothing to set up.", ic(<><path d="m3 5 9 15 9-15" /><path d="M7.5 5 12 13l4.5-8" /></>)],
   ["files", "Local files", "Video and audio files on this computer. Nothing is uploaded.", ic(<><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" /><path d="M14 2v4a2 2 0 0 0 2 2h4" /><path d="m10 11 5 3-5 3Z" /></>)],
 ];
 const readStreams = () => { try { return JSON.parse(localStorage.getItem(STREAMS) || "[]"); } catch { return []; } };
@@ -33,7 +34,7 @@ const field = (form, setForm, k, label, type = "text", auto = "off", placeholder
 );
 
 function XtreamForm({ onSaved }) {
-  const saved = getLine()?.kind !== "m3u" ? getLine() : null;
+  const saved = getLine()?.kind === "xtream" ? getLine() : null;
   const [form, setForm] = useState({ name: saved?.name || "My IPTV", server: saved?.server || "", username: saved?.username || "", password: saved?.password || "" });
   const [state, setState] = useState({ busy: false, error: "" });
   const go = async (e) => {
@@ -157,7 +158,7 @@ export default function Sources() {
   const [search] = useSearchParams();
   const first = search.get("first") === "1";
   const nav = useNavigate();
-  const [kind, setKind] = useState(() => (getLine()?.kind === "m3u" ? "m3u" : "xtream"));
+  const [kind, setKind] = useState(() => (getLine()?.kind === "m3u" ? "m3u" : getLine()?.kind === "vidora" ? "vidora" : "xtream"));
   const [done, setDone] = useState("");
   const [player, setPlayer] = useState(null);
   const current = getLine();
@@ -185,6 +186,12 @@ export default function Sources() {
           : kind === "xtream" ? <XtreamForm onSaved={saved} />
             : kind === "m3u" ? <M3uForm onSaved={saved} />
               : kind === "stream" ? <StreamForm play={playFile} />
+                : kind === "vidora" ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-white/70">Play on any film, series or anime opens it in Vidora's player. Live TV needs an IPTV line. You can switch back to your line any time on Choose a source.</p>
+                    <button type="button" className={PRIMARY} onClick={() => { setLine(VIDORA); saved("Now watching from Vidora."); }}>Use Vidora</button>
+                  </div>
+                )
                 : <FilesForm play={playFile} />}
         {kind === "xtream" || kind === "m3u" ? <p className="mt-3 text-xs text-white/40">Kept in this browser only, and sent only to your provider.</p> : null}
       </div>

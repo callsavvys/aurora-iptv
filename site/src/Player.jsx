@@ -41,6 +41,9 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   const [t, setT] = useState({ cur: 0, dur: 0, buf: 0, paused: false, muted: false, volume: 1, waiting: true });
   const [shown, setShown] = useState(true);
   const [error, setError] = useState("");
+  // a stream that stays stuck is loaded again from the same point (the time effect below)
+  const [reloads, setReloads] = useState(0);
+  const resume = useRef(null), srcNow = useRef(src); srcNow.current = src;
   const [menu, setMenu] = useState(null);
   const [volOpen, setVolOpen] = useState(false);
   const [prefs, setPrefs] = useState(loadPrefs);
@@ -125,28 +128,32 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   useEffect(() => {
     const v = video.current; if (!v || !src) return undefined;
     let hls = null, gone = false;
+    const from = resume.current?.src === src ? resume.current.at : startAt;
     setError(""); setLevels([]); setTracks((ts) => ts.filter((x) => x.kind === "file"));
     (async () => {
       if (/\.m3u8(\?|$)/i.test(decodeURIComponent(src))) {
         const { default: Hls } = await import("hls.js");
         if (gone) return;
         if (Hls.isSupported()) {
-          hls = new Hls({ startPosition: startAt || -1 }); hlsRef.current = hls;
+          hls = new Hls({ startPosition: from || -1 }); hlsRef.current = hls;
           hls.loadSource(src); hls.attachMedia(v);
           hls.on(Hls.Events.MANIFEST_PARSED, () => setLevels(hls.levels.map((l, i) => ({ id: i, height: l.height || 0 })).filter((l) => l.height).sort((a, b) => b.height - a.height)));
           hls.on(Hls.Events.LEVEL_SWITCHED, (_, d) => setLevel((s) => ({ ...s, current: d.level })));
           hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => setAudios({ tracks: hls.audioTracks.map((a, i) => ({ id: i, label: a.name || a.lang || `Track ${i + 1}` })), current: hls.audioTrack }));
           hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, () => setTracks((ts) => [...ts.filter((x) => x.kind === "file"), ...hls.subtitleTracks.map((s, i) => ({ id: `hls-${i}`, kind: "hls", index: i, label: s.name || s.lang || `Subtitles ${i + 1}` }))]));
           hls.on(Hls.Events.ERROR, (_, d) => { if (d.fatal) setError(`This stream could not be played (${d.details}).`); });
-        } else v.src = src;
+        } else {
+          v.src = src;
+          if (from) v.addEventListener("loadedmetadata", () => { v.currentTime = from; }, { once: true });
+        }
       } else {
         v.src = src;
-        if (startAt) v.addEventListener("loadedmetadata", () => { v.currentTime = startAt; }, { once: true });
+        if (from) v.addEventListener("loadedmetadata", () => { v.currentTime = from; }, { once: true });
       }
       v.play().catch(() => {});
     })();
     return () => { gone = true; hls?.destroy(); hlsRef.current = null; v.removeAttribute("src"); v.load(); };
-  }, [src]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [src, reloads]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // a progressive file's own text and audio tracks, once it has loaded
   useEffect(() => {
@@ -177,11 +184,29 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
     };
     const events = ["timeupdate", "play", "pause", "progress", "waiting", "playing", "volumechange", "loadedmetadata"];
     events.forEach((e) => v.addEventListener(e, paint));
+    // stuck for 15 seconds: the stream has likely died, so load it again from the same point.
+    // Twice at most; after that say so. Ten seconds of playing past the point starts the count over.
+    let tries = { n: 0, at: 0, src: srcNow.current }, gaveUp = false;
     const watch = setInterval(() => {
       const now = Date.now();
-      if (v.paused || v.ended || v.seeking || Math.abs(v.currentTime - mark.at) > 0.05) mark = { at: v.currentTime, since: now };
+      if (tries.src !== srcNow.current) { tries = { n: 0, at: 0, src: srcNow.current }; gaveUp = false; }
+      if (v.paused || v.ended || v.seeking || Math.abs(v.currentTime - mark.at) > 0.05) {
+        mark = { at: v.currentTime, since: now };
+        if (tries.n && !v.paused && v.currentTime - tries.at > 10) { tries.n = 0; if (gaveUp) { gaveUp = false; setError(""); } }
+      }
       const was = stuck; stuck = now - mark.since >= 2000;
       if (stuck !== was) paint();
+      if (!v.paused && !v.ended && now - mark.since >= 15000 && !gaveUp) {
+        if (tries.n < 2) {
+          tries.n += 1; tries.at = v.currentTime;
+          resume.current = { src: srcNow.current, at: live ? 0 : v.currentTime };
+          mark = { at: v.currentTime, since: now };
+          setReloads((r) => r + 1);
+        } else {
+          gaveUp = true;
+          setError("The stream stopped and did not come back. Close the player and press Play to try again.");
+        }
+      }
     }, 1000);
     const ended = () => { if (!live) onProgress?.(v.duration, v.duration); if (prefs.autoplayNext) onEnded?.(); };
     const failed = () => setError("This stream could not be played. Your line may not carry this format, or another device is using your connection.");
