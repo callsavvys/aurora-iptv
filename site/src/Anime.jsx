@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { animeRows } from "./anilist.js";
 import { Scroller, Fade } from "./Home.jsx";
+import { useSwipe } from "./gestures.js";
 
 /* atlantic.bz/anime: a hero of this week's trending anime (its banner, score,
    year, three genres, the story, Watch), then six rows of covers from AniList.
@@ -15,10 +16,11 @@ function Hero({ items }) {
     const t = setInterval(() => { if (!paused.current) setIndex((i) => (i + 1) % items.length); }, 8000);
     return () => clearInterval(t);
   }, [items.length]);
+  const swipe = useSwipe({ left: () => setIndex((i) => (i + 1) % items.length), right: () => setIndex((i) => (i - 1 + items.length) % items.length) });
   const it = items[index];
   if (!it) return <div className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full" />;
   return (
-    <div className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full" onMouseEnter={() => { paused.current = true; }} onMouseLeave={() => { paused.current = false; }}>
+    <div {...swipe} className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full" onMouseEnter={() => { paused.current = true; }} onMouseLeave={() => { paused.current = false; }}>
       <div className="absolute inset-0" style={{ maskImage: "linear-gradient(rgb(0, 0, 0) 0%, rgb(0, 0, 0) 45%, rgba(0, 0, 0, 0.6) 72%, transparent 100%)" }}>
         {items.map((h, i) => (
           <div key={h.id} className={`absolute inset-0 transition-opacity duration-[900ms]${i === index ? " opacity-100" : " pointer-events-none opacity-0"}`}>

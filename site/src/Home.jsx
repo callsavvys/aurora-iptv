@@ -7,6 +7,7 @@ import { titlesWatched, forgetProgress } from "./line.js";
 import { useContinueRows } from "./themes.jsx";
 import ForYouBlock from "./ForYou.jsx";
 import { isTV } from "./platform.js";
+import { useSwipe } from "./gestures.js";
 
 /* atlantic.bz's home page, element for element: the hero that turns over by
    itself, two Top 10 rows, then rows of wide cards carrying each title's logo.
@@ -41,6 +42,7 @@ function Hero({ items }) {
     const t = setInterval(() => { if (!paused.current && !document.activeElement?.closest?.("[data-hero]")) setIndex((i) => (i + 1) % items.length); }, 8000);
     return () => clearInterval(t);
   }, [items.length]);
+  const swipe = useSwipe({ left: () => setIndex((i) => (i + 1) % items.length), right: () => setIndex((i) => (i - 1 + items.length) % items.length) });
   const it = items[index];
   if (!it) return <div className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full short:h-dvh short:min-h-0" />;
   const m = meta[it.id] || {};
@@ -55,7 +57,7 @@ function Hero({ items }) {
         ))}
         <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, rgb(var(--page-bg-rgb, 5 11 18) / 0) 0%, rgb(var(--page-bg-rgb, 5 11 18) / 0.12) 25%, rgb(var(--page-bg-rgb, 5 11 18) / 0.5) 55%, rgb(var(--page-bg-rgb, 5 11 18) / 0.85) 80%, rgb(var(--page-bg-rgb, 5 11 18)) 100%)" }} />
       </div>
-      <div data-tv-hero className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full short:h-dvh short:min-h-0"
+      <div data-tv-hero {...swipe} className="relative z-10 -mt-[60px] h-[calc(62vh+60px)] min-h-[520px] w-full short:h-dvh short:min-h-0"
         onMouseEnter={() => { paused.current = true; }} onMouseLeave={() => { paused.current = false; }}>
         <div className="absolute inset-0" style={{ maskImage: "linear-gradient(rgb(0, 0, 0) 0%, rgb(0, 0, 0) 45%, rgba(0, 0, 0, 0.6) 72%, transparent 100%)", WebkitMaskImage: "linear-gradient(rgb(0, 0, 0) 0%, rgb(0, 0, 0) 45%, rgba(0, 0, 0, 0.6) 72%, transparent 100%)" }}>
           {items.map((x, i) => (

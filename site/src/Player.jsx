@@ -9,6 +9,7 @@ import EpisodesPanel from "./EpisodesPanel.jsx";
 import { Svg, SIDE, fullOrder } from "./playerButtons.jsx";
 import { segments as loadSegments, subtitles as loadSubtitles, subtitleText } from "./extras.js";
 import { tmdb } from "./tmdb.js";
+import { isTV, isPhone } from "./platform.js";
 
 /* The player, in atlantic.bz's markup (its /watch page): Back and the title at
    the top; the timeline and the controls at the bottom (play, skip by the seek amount,
@@ -287,6 +288,52 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
     skipped.current.add(k); skipSeg();
   }); // eslint-disable-line react-hooks/exhaustive-deps
   const visible = shown || t.paused || !!menu;
+
+  /* a touch screen, like a phone's video apps: a tap shows or hides the controls (with big
+     play, back and forward buttons in the middle), a double tap on the left or right skips
+     back or forward and more taps keep skipping, and a swipe down closes the player */
+  const touchUI = useRef(!isTV() && (isPhone() || window.matchMedia?.("(pointer: coarse)").matches)).current;
+  const vis = useRef(visible); vis.current = visible;
+  const lastTouch = useRef(0), down = useRef(null), tapTimer = useRef(null), taps = useRef({ side: 0, at: 0, run: false }), rippleTimer = useRef(null);
+  const [ripple, setRipple] = useState(null);   // {side, secs}
+  const skipBy = (side) => {
+    const v = video.current; if (!v || !v.duration) return;
+    v.currentTime = Math.max(0, Math.min(v.duration - 1, v.currentTime + side * prefs.seek));
+    setRipple((r) => ({ side, secs: r && r.side === side ? r.secs + prefs.seek : prefs.seek }));
+    clearTimeout(rippleTimer.current); rippleTimer.current = setTimeout(() => setRipple(null), 700);
+  };
+  const onTap = (x) => {
+    if (menu) { setMenu(null); return; }
+    const side = !live && prefs.doubleTap ? (x < window.innerWidth / 3 ? -1 : x > (window.innerWidth * 2) / 3 ? 1 : 0) : 0;
+    const now = Date.now(), prev = taps.current;
+    if (side && prev.side === side && now - prev.at < (prev.run ? 700 : 300)) {
+      clearTimeout(tapTimer.current); taps.current = { side, at: now, run: true }; skipBy(side); return;
+    }
+    taps.current = { side, at: now, run: false };
+    clearTimeout(tapTimer.current);
+    tapTimer.current = setTimeout(() => { if (vis.current && !video.current?.paused) { clearTimeout(hideTimer.current); setShown(false); } else poke(); }, side ? 260 : 0);
+  };
+  const touchProps = touchUI ? {
+    onPointerDown: (e) => { if (e.pointerType === "touch") down.current = { x: e.clientX, y: e.clientY, on: e.target === e.currentTarget || e.target.tagName === "VIDEO" || !!e.target.closest?.("[data-tap-through]") }; },
+    onPointerUp: (e) => {
+      const d = down.current; down.current = null;
+      if (e.pointerType !== "touch" || !d?.on) return;
+      lastTouch.current = Date.now();
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (dy > 110 && Math.abs(dx) < dy * 0.6) { close(); return; }
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) onTap(e.clientX);
+    },
+  } : {};
+  const fromTouch = () => Date.now() - lastTouch.current < 800;
+  const tapBtn = (fn) => (e) => { e.stopPropagation(); lastTouch.current = Date.now(); fn(); poke(); };
+
+  // the party chat sits just above the timeline, whatever the size of the screen
+  const barTop = useRef(null), stage = useRef(null);
+  const [chatBottom, setChatBottom] = useState(null);
+  useEffect(() => {
+    const el = barTop.current, box0 = stage.current; if (!el || !box0) return;
+    setChatBottom(Math.round(box0.getBoundingClientRect().bottom - el.getBoundingClientRect().top + 12));
+  }, [box, live, visible, menu]);
   const pct = t.dur ? (t.cur / t.dur) * 100 : 0, bpct = t.dur ? (t.buf / t.dur) * 100 : 0;
   // the picture: fit, fill, stretch, or a fixed shape centred in the window
   const ratio = RATIO[prefs.picture];
@@ -327,15 +374,27 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
 
   return (
     <div ref={wrap} className="fixed inset-0 z-[60]">
-      <div className={`relative h-dvh w-full select-none overflow-hidden bg-black${visible ? "" : " cursor-none"}`} onMouseMove={poke} onClick={(e) => { if (menu) { setMenu(null); return; } if (e.target === e.currentTarget || e.target.tagName === "VIDEO") toggle(); }}
-        onDoubleClick={(e) => { if (!(e.target === e.currentTarget || e.target.tagName === "VIDEO")) return; toggle(); const x = e.clientX / window.innerWidth; if (prefs.doubleTap && !live && x < 1 / 3) seek(-prefs.seek); else if (prefs.doubleTap && !live && x > 2 / 3) seek(prefs.seek); else full(); }}>
+      <div ref={stage} {...touchProps} className={`relative h-dvh w-full select-none overflow-hidden bg-black${visible ? "" : " cursor-none"}`} onMouseMove={(e) => { if (!fromTouch()) poke(e); }} onClick={(e) => { if (fromTouch()) return; if (menu) { setMenu(null); return; } if (e.target === e.currentTarget || e.target.tagName === "VIDEO") toggle(); }}
+        onDoubleClick={(e) => { if (fromTouch() || !(e.target === e.currentTarget || e.target.tagName === "VIDEO")) return; toggle(); const x = e.clientX / window.innerWidth; if (prefs.doubleTap && !live && x < 1 / 3) seek(-prefs.seek); else if (prefs.doubleTap && !live && x > 2 / 3) seek(prefs.seek); else full(); }}>
         <div className="absolute inset-0 overflow-hidden bg-black">
           <div className="absolute overflow-hidden" style={frameStyle}>
             <video ref={video} autoPlay playsInline className="h-full w-full" style={{ objectFit: fit, transform: prefs.noBars ? "scale(1.25)" : "none", transformOrigin: "50% 50%", transition: "transform 250ms ease-out", filter: filter || undefined }} />
           </div>
         </div>
         {segLabel ? <button type="button" onClick={(e) => { e.stopPropagation(); skipSeg(); }} className={`absolute right-4 z-20 rounded-md border border-white/30 bg-black/60 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm transition-[bottom,background-color,color] duration-200 hover:bg-white hover:text-black sm:right-8 ${visible ? "bottom-28" : "bottom-8"}`}>{segLabel}</button> : null}
-        {t.waiting && !error ? <div className="pointer-events-none absolute left-1/2 top-1/2 h-12 w-12 -translate-x-1/2 -translate-y-1/2 animate-spin rounded-full border-4 border-white/20 border-t-atlantic-400" /> : null}
+        {/* centred by its box, not by a transform: the spin's own transform would undo that and swing it sideways */}
+        {t.waiting && !error && !(touchUI && visible && !menu) ? <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><div className="h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-atlantic-400" /></div> : null}
+        {touchUI && !error ? (
+          <div data-tap-through className={`ptap-center${visible && !menu ? " on" : ""}`} aria-hidden={!(visible && !menu)}>
+            {live ? (onPrev ? <button type="button" className="ptap-btn" aria-label="Previous channel" onPointerUp={(e) => e.stopPropagation()} onClick={tapBtn(onPrev)}>{Svg.prev}</button> : <span className="ptap-btn ptap-gap" />)
+              : <button type="button" className="ptap-btn" aria-label={`Back ${prefs.seek} seconds`} onPointerUp={(e) => e.stopPropagation()} onClick={tapBtn(() => skipBy(-1))}>{Svg.skipBack}</button>}
+            {t.waiting ? <span className="ptap-btn ptap-big"><span className="h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-atlantic-400" /></span>
+              : <button type="button" className="ptap-btn ptap-big" aria-label={t.paused ? "Play" : "Pause"} onPointerUp={(e) => e.stopPropagation()} onClick={tapBtn(toggle)}>{t.paused ? Svg.play : Svg.pause}</button>}
+            {live ? (onNext ? <button type="button" className="ptap-btn" aria-label="Next channel" onPointerUp={(e) => e.stopPropagation()} onClick={tapBtn(onNext)}>{Svg.next}</button> : <span className="ptap-btn ptap-gap" />)
+              : <button type="button" className="ptap-btn" aria-label={`Forward ${prefs.seek} seconds`} onPointerUp={(e) => e.stopPropagation()} onClick={tapBtn(() => skipBy(1))}>{Svg.skipFwd}</button>}
+          </div>
+        ) : null}
+        {ripple ? <div key={`${ripple.side}`} className={`ptap-ripple ${ripple.side < 0 ? "left" : "right"}`}><span>{ripple.side < 0 ? "«" : "»"}</span>{ripple.secs} seconds</div> : null}
         {error ? <div className="absolute left-1/2 top-1/2 max-w-md -translate-x-1/2 -translate-y-1/2 px-6 text-center text-sm text-white/80">{error}</div> : null}
         {cue && !(prefs.native && tracks.find((x) => x.id === sub)?.kind !== "file") ? (
           <div className="pointer-events-none absolute inset-x-0 flex justify-center px-6 transition-[bottom] duration-200" style={{ bottom: visible ? "118px" : "48px" }}>
@@ -352,13 +411,13 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
         </div>
         <div className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-4 pb-4 pt-16 sm:px-8 short:pb-2 short:pt-8 text-white transition-[transform,opacity] duration-200 ${visible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-4 opacity-0"}`} onClick={(e) => e.stopPropagation()}>
           {live ? null : (
-            <div className=""><div className="relative w-full"><div className="group flex h-8 w-full cursor-pointer touch-none items-center" onPointerDown={scrub}><div className="relative h-1 w-full rounded-full bg-white/25 transition-[height] duration-100 group-hover:h-1.5 ">
+            <div ref={barTop} className=""><div className="relative w-full"><div className="group flex h-8 w-full cursor-pointer touch-none items-center" onPointerDown={scrub}><div className="relative h-1 w-full rounded-full bg-white/25 transition-[height] duration-100 group-hover:h-1.5 ">
               <div className="absolute left-0 top-0 h-full rounded-full bg-white/40" style={{ width: `${bpct}%` }} />
               {t.dur ? segs.map((g) => <div key={`${g.kind}-${g.start}`} className={`pointer-events-none absolute top-0 h-full ${g.kind === "intro" || g.kind === "recap" ? "bg-amber-300/70" : "bg-sky-300/70"}`} style={{ left: `${(g.start / t.dur) * 100}%`, width: `${(((g.end ?? t.dur) - g.start) / t.dur) * 100}%` }} />) : null}
               <div className="absolute left-0 top-0 flex h-full items-center justify-end rounded-full bg-atlantic-400" style={{ width: `${pct}%` }}><div className="h-4 w-4 min-w-[1rem] translate-x-1/2 scale-0 rounded-full bg-white transition-transform duration-100 group-hover:scale-100 " /></div>
             </div></div></div></div>
           )}
-          <div className="mt-1 flex items-center gap-0.5 overflow-x-auto sm:gap-1">
+          <div ref={live ? barTop : undefined} className="mt-1 flex items-center gap-0.5 overflow-x-auto sm:gap-1">
             {left.map(button)}
             {live ? <span className="ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-md bg-red-600 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-white">Live</span>
               : left.length ? <span className="shrink-0 whitespace-nowrap px-1 text-xs text-white/80 sm:px-2 sm:text-sm">{fmt(t.cur)} / {fmt(t.dur)}</span> : null}
@@ -367,7 +426,7 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
           </div>
         </div>
         <PartyStatus controlsVisible={visible} />
-        <PartyChat controlsVisible={visible} />
+        <PartyChat controlsVisible={visible} bottom={chatBottom} />
         {menu === "episodes" && episodes ? <EpisodesPanel tvId={episodes.tvId} seasons={episodes.seasons} season={meta?.season} episode={meta?.episode} onSelect={(s, e, name) => { setMenu(null); episodes.play(s, e, name); }} /> : null}
         {menu && menu !== "episodes" ? (
           <PlayerMenu view={menu} setView={setMenu} prefs={prefs} setPref={setPref} live={live}

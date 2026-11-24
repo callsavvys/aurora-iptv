@@ -187,7 +187,7 @@ export function PartyStatus({ controlsVisible }) {
 
 const PREVIEW_MS = 6000, MAX_CHAT = 300;
 /* the party chat, bottom left in the player: a button, the last message for a moment, and the room */
-export function PartyChat({ controlsVisible }) {
+export function PartyChat({ controlsVisible, bottom }) {
   const s = useParty();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -206,7 +206,7 @@ export function PartyChat({ controlsVisible }) {
   const button = controlsVisible || focused;
   const submit = (e) => { e.preventDefault(); const t = text.trim(); if (t) { sendChat(t); setText(""); } };
   return (
-    <div className="pointer-events-none absolute bottom-24 left-3 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col items-start gap-2 sm:left-6 short:bottom-14" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <div className="pointer-events-none absolute bottom-24 left-3 z-40 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col items-start gap-2 sm:left-6 short:bottom-14" style={bottom ? { bottom } : undefined} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       <div className={`flex max-h-[min(22rem,50dvh)] w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-pagebg/75 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.8)] backdrop-blur-2xl transition-[opacity,transform] duration-300 ${shown ? `${faded ? "opacity-60" : "opacity-100"} pointer-events-auto translate-y-0` : "pointer-events-none translate-y-2 opacity-0"}`} aria-hidden={!shown}>
         <div className="flex items-center justify-between border-b border-white/10 px-3.5 py-2.5">
           <span className="text-sm font-semibold text-white">Party chat</span>

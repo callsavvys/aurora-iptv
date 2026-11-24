@@ -4,6 +4,7 @@ import { IMG, tmdb, list, extras, GENRE, inCinemas, PROVIDERS, providerLogos, pr
 import { WideCard, Scroller, TvEndTile, tvSkip } from "./Home.jsx";
 import { LoadMoreGrid } from "./Browse.jsx";
 import ForYouBlock from "./ForYou.jsx";
+import { useSwipe } from "./gestures.js";
 
 /* atlantic.bz's Discover page: a hero of this week's trending, a sticky bar
    (Movies or TV Shows, the genres, Filters), rows, and a grid to browse with
@@ -35,12 +36,13 @@ function Hero() {
   const [i, setI] = useState(0);
   useEffect(() => { tmdb("/trending/all/week").then((r) => setItems(list(r).filter((x) => x.backdrop).slice(0, 6))).catch(() => {}); }, []);
   useEffect(() => { if (!items.length) return; const t = setInterval(() => { if (!document.activeElement?.closest?.("[data-hero]")) setI((x) => (x + 1) % items.length); }, 8000); return () => clearInterval(t); }, [items.length]);
+  const swipe = useSwipe({ left: () => setI((x) => (x + 1) % items.length), right: () => setI((x) => (x - 1 + items.length) % items.length) });
   const it = items[i];
   // each title's logo, as on Home and the title pages; its name in text only when TMDB has no logo
   const [logos, setLogos] = useState({});
   useEffect(() => { items.forEach((x) => extras(x).then((m) => setLogos((l) => ({ ...l, [x.id]: m.logo || "" }))).catch(() => setLogos((l) => ({ ...l, [x.id]: "" })))); }, [items]);
   return (
-    <section className="relative -mt-[60px] mb-2 h-[56vh] min-h-[380px] max-h-[600px] w-full overflow-hidden" aria-roledescription="carousel" aria-label="Trending this week">
+    <section {...swipe} className="relative -mt-[60px] mb-2 h-[56vh] min-h-[380px] max-h-[600px] w-full overflow-hidden" aria-roledescription="carousel" aria-label="Trending this week">
       {items.map((x, k) => <img key={x.id} src={IMG("original", x.backdrop)} alt="" aria-hidden="true" decoding="async" loading={k ? "lazy" : "eager"} className={`absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-700 ${k === i ? "opacity-100" : "opacity-0"}`} />)}
       <div className="absolute inset-0 bg-gradient-to-t from-pagebg via-pagebg/30 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-r from-pagebg/85 via-pagebg/30 to-transparent" />
