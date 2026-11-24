@@ -40,7 +40,11 @@ export default function Embed({ src, title, subtitle, onClose, onProgress }) {
         <p className="min-w-0 truncate text-sm font-semibold">{title}{subtitle ? <span className="font-normal text-white/60"> · {subtitle}</span> : null}</p>
         <span className="ml-auto shrink-0 text-xs text-white/40">Vidora</span>
       </div>
-      <iframe title={title || "Vidora"} src={src} className="w-full flex-1 border-0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen referrerPolicy="origin" />
+      <div className="relative w-full flex-1">
+        <iframe title={title || "Vidora"} src={src} className="absolute inset-0 h-full w-full border-0" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen referrerPolicy="origin" />
+        {/* the frame keeps its touches to itself: a thin strip on the left edge lets the swipe back (gestures.js) through */}
+        <div aria-hidden="true" className="absolute inset-y-0 left-0 w-4" />
+      </div>
     </div>
   );
 }
