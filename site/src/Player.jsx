@@ -166,18 +166,28 @@ export default function Player({ src, title, subtitle, startAt = 0, onClose, onP
   useEffect(() => {
     const v = video.current; if (!v) return undefined;
     let last = 0;
+    // a stream can stop sending without the video saying so (no "waiting", readyState still
+    // full): the picture just freezes. Playing but not moving for 2 seconds counts as waiting.
+    let mark = { at: v.currentTime, since: Date.now() }, stuck = false;
     const paint = () => {
+      if (stuck && Math.abs(v.currentTime - mark.at) > 0.05) { stuck = false; mark = { at: v.currentTime, since: Date.now() }; }
       let buf = 0; try { if (v.buffered.length) buf = v.buffered.end(v.buffered.length - 1); } catch { /* nothing yet */ }
-      setT({ cur: v.currentTime, dur: Number.isFinite(v.duration) ? v.duration : 0, buf, paused: v.paused, muted: v.muted, volume: v.volume, waiting: v.readyState < 3 && !v.paused });
+      setT({ cur: v.currentTime, dur: Number.isFinite(v.duration) ? v.duration : 0, buf, paused: v.paused, muted: v.muted, volume: v.volume, waiting: (v.readyState < 3 || stuck) && !v.paused });
       if (!live && Date.now() - last > 5000 && v.duration) { last = Date.now(); onProgress?.(v.currentTime, v.duration); }
     };
     const events = ["timeupdate", "play", "pause", "progress", "waiting", "playing", "volumechange", "loadedmetadata"];
     events.forEach((e) => v.addEventListener(e, paint));
+    const watch = setInterval(() => {
+      const now = Date.now();
+      if (v.paused || v.ended || v.seeking || Math.abs(v.currentTime - mark.at) > 0.05) mark = { at: v.currentTime, since: now };
+      const was = stuck; stuck = now - mark.since >= 2000;
+      if (stuck !== was) paint();
+    }, 1000);
     const ended = () => { if (!live) onProgress?.(v.duration, v.duration); if (prefs.autoplayNext) onEnded?.(); };
     const failed = () => setError("This stream could not be played. Your line may not carry this format, or another device is using your connection.");
     const pause = () => { if (!live && v.duration) onProgress?.(v.currentTime, v.duration); };
     v.addEventListener("ended", ended); v.addEventListener("error", failed); v.addEventListener("pause", pause);
-    return () => { events.forEach((e) => v.removeEventListener(e, paint)); v.removeEventListener("ended", ended); v.removeEventListener("error", failed); v.removeEventListener("pause", pause); };
+    return () => { clearInterval(watch); events.forEach((e) => v.removeEventListener(e, paint)); v.removeEventListener("ended", ended); v.removeEventListener("error", failed); v.removeEventListener("pause", pause); };
   }, [onProgress, onEnded, live, prefs.autoplayNext]);
 
   // the skip times and the subtitle languages for this film or episode

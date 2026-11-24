@@ -32,4 +32,6 @@
 .ptap-ripple span { font-size: 1.75rem; line-height: 1; }
 .ptap-ripple.left { left: 0; border-radius: 0 50% 50% 0; }
 .ptap-ripple.right { right: 0; border-radius: 50% 0 0 50%; }
+/* with the controls up, the count sits under the back / forward button instead of behind it */
+.ptap-center.on ~ .ptap-ripple { padding-top: 8.5rem; }
 @keyframes ptap-in { from { opacity: 0; } to { opacity: 1; } }
