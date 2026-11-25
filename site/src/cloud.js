@@ -14,7 +14,8 @@ import { start, currentUser } from "./account.js";
 import { clearLine } from "./line.js";
 
 const META = "aurora-site-sync";
-const SETTINGS = ["aurora-site-player", "aurora-site-theme", "aurora-site-titles", "aurora-site-cw-rows", "aurora-site-particles"];
+// aurora-site-old-imported: the older app's Continue Watching was brought across (importOld), once per account
+const SETTINGS = ["aurora-site-player", "aurora-site-theme", "aurora-site-titles", "aurora-site-cw-rows", "aurora-site-particles", "aurora-site-old-imported"];
 const PUSH_EVERY = 4000, PULL_EVERY = 60000, PAGE = 500;
 
 const json = (k, fallback) => { try { const v = localStorage.getItem(k); return v == null ? fallback : JSON.parse(v); } catch { return fallback; } };
@@ -125,6 +126,32 @@ async function cycle(withPull) {
   } catch { /* offline: the next round tries again */ } finally { busy = false; }
 }
 
+/* The older Aurora (app/) kept its Continue Watching in the account's `progress` table, under
+   your line's stream numbers: once per account, what you were partway through there is added
+   here by TMDB id (oldHistory.js), unless this interface already has that title. Its old
+   records are only read. The mark syncs, so another device does not do it again. */
+const OLD_DONE = "aurora-site-old-imported";
+async function importOld(sb) {
+  if (localStorage.getItem(OLD_DONE)) return;
+  const { data, error } = await sb.from("progress").select("key,record,deleted,updated_at").eq("deleted", false).limit(1000);
+  if (error) return;   // offline: the next sign-in tries again
+  const [{ pickOld, findTmdb }, { tmdb }] = await Promise.all([import("./oldHistory.js"), import("./tmdb.js")]);
+  const progress = json("aurora-site-progress", {});
+  const have = new Set(Object.keys(progress).map((k) => k.split(":").slice(0, 2).join(":")));
+  let added = 0;
+  for (const c of pickOld(data)) {
+    const hit = await findTmdb(c, tmdb);
+    if (!hit || have.has(`${c.type}:${hit.id}`)) continue;
+    have.add(`${c.type}:${hit.id}`);
+    progress[c.type === "tv" ? `tv:${hit.id}:s${c.season}e${c.episode}` : `movie:${hit.id}`] = { at: c.at, position: c.position, duration: c.duration };
+    if (c.type === "tv" && localStorage.getItem(`aurora-site-last:${hit.id}`) == null) put(`aurora-site-last:${hit.id}`, { s: c.season, e: c.episode });
+    added += 1;
+  }
+  if (added) put("aurora-site-progress", progress);
+  put(OLD_DONE, "1");
+  if (added) window.dispatchEvent(new Event("aurora-synced"));
+}
+
 /* signed in: the first pull, then the rounds; signed out: stop */
 let first = null;
 export function startSync() {
@@ -139,7 +166,7 @@ export function startSync() {
   seen = null;
   first = (async () => {
     busy = true;
-    try { const sb = await start(); await pull(sb); seen = null; await push(sb); }
+    try { const sb = await start(); await pull(sb); await importOld(sb).catch(() => {}); seen = null; await push(sb); }
     catch { /* offline */ } finally { busy = false; }
     seen = seen || snapshot();
   })();
