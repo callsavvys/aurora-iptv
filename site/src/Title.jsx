@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Player from "./Player.jsx";
-import Embed from "./Embed.jsx";
 import { isTV } from "./platform.js";
-import { getLine, isVidora, vidoraUrl, findOnLine, lineEpisodes, streamUrl, progressKey, getProgress, saveProgress, toggleWatched } from "./line.js";
+import { getLine, findOnLine, lineEpisodes, streamUrl, progressKey, getProgress, saveProgress, toggleWatched } from "./line.js";
 import { IMG, tmdb, item } from "./tmdb.js";
 import { AddToList } from "./lists.jsx";
 import { WideCard, Scroller } from "./Home.jsx";
@@ -105,18 +104,6 @@ export default function Title() {
     if (!d || d.error) return;
     if (!getLine()) { setNote("Connect your IPTV line in Settings to play."); setTimeout(() => nav("/settings"), 1200); return; }
     const name = d.title || d.name;
-    if (isVidora()) {
-      // Vidora plays by TMDB id: a series starts where you left off, or at S1E1
-      let s = season, e = episode;
-      if (type === "tv" && !s) { const last = JSON.parse(localStorage.getItem(`aurora-site-last:${id}`) || "null"); s = last?.s || 1; e = last?.e || 1; }
-      if (type === "tv") localStorage.setItem(`aurora-site-last:${id}`, JSON.stringify({ s, e }));
-      const key = type === "tv" ? progressKey("tv", id, s, e) : progressKey("movie", id);
-      const p = getProgress(key);
-      const startAt = p && p.position < p.duration - 60 ? p.position : 0;
-      setNote("");
-      setPlayer({ embed: vidoraUrl({ type, tmdb: id, season: s, episode: e, startAt }), title: name, subtitle: type === "tv" ? `S${s}E${e}${epName ? ` - ${epName}` : ""}` : "", key });
-      return;
-    }
     setNote("Finding it on your line…");
     try {
       const hit = await findOnLine({ type, id: Number(id), title: name, originalTitle: d.original_title || d.original_name, year: (d.release_date || d.first_air_date || "").slice(0, 4) });
@@ -256,8 +243,7 @@ export default function Title() {
         </div>
       </div>
       {note ? <div className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-2xl border border-white/10 bg-pagebg/95 px-4 py-3 text-sm text-white shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)] backdrop-blur-md">{note}</div> : null}
-      {player?.embed ? <Embed key={player.embed} src={player.embed} title={player.title} subtitle={player.subtitle} onProgress={onProgress} onClose={() => { setPlayer(null); if (search.get("play")) nav(`/title/${type}/${id}`, { replace: true }); }} /> : null}
-      {player && !player.embed ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (search.get("play")) nav(`/title/${type}/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} meta={player.meta}
+      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (search.get("play")) nav(`/title/${type}/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} meta={player.meta}
         episodes={type === "tv" ? { tvId: Number(id), seasons: (d.seasons || []).filter((x) => x.season_number > 0).length || d.number_of_seasons || 1, play } : undefined} /> : null}
     </div>
   );

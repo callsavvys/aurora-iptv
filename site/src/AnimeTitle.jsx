@@ -3,9 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { anime } from "./anilist.js";
 import { tmdb } from "./tmdb.js";
 import { AnimeRow } from "./Anime.jsx";
-import { getLine, isVidora, vidoraUrl, findOnLine, lineEpisodes, streamUrl, getProgress, saveProgress } from "./line.js";
+import { getLine, findOnLine, lineEpisodes, streamUrl, getProgress, saveProgress } from "./line.js";
 import Player from "./Player.jsx";
-import Embed from "./Embed.jsx";
 
 /* atlantic.bz/anime/<id>: the banner with a facts box, the title, genres,
    Play, list and watched buttons and Sub/Dub, the year, length, format and
@@ -105,16 +104,6 @@ export default function AnimeTitle() {
   const play = useCallback(async (n) => {
     if (!a) return;
     if (!getLine()) { setNote("Connect your IPTV line in Settings → Account to play."); return; }
-    if (isVidora()) {
-      // Vidora plays anime by its MyAnimeList id: episode N, subtitled (dubbed when there is no sub)
-      if (!a.mal) { setNote(`${a.title} has no MyAnimeList id, so Vidora cannot find it.`); return; }
-      const num = a.rawFormat === "MOVIE" ? 1 : n || Number(localStorage.getItem(`aurora-site-last:anime:${id}`) || 0) || 1;
-      if (a.rawFormat !== "MOVIE") localStorage.setItem(`aurora-site-last:anime:${id}`, String(num));
-      const k = a.rawFormat === "MOVIE" ? key() : key(num);
-      setNote("");
-      setPlayer({ embed: vidoraUrl({ type: "anime", mal: a.mal, number: num }), title: a.title, subtitle: a.rawFormat === "MOVIE" ? "" : `Episode ${num}`, key: k });
-      return;
-    }
     setNote("Finding it on your line…");
     try {
       const film = a.rawFormat === "MOVIE";
@@ -221,8 +210,7 @@ export default function AnimeTitle() {
         </div>
       </div>
       {note ? <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full border border-white/10 bg-abyss-900/90 px-5 py-2.5 text-sm text-white/90 shadow-lg backdrop-blur-md">{note}</div> : null}
-      {player?.embed ? <Embed key={player.embed} src={player.embed} title={player.title} subtitle={player.subtitle} onProgress={onProgress} onClose={() => { setPlayer(null); if (ep) nav(`/anime/${id}`, { replace: true }); }} /> : null}
-      {player && !player.embed ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (ep) nav(`/anime/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} meta={player.meta} /> : null}
+      {player ? <Player key={player.src} src={player.src} title={player.title} subtitle={player.subtitle} startAt={player.startAt} onProgress={onProgress} onClose={() => { setPlayer(null); if (ep) nav(`/anime/${id}`, { replace: true }); }} onNext={player.next || undefined} onEnded={() => player.next?.()} meta={player.meta} /> : null}
     </div>
   );
 }

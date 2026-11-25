@@ -7,7 +7,7 @@
    - All Time Popular: POPULARITY_DESC; Movies: the same, films only
    AniList's public API needs no key; answers are cached for the session. */
 const API = "https://graphql.anilist.co";
-const FIELDS = "id idMal type title{english romaji} format episodes seasonYear averageScore genres description(asHtml:false) bannerImage coverImage{large color}";
+const FIELDS = "id type title{english romaji} format episodes seasonYear averageScore genres description(asHtml:false) bannerImage coverImage{large color}";
 const cache = new Map();
 
 function gql(query) {
@@ -40,7 +40,6 @@ function shape(x) {
   const year = x.seasonYear || "";
   return {
     id: x.id,
-    mal: x.idMal || 0,
     title: x.title?.english || x.title?.romaji || "",
     format: FORMAT[x.format] || x.format || "",
     score: x.averageScore ? (x.averageScore / 10).toFixed(1) : "",

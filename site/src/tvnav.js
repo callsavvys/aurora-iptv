@@ -175,7 +175,7 @@ function back() {
   if (typing && typing.dataset.tvShut !== "1") { document.activeElement.blur(); land(typing); return; }   // close the keyboard, stay on the box
   if (player) {
     // in the controls: back to the picture first
-    if (player.contains(document.activeElement) && document.activeElement !== document.body && document.activeElement.tagName !== "IFRAME" && !document.querySelector(".pm-card, .w-\\[343px\\]")) { document.activeElement.blur(); return; }
+    if (player.contains(document.activeElement) && document.activeElement !== document.body && !document.querySelector(".pm-card, .w-\\[343px\\]")) { document.activeElement.blur(); return; }
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     return;
   }

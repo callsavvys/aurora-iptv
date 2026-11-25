@@ -9,26 +9,14 @@
 import { relay, keepLine } from "./platform.js";
 
 const KEY = "aurora-site-line";
-export const getLine = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch { return null; } };
+// (a device left on Vidora, a source Aurora no longer has, reads as having none: Choose a source asks again)
+export const getLine = () => { try { const cfg = JSON.parse(localStorage.getItem(KEY) || "null"); return cfg?.kind === "vidora" ? null : cfg; } catch { return null; } };
 export const setLine = (cfg) => { localStorage.setItem(KEY, JSON.stringify(cfg)); keepLine(JSON.stringify(cfg)); lib = null; loading = null; live = null; m3u = null; };
 export const clearLine = () => { localStorage.removeItem(KEY); keepLine(null); lib = null; loading = null; live = null; m3u = null; };
 const isM3u = (cfg = getLine()) => cfg?.kind === "m3u";
-
-/* Vidora (vidora.ac): a built-in source, always on Choose a source. It is a
-   player you open in a frame by TMDB id (anime by MyAnimeList id), not a list
-   of streams, so Play opens its player and Live TV has nothing to show. */
-export const VIDORA = { kind: "vidora", name: "Vidora" };
-export const isVidora = (cfg = getLine()) => cfg?.kind === "vidora";
-const VIDORA_LOOK = "primaryColor=1ecbec&secondaryColor=0b3a45&iconColor=ffffff&title=false&poster=true&autoplay=true";
-export function vidoraUrl({ type, tmdb, season, episode, mal, number, startAt }) {
-  const path = type === "anime" ? `anime/${mal}/${number || 1}/sub` : type === "tv" ? `tv/${tmdb}/${season || 1}/${episode || 1}` : `movie/${tmdb}`;
-  const extra = [type === "anime" ? "fallback=true" : "", type !== "movie" ? "nextbutton=true" : "", startAt > 5 ? `startAt=${Math.floor(startAt)}` : ""].filter(Boolean).join("&");
-  return `https://vidora.ac/${path}?${VIDORA_LOOK}${extra ? `&${extra}` : ""}`;
-}
 /* what the source is, in a few words */
 export function lineLabel(cfg = getLine()) {
   if (!cfg) return "";
-  if (isVidora(cfg)) return "Vidora · films, series and anime";
   if (isM3u(cfg)) return `M3U playlist · ${cfg.name || (cfg.file ? cfg.file : "link")}`;
   return `Xtream Codes · ${cfg.name || cfg.server}`;
 }
@@ -190,7 +178,6 @@ function tidyCategory(name) {
 let live = null;
 export function loadLive() {
   return (live = live || (async () => {
-    if (isVidora()) throw new Error("Vidora has films, series and anime, no live channels. Pick an IPTV line on Choose a source for Live TV.");
     if (isM3u()) {
       const { live: chans } = await playlist();
       const groups = [];
