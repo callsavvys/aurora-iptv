@@ -144,8 +144,14 @@ function buildMenu(checkForUpdates) {
   ]));
 }
 
+/* The new interface (site/) when the build carries it (scripts/build-mac.sh puts it in
+   site-dist/), else the older one (app/). It runs on its own port: its saved data is kept
+   per address, so the older interface's stays where it was. AURORA_UI=app forces the older. */
+const SITE_DIR = path.join(__dirname, "site-dist");
+const useSite = process.env.AURORA_UI !== "app" && fs.existsSync(path.join(SITE_DIR, "index.html"));
+
 async function createWindow() {
-  server = await createAuroraServer(path.join(__dirname, "app"));
+  server = useSite ? await createAuroraServer(SITE_DIR, 41801, { site: true }) : await createAuroraServer(path.join(__dirname, "app"));
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -153,8 +159,8 @@ async function createWindow() {
     minHeight: 640,
     title: "Aurora IPTV",
     backgroundColor: nativeTheme.shouldUseDarkColors ? WINDOW_BG.dark : WINDOW_BG.light,
-    titleBarStyle: "hidden",
-    trafficLightPosition: { x: 19, y: 18 },
+    // the new interface draws its own header where the hidden title bar's buttons would sit
+    ...(useSite ? {} : { titleBarStyle: "hidden", trafficLightPosition: { x: 19, y: 18 } }),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

@@ -75,7 +75,8 @@ async function handleProxy(req, res, requestUrl, origin) {
 
 function serveAsset(res, filePath) {
   const ext = path.extname(filePath);
-  const types = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8" };
+  const types = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".woff": "font/woff", ".txt": "text/plain; charset=utf-8",
+    ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif", ".ico": "image/x-icon", ".mp4": "video/mp4", ".webm": "video/webm", ".mp3": "audio/mpeg", ".vtt": "text/vtt" };
   try {
     const stat = fs.statSync(filePath);
     if (!stat.isFile()) throw new Error("Not a file");
@@ -89,11 +90,44 @@ function serveAsset(res, filePath) {
   }
 }
 
-function createAuroraServer(assetDir, port = 41791) {
+/* The new interface (site/, built into site-dist/ by scripts/build-mac.sh): its files, a page
+   address it does not know falls back to index.html (the interface routes it itself), and the
+   relay to your IPTV provider and Trakt that its dev server gives it in a browser (site/relay.cjs).
+   Only this app's own page may use the relay: another site open in a browser cannot reach a
+   provider, or your network, through it. */
+function siteHandler(distDir) {
+  const { proxy, traktToken } = require("./site/relay.cjs");
+  const root = path.resolve(distDir);
+  return (req, res, requestUrl) => {
+    const site = req.headers["sec-fetch-site"];
+    if (requestUrl.pathname.startsWith("/api/")) {
+      if (site && site !== "same-origin" && site !== "none") { res.statusCode = 403; res.end("Forbidden"); return; }
+      if (requestUrl.pathname === "/api/trakt/token" && req.method === "POST") return traktToken(req, res);
+      if (requestUrl.pathname === "/api/proxy") {
+        const target = requestUrl.searchParams.get("u") || "";
+        let host = "";
+        try { host = new URL(target).hostname; } catch { /* proxy() answers a bad address */ }
+        if (host && isPrivateHost(host)) { res.statusCode = 403; res.end("Forbidden"); return; }
+        return proxy(req, res, target);
+      }
+      res.statusCode = 404; res.end("Not found"); return;
+    }
+    const asset = requestUrl.pathname === "/" ? "index.html" : decodeURIComponent(requestUrl.pathname.slice(1));
+    const safePath = path.resolve(root, asset);
+    if (!safePath.startsWith(root + path.sep)) { res.statusCode = 403; res.end("Forbidden"); return; }
+    let file = safePath;
+    try { if (!fs.statSync(safePath).isFile()) throw new Error("no"); } catch { if (!path.extname(asset)) file = path.join(root, "index.html"); }
+    serveAsset(res, file);
+  };
+}
+
+function createAuroraServer(assetDir, port = 41791, { site = false } = {}) {
+  const serveSite = site ? siteHandler(assetDir) : null;
   return new Promise((resolve, reject) => {
     const server = http.createServer(async (req, res) => {
       const origin = `http://127.0.0.1:${server.address().port}`;
       const requestUrl = new URL(req.url, origin);
+      if (serveSite) return serveSite(req, res, requestUrl);
       if (requestUrl.pathname === "/proxy") return handleProxy(req, res, requestUrl, origin);
       // the record rules app/ shares with web/ live in web/js, beside this app's folder
       if (requestUrl.pathname === "/sync-core.js") return serveAsset(res, path.resolve(assetDir, "..", "web", "js", "sync-core.js"));

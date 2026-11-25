@@ -81,4 +81,4 @@ function relayPlugin() {
   };
 }
 
-module.exports = { proxy, relayPlugin };
+module.exports = { proxy, traktToken, relayPlugin };
