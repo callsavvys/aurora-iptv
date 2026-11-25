@@ -10,3 +10,4 @@ supabase/.temp/
 cloud/public/
 cloud/.wrangler/
 .wrangler/
+site-dist/

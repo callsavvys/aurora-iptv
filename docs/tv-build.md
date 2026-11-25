@@ -14,6 +14,16 @@ npm run tv:web
 
 This stages `mobile/www` with the new interface (`web/`) and opens it in a 960×540 window. That is the TV's own viewport, so what you see is what the TV draws. Arrows move, Enter is OK, and Backspace or Escape is the remote's Back.
 
+## Preview the website as the TV app
+
+```bash
+npm run tv:site
+```
+
+This builds `site/` for the app (`vite build --mode app`: relative paths, routes after a `#`, the provider asked directly instead of through the relay) into `mobile/www` and opens it at 960×540. The remote is the arrows, Enter and Backspace. In the browser you can also add `?tv=1` to any page of the dev site (`http://localhost:5180/?tv=1`) to try the remote navigation there, signed in.
+
+A test APK of it: `AURORA_TV_UI=site AURORA_TEST_VERSION=0.38.9N bash mobile/scripts/build-android.sh`. On first start it copies the old app's saved line, so the TV stays connected. See docs/plans/site-to-apps.md for what is still to do.
+
 ## A test build for the real TV
 
 Test builds take a version from 0.38.90 to 0.38.99. Their versionCodes stay below the 0.39.0 release, so the release still installs over them. Each code is used once. `mobile/test-codes.log` records them, and the script refuses one that is already used and names the next free one.
@@ -51,6 +61,24 @@ If the 0.38.9x codes run out, build beside the real app instead. That build has 
 ```bash
 AURORA_APP_ID_SUFFIX=.test AURORA_TV_UI=web AURORA_TEST_VERSION=0.40.1 bash mobile/scripts/build-android.sh
 ```
+
+## Automatic updates (the website interface)
+
+TV and phone apps built from the website (`AURORA_TV_UI=site` or `AURORA_UI=site`) update themselves. A few seconds after each start, they read `manifest.json` on the `app-live` pre-release, download a newer bundle in the background, and run it the next time they start. To push the current `site/` to every installed app:
+
+```bash
+bash scripts/publish-live.sh
+```
+
+Add `--dry-run` to build without uploading. How it works:
+
+- `site/ota-plugin.cjs` puts a small loader in the app's `index.html` and makes the bundle one JS file plus one CSS file.
+- `site/src/ota.js` checks for updates and downloads them, verified against the manifest's SHA-256.
+- A downloaded bundle that has not started within 15 seconds is marked bad, and the app falls back to its own copy.
+- A newly installed APK or IPA always wins over an older download.
+- Settings shows the running build, with "updated automatically" when it came this way.
+
+Only the JS and CSS travel this way. A new APK or IPA is still needed for native changes, a new Capacitor plugin, and new images: images stay in the installed app, and the script names any that are missing. When a bundle needs something older apps lack, raise `SHELL_API` in `site/ota-plugin.cjs`; older apps then keep their own copy. Apps built before this loader existed never update this way: install one new build first.
 
 ## A release
 

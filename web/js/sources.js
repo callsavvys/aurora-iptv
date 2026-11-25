@@ -10,7 +10,7 @@
    poster, backdrop, still, badge, source, category }. */
 
 import { tmdb, img, cleanTitle, norm, yearOf, fromList, displayTitle, tidyCategory } from "./tmdb.js";
-import { net, redact } from "./platform.js";
+import { net, redact, cloud } from "./platform.js";
 // Big Buck Bunny, Blender Foundation (CC BY 3.0) — a public test stream
 const TEST_STREAM = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
@@ -26,6 +26,13 @@ async function getJson(url) {
       try { const j = JSON.parse(body); said = j.message || j.error || ""; } catch { said = body.slice(0, 120); }
       if (said) said = redact(said);
       const who = net.routed(url) ? "Your provider" : new URL(url, location.href).hostname;
+      /* a provider that refuses by country, IP or connection limit has the
+         login right: telling the person to retype their password sends them
+         the wrong way */
+      if ((r.status === 401 || r.status === 403) && /countr|region|location|\bip\b|vpn|proxy|connection|limit|expired|banned|blocked/i.test(said)) {
+        const where = cloud ? " This web version reaches your provider from Cloudflare's servers, outside your country; the Aurora app on your own network does not have this problem." : "";
+        throw new Error(`${who} refused the connection${said ? `: “${said}”` : ""}.${where}`);
+      }
       if (r.status === 401 || r.status === 403) throw new Error(`${who} refused the login${said ? `: “${said}”` : ""}. Check the username and password — the password is easy to mistype behind the dots.`);
       throw new Error(`${who} answered ${r.status}${said ? `: “${said}”` : ""}`);
     }
@@ -184,14 +191,15 @@ function xtream(cfg) {
       category: lm.get(String(x.category_id)) || "Other", categoryId: String(x.category_id), number: x.num || i + 1, now: "" }));
     const movies = (vs || []).map((x) => {
       const category = vm.get(String(x.category_id)) || "Other";
-      return { id: x.stream_id, kind: "movie", source: "xtream", title: displayTitle(x.name), raw: x.name, year: yearOf(x.year || x.releaseDate || x.name), rating: rate(x.rating),
+      // rawYear is the year exactly as the old app reads it, for watch-party fingerprints (sync-core.js)
+      return { id: x.stream_id, kind: "movie", source: "xtream", title: displayTitle(x.name), raw: x.name, rawYear: x.year || String(x.releaseDate || "").slice(0, 4), year: yearOf(x.year || x.releaseDate || x.name), rating: rate(x.rating),
         poster: x.stream_icon || "", backdrop: "", still: "", overview: "", category, categoryId: String(x.category_id), ext: x.container_extension || "mp4",
         added: Number(x.added) || 0, badge: badgeOf(category, "movie"), tmdb: Number(x.tmdb || x.tmdb_id) || 0 };
     });
     const series = (ss || []).map((x) => {
       const category = sm.get(String(x.category_id)) || "Other";
       const bd = Array.isArray(x.backdrop_path) ? x.backdrop_path[0] || "" : "";
-      return { id: x.series_id, kind: "series", source: "xtream", title: displayTitle(x.name), raw: x.name, year: yearOf(x.releaseDate || x.name), rating: rate(x.rating),
+      return { id: x.series_id, kind: "series", source: "xtream", title: displayTitle(x.name), raw: x.name, rawYear: String(x.releaseDate || "").slice(0, 4), year: yearOf(x.releaseDate || x.name), rating: rate(x.rating),
         poster: x.cover || "", backdrop: bd, still: bd, overview: x.plot || "", category, categoryId: String(x.category_id),
         added: Number(x.last_modified) || 0, badge: badgeOf(category, "series"), tmdb: Number(x.tmdb || x.tmdb_id) || 0 };
     });
@@ -303,6 +311,10 @@ function xtream(cfg) {
       return [{ id: "", name: "All channels" }, ...L.lc.filter((c) => L.lcount.get(String(c.category_id))).map((c) => ({ id: String(c.category_id), name: c.category_name }))];
     },
     async channels(category) { const L = await load(); return L.live.filter((c) => !category || c.categoryId === category).slice(0, 400); },
+    /* Every film and series on the line, for the watch party (finding your own
+       copy of what a friend is playing) and the library filter friends match
+       against. */
+    async titles() { const L = await load(); return [...L.movies, ...L.series]; },
     /* Items by kind and id, for My List entries the old app saved (it keeps
        ids only). */
     async find(refs) {

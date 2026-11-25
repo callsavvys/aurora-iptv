@@ -1,0 +1,37 @@
+/* The phone app (class platform-phone, set by mobile/scripts/build-ios.sh):
+   keep clear of the clock and camera at the top and the home bar at the bottom */
+.platform-phone #root { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.platform-phone header.fixed { top: env(safe-area-inset-top); }
+.platform-phone .fixed.inset-0.z-\[60\] .top-0.bg-gradient-to-b { padding-top: calc(env(safe-area-inset-top) + 0.75rem); }
+.platform-phone .fixed.inset-0.z-\[60\] .bottom-0.bg-gradient-to-t { padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem); }
+.platform-phone .fixed.bottom-4 { bottom: calc(env(safe-area-inset-bottom) + 1rem); }
+/* the heroes' text (Home, a title, anime) is placed from the left at 90-92% of the width,
+   which on a phone leaves 24px on the left and 8-16px on the right: the same 24px both sides */
+.platform-phone .left-6.w-\[90\%\], .platform-phone .left-6.w-\[92\%\] { width: auto; right: 24px; }
+/* a full-screen page (Welcome, Who's watching?, Choose) sits inside that padding,
+   so it fills the screen less the padding, not a whole screen more */
+.platform-phone .min-h-dvh, .platform-phone .min-h-screen { min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+
+/* a touch screen: a double tap is ours (the player's seek), never a zoom; a text box does not zoom in either */
+@media (pointer: coarse) {
+  html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+  input, textarea, select { font-size: max(16px, 1em) !important; }
+}
+
+/* the player on a touch screen (Player.jsx): back, play/pause and forward in the middle */
+.ptap-center { position: absolute; inset: 0; z-index: 15; display: flex; align-items: center; justify-content: center; gap: clamp(2rem, 12vw, 5rem); pointer-events: none; opacity: 0; transition: opacity .2s ease; }
+.ptap-center.on { opacity: 1; }
+.ptap-center.on .ptap-btn { pointer-events: auto; }
+.ptap-btn { display: flex; align-items: center; justify-content: center; width: 3.5rem; height: 3.5rem; border-radius: 9999px; background: rgba(0,0,0,.42); color: #fff; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); -webkit-tap-highlight-color: transparent; }
+.ptap-btn svg { width: 1.9rem; height: 1.9rem; }
+.ptap-btn:active { transform: scale(.92); background: rgba(255,255,255,.2); }
+.ptap-big { width: 4.75rem; height: 4.75rem; }
+.ptap-big svg { width: 2.6rem; height: 2.6rem; }
+.ptap-gap { visibility: hidden; }
+.ptap-ripple { position: absolute; top: 0; bottom: 0; z-index: 14; width: 38%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; color: #fff; font-size: .9rem; font-weight: 600; pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,.8); background: radial-gradient(ellipse at center, rgba(255,255,255,.16), rgba(255,255,255,0) 70%); animation: ptap-in .18s ease-out; }
+.ptap-ripple span { font-size: 1.75rem; line-height: 1; }
+.ptap-ripple.left { left: 0; border-radius: 0 50% 50% 0; }
+.ptap-ripple.right { right: 0; border-radius: 50% 0 0 50%; }
+/* with the controls up, the count sits under the back / forward button instead of behind it */
+.ptap-center.on ~ .ptap-ripple { padding-top: 8.5rem; }
+@keyframes ptap-in { from { opacity: 0; } to { opacity: 1; } }

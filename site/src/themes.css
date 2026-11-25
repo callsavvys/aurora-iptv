@@ -1,0 +1,5 @@
+/* "Always Show Titles" (Settings → Appearance): the hover overlays on cards stay shown */
+@media (min-width: 768px) {
+  .always-titles .group .pointer-events-none.md\:opacity-0,
+  .always-titles .group .md\:flex.opacity-0 { opacity: 1 !important; }
+}

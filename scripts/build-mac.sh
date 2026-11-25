@@ -41,6 +41,10 @@ cp package.json ./*.cjs "$STAGE/"
 cp -R app "$STAGE/app"
 # server.cjs serves app/'s sync-core.js (the record rules shared with web/) from web/js
 mkdir -p "$STAGE/web/js" && cp web/js/sync-core.js "$STAGE/web/js/"
+# the new interface (site/), built for this app, and its relay to the provider (server.cjs);
+# trackers.local.json (Trakt's secret) stays out of the bundle
+(cd site && npx vite build --outDir "../$STAGE/site-dist" --emptyOutDir --logLevel warn)
+mkdir -p "$STAGE/site" && cp site/relay.cjs "$STAGE/site/"
 
 # a missing .cjs only shows up as a dead app on launch, so check before packing
 node -e '

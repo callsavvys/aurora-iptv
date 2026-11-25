@@ -51,11 +51,11 @@ function writeShared() {
 const dirty = (kind, id) => { shared.syncDirty = Sync.markDirty(shared.syncDirty, kind, id, Date.now()); };
 
 /* The old app's theme ids are system/light/dark; this app has dark themes only
-   and never writes the old one. */
-const OLD_THEME = { system: "teal", light: "teal", dark: "graphite" };
+   and never writes the old one. Every one of them lands on Ocean, the default. */
+const OLD_THEME = { system: "ocean", light: "ocean", dark: "ocean" };
 
 export const prefs = {
-  get theme() { return data.theme || (native && OLD_THEME[storage.get("prefs")?.theme]) || "teal"; },
+  get theme() { return data.theme || (native && OLD_THEME[storage.get("prefs")?.theme]) || "ocean"; },
   set theme(v) { data.theme = v; save(); },
   get motion() { return data.motion !== false; },
   set motion(v) { data.motion = v; save(); },

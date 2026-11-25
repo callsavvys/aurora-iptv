@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Aurora for iPhone from the same app/ renderer the Mac build ships.
+# Build Aurora for iPhone: the old interface (app/), or the website (AURORA_UI=site).
 #   bash scripts/build-ios.sh            -> unsigned release IPA in dist/
 #   bash scripts/build-ios.sh simulator  -> debug .app for the iOS Simulator
 set -euo pipefail
@@ -7,27 +7,51 @@ cd "$(dirname "$0")/.."
 TARGET="${1:-device}"
 VERSION="$(node -p 'require("../package.json").version')"
 
-echo "Staging web assets for Aurora $VERSION"
-rm -rf www && cp -R ../app www
-cp platform/platform-core.js platform/platform-boot-app.js platform/mobile.css www/
-# the record rules shared with web/ (the Mac app's server serves it from web/js)
-cp ../web/js/sync-core.js www/
-grep -q 'src="sync-core.js"' www/index.html || { echo "sync-core.js was not staged"; exit 1; }
-sed -i '' "s/__AURORA_VERSION__/$VERSION/" www/platform-core.js
-# the renderer is loaded by platform-boot-app.js once window.aurora exists
-sed -i '' 's#<script src="renderer.js"></script>#<script src="platform-core.js"></script><script src="platform-boot-app.js"></script>#' www/index.html
-sed -i '' 's#<link rel="stylesheet" href="series.css" />#<link rel="stylesheet" href="series.css" />\n  <link rel="stylesheet" href="mobile.css" />#' www/index.html
-sed -i '' 's#content="width=device-width,initial-scale=1"#content="width=device-width,initial-scale=1,viewport-fit=cover"#' www/index.html
-# the desktop placeholder is cut off at phone width
-sed -i '' 's#placeholder="Search channels, movies and series"#placeholder="Search"#' www/index.html
-# "Normal" does not fit the phone's speed control
-sed -i '' 's#<option value="1" selected>Normal</option>#<option value="1" selected>1\&times;</option>#' www/index.html
-sed -i '' 's#Stored only on this Mac and sent directly#Stored only on this iPhone and sent directly#' www/index.html
-grep -q 'platform-core.js' www/index.html && grep -q 'platform-boot-app.js' www/index.html || { echo "shim was not injected"; exit 1; }
-grep -q 'mobile.css' www/index.html || { echo "mobile.css was not injected"; exit 1; }
+UI="${AURORA_UI:-app}"   # app (the old interface) or site (the website, site/)
+echo "Staging web assets for Aurora $VERSION ($UI)"
+if [ "$UI" = site ]; then
+  # the website, built for the app: relative paths, routes after a #, the provider asked directly
+  rm -rf www
+  (cd ../site && npx vite build --mode app --outDir ../mobile/www --emptyOutDir --logLevel warn) || { echo "the site did not build"; exit 1; }
+  sed -i '' 's#<html lang="en">#<html lang="en" class="ui-site">#' www/index.html
+  sed -i '' 's#content="width=device-width, initial-scale=1.0"#content="width=device-width, initial-scale=1.0, viewport-fit=cover"#' www/index.html
+  echo "window.AURORA_VERSION = \"$VERSION\";" > www/version.js
+  sed -i '' 's#<head>#<head>\n    <script src="version.js"></script>#' www/index.html
+  for needle in ui-site viewport-fit=cover version.js assets/index-; do grep -q "$needle" www/index.html || { echo "$needle was not staged"; exit 1; }; done
+else
+  rm -rf www && cp -R ../app www
+  cp platform/platform-core.js platform/platform-boot-app.js platform/mobile.css www/
+  # the record rules shared with web/ (the Mac app's server serves it from web/js)
+  cp ../web/js/sync-core.js www/
+  grep -q 'src="sync-core.js"' www/index.html || { echo "sync-core.js was not staged"; exit 1; }
+  sed -i '' "s/__AURORA_VERSION__/$VERSION/" www/platform-core.js
+  # the renderer is loaded by platform-boot-app.js once window.aurora exists
+  sed -i '' 's#<script src="renderer.js"></script>#<script src="platform-core.js"></script><script src="platform-boot-app.js"></script>#' www/index.html
+  sed -i '' 's#<link rel="stylesheet" href="series.css" />#<link rel="stylesheet" href="series.css" />\n  <link rel="stylesheet" href="mobile.css" />#' www/index.html
+  sed -i '' 's#content="width=device-width,initial-scale=1"#content="width=device-width,initial-scale=1,viewport-fit=cover"#' www/index.html
+  # the desktop placeholder is cut off at phone width
+  sed -i '' 's#placeholder="Search channels, movies and series"#placeholder="Search"#' www/index.html
+  # "Normal" does not fit the phone's speed control
+  sed -i '' 's#<option value="1" selected>Normal</option>#<option value="1" selected>1\&times;</option>#' www/index.html
+  sed -i '' 's#Stored only on this Mac and sent directly#Stored only on this iPhone and sent directly#' www/index.html
+  grep -q 'platform-core.js' www/index.html && grep -q 'platform-boot-app.js' www/index.html || { echo "shim was not injected"; exit 1; }
+  grep -q 'mobile.css' www/index.html || { echo "mobile.css was not injected"; exit 1; }
+
+fi
 
 [ -d ios ] || npx cap add ios
 npx cap sync ios
+if [ "$UI" = site ]; then
+  # the website scrolls the page itself; the old interface scrolled inside it, so the shared config turns page scrolling off
+  python3 - <<'PY'
+import json
+p = "ios/App/App/capacitor.config.json"
+c = json.load(open(p))
+c.setdefault("ios", {})["scrollEnabled"] = True
+json.dump(c, open(p, "w"), indent=2)
+PY
+  grep -q '"scrollEnabled": true' ios/App/App/capacitor.config.json || { echo "page scrolling was not turned on"; exit 1; }
+fi
 
 # Aurora's own mark instead of Capacitor's placeholder; one 1024px image covers every size
 cp platform/icon/AppIcon-1024.png ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png

@@ -15,7 +15,8 @@ Build the Android TV app.
   bash mobile/scripts/build-android.sh                 release build of the old interface (app/)
 
 Settings, as environment variables:
-  AURORA_TV_UI=app|web        which interface goes in the APK (default app)
+  AURORA_TV_UI=app|web|site   which interface goes in the APK (default app); site is
+                              the website (site/), built with `vite build --mode app`
   AURORA_TEST_VERSION=0.38.9N a build for sideloading on the real TV before a release.
                               Its versionCode stays below the next release's, so the
                               release still installs over it. Every code is used once:
@@ -47,7 +48,7 @@ RELEASE_VERSION="$(node -p 'require("../package.json").version')"
 code_of() { node -e 'const [a,b,c]=process.argv[1].split(".").map(Number); console.log(a*10000+b*100+c)' "$1"; }
 
 # every setting is checked before anything is copied, synced or built
-case "$UI" in app|web) ;; *) fail "AURORA_TV_UI='$UI' is not an interface; it is app or web" "AURORA_TV_UI=web bash mobile/scripts/build-android.sh" ;; esac
+case "$UI" in app|web|site) ;; *) fail "AURORA_TV_UI='$UI' is not an interface; it is app, web or site" "AURORA_TV_UI=web bash mobile/scripts/build-android.sh" ;; esac
 case "$TRACE" in ""|1) ;; *) fail "AURORA_TRACE='$TRACE' must be 1 or unset" ;; esac
 case "$STAGE_ONLY" in ""|1) ;; *) fail "AURORA_STAGE_ONLY='$STAGE_ONLY' must be 1 or unset" ;; esac
 case "$SUFFIX" in ""|.test) ;; *) fail "AURORA_APP_ID_SUFFIX='$SUFFIX' must be .test or unset" ;; esac
@@ -95,6 +96,15 @@ if [ "$UI" = app ]; then
   sed -i '' 's#Stored only on this Mac and sent directly#Stored only on this TV and sent directly#' www/index.html
   sed -i '' 's#placeholder="Search channels, movies and series"#placeholder="Search"#' www/index.html
   NEEDLES="platform-core.js platform-boot-app.js platform-tv tv.css src=\"sync-core.js\""
+elif [ "$UI" = site ]; then
+  # the website (site/), built for the app: relative paths, routes after a #,
+  # the provider asked directly (CapacitorHttp) instead of through the relay
+  (cd ../site && npx vite build --mode app --outDir ../mobile/www --emptyOutDir --logLevel warn) || { echo "the site did not build"; exit 1; }
+  # TV or phone is told apart on the device (site/src/platform.js), so one APK serves both
+  sed -i '' 's#<html lang="en">#<html lang="en" class="ui-site">#' www/index.html
+  echo "window.AURORA_VERSION = \"$VERSION\";" > www/version.js
+  sed -i '' 's#<head>#<head>\n    <script src="version.js"></script>#' www/index.html
+  NEEDLES="ui-site version.js assets/index-"
 else
   # the new interface: web/ as it runs in the Mac browser, minus its local
   # server, plus what that server provided (keys, hls.js, Supabase)
@@ -107,11 +117,13 @@ else
   # platform-core.js goes after config.js (it reads the trace flag) and before
   # boot.js, which waits for it
   sed -i '' 's#<script src="config.js"></script>#<script src="config.js"></script><script src="platform-core.js"></script>#' www/index.html
-  sed -i '' 's#<html lang="en" data-theme="teal">#<html lang="en" data-theme="teal" class="platform-tv ui-web">#' www/index.html
+  sed -i '' 's#<html lang="en" data-theme="ocean">#<html lang="en" data-theme="ocean" class="platform-tv ui-web">#' www/index.html
   NEEDLES="platform-core.js platform-tv ui-web boot.js config.js sync-core.js"
 fi
-sed -i '' "s/__AURORA_VERSION__/$VERSION/" www/platform-core.js
-grep -q "$VERSION" www/platform-core.js || { echo "the version was not written into platform-core.js"; exit 1; }
+if [ "$UI" != site ]; then
+  sed -i '' "s/__AURORA_VERSION__/$VERSION/" www/platform-core.js
+  grep -q "$VERSION" www/platform-core.js || { echo "the version was not written into platform-core.js"; exit 1; }
+fi
 for needle in $NEEDLES; do
   grep -q "$needle" www/index.html || { echo "$needle was not injected into index.html"; exit 1; }
 done
