@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { isTV } from "./platform.js";
 
 /* Vidora's own player, full screen over the page (the source Vidora, line.js).
    It plays inside a frame, so Aurora's player controls, subtitles and watch
@@ -8,7 +7,7 @@ import { isTV } from "./platform.js";
 export default function Embed({ src, title, subtitle, onClose, onProgress }) {
   const closer = useRef(onClose); closer.current = onClose;
   const saver = useRef(onProgress); saver.current = onProgress;
-  const step = useRef(null), closed = useRef(false), leaving = useRef(false), frame = useRef(null);
+  const step = useRef(null), closed = useRef(false), leaving = useRef(false);
   useEffect(() => {
     // an open player is its own step in the history: Back (phone, browser, remote) closes it
     const id = Math.random().toString(36).slice(2);
@@ -23,18 +22,12 @@ export default function Embed({ src, title, subtitle, onClose, onProgress }) {
       if (event === "ended") saver.current?.(duration, duration);
       else if (event === "pause" || Date.now() - last > 5000) { last = Date.now(); saver.current?.(currentTime, duration); }
     };
-    // on a TV the remote's keys go to whatever has focus, and Vidora's player takes Space and the arrows:
-    // keep the focus in its frame (the TV's focus keeping, tvnav.js, can put it back on the page meanwhile)
-    const hold = isTV() ? setInterval(() => {
-      const f = frame.current;
-      if (f && document.activeElement !== f) { f.focus(); try { f.contentWindow?.focus(); } catch { /* not ready */ } }
-    }, 700) : 0;
     // the remote's Back (tvnav.js sends Escape) and a keyboard's Escape close it
     const key = (e) => { if (e.key === "Escape") closeRef.current(); };
     window.addEventListener("popstate", pop);
     window.addEventListener("message", message);
     document.addEventListener("keydown", key);
-    return () => { clearInterval(hold); window.removeEventListener("popstate", pop); window.removeEventListener("message", message); document.removeEventListener("keydown", key); };
+    return () => { window.removeEventListener("popstate", pop); window.removeEventListener("message", message); document.removeEventListener("keydown", key); };
   }, []);
   const close = () => {
     if (closed.current || leaving.current) return;
@@ -53,8 +46,7 @@ export default function Embed({ src, title, subtitle, onClose, onProgress }) {
         <span className="ml-auto shrink-0 text-xs text-white/40">Vidora</span>
       </div>
       <div className="relative w-full flex-1">
-        <iframe title={title || "Vidora"} src={src} className="absolute inset-0 h-full w-full border-0 outline-none"
-          ref={frame} tabIndex={-1} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen referrerPolicy="origin" />
+        <iframe title={title || "Vidora"} src={src} className="absolute inset-0 h-full w-full border-0 outline-none" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen referrerPolicy="origin" />
         {/* the frame keeps its touches to itself: a thin strip on the left edge lets the swipe back (gestures.js) through */}
         <div aria-hidden="true" className="absolute inset-y-0 left-0 w-4" />
       </div>
